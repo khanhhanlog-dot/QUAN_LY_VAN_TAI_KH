@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ngoại lệ: tệp mẫu biến môi trường (không chứa bí mật)
+!.env.example
+
+# ảnh chụp kiểm thử giao diện
+/e2e-screenshots
