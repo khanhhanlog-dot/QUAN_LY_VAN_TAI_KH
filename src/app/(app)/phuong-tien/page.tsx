@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth/session";
-import { ComingSoon } from "@/components/layout/coming-soon";
+import { PageHeader } from "@/components/layout/page-header";
+import { EntityListSection } from "@/components/entities/entity-list-section";
 
 export const metadata: Metadata = { title: "Phương tiện" };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePagePermission("vehicles.view");
+  const sp = await searchParams;
   return (
-    <ComingSoon
-      title="Phương tiện"
-      phase={3}
-      items={["Danh sách xe, loại xe, tình trạng, tài xế được phân công", "Khấu hao đường thẳng tự tính (đã có trong CSDL)", "Khoản vay và dư nợ theo lịch trả nợ (không suy đoán)", "Lịch sử sửa chữa, bảo dưỡng, thay lốp, thay nhớt; cảnh báo đăng kiểm/bảo hiểm sắp hết hạn"]}
-    />
+    <>
+      <PageHeader
+        title="Phương tiện"
+        description="Bấm vào mã xe để xem chi tiết: thông tin tài chính, lịch trả nợ và lịch sử sửa chữa, bảo dưỡng."
+      />
+      <EntityListSection entityKey="vehicles" searchParams={sp} revalidate="/phuong-tien" />
+    </>
   );
 }

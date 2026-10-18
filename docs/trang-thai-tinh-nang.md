@@ -1,6 +1,6 @@
 # Trạng thái chức năng
 
-Cập nhật: 16/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) · 🟡 có CSDL/RLS, chưa có giao diện · ⏳ chưa triển khai (trong ứng dụng hiển thị nhãn "GĐx" và trang "Đang phát triển").
+Cập nhật: 18/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) · 🟡 có CSDL/RLS, chưa có giao diện · ⏳ chưa triển khai (trong ứng dụng hiển thị nhãn "GĐx" và trang "Đang phát triển").
 
 ## Đã hoạt động (Giai đoạn 1–2)
 
@@ -19,21 +19,37 @@ Cập nhật: 16/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Ứng dụng tài xế: xem chuyến được phân công, link Google Maps, gọi điện liên hệ | ✅ | E2E (tài xế khác không thấy) |
 | Toàn bộ CSDL 54 bảng, RLS mọi bảng, trigger chống sửa sau duyệt, mã tự sinh, nhật ký tự động | ✅ | 68 kiểm thử CSDL; sinh mã đồng thời 300/300 không trùng |
 
+## Đã hoạt động (Giai đoạn 3)
+
+| Chức năng | Trạng thái | Kiểm thử |
+|---|---|---|
+| Phương tiện: danh sách, chi tiết, tài chính xe và lịch trả góp (chỉ người có quyền xem dữ liệu nhạy cảm), lịch sử bảo dưỡng | ✅ | E2E + CSDL (điều phối không đọc/ghi được tài chính xe) |
+| Tài xế: danh sách, chi tiết, xe được giao, tài khoản đăng nhập, CCCD và tài khoản ngân hàng tách riêng (dữ liệu nhạy cảm) | ✅ | E2E |
+| Khách hàng, nhà cung cấp, địa điểm, tuyến đường | ✅ | E2E (tạo nhanh địa điểm bằng nút "+" ngay trong form tuyến) |
+| Bảng giá vận chuyển (chặn trùng hiệu lực cùng ưu tiên), quy tắc hỗ trợ dầu, tra cứu giá theo độ cụ thể | ✅ | E2E (kế toán bị chặn khi trùng, đổi ưu tiên thì lưu được) |
+| 9 danh mục: loại xe, hạng mục chi phí, ngân hàng, tài khoản công ty, hình thức thanh toán, đơn vị, quy tắc lương, danh mục chung | ✅ | Kiểm thử đơn vị + E2E |
+| Mã tự sinh cho danh mục (XE001, TX001, KH001…), mã nhập tay tự chuẩn hóa chữ hoa | ✅ | CSDL |
+| Bảng dữ liệu: tìm kiếm, lọc, sắp xếp, phân trang, ẩn/hiện/sắp cột, kéo rộng cột, ghim cột, mật độ dòng; lưu cấu hình theo từng người | ✅ | E2E + CSDL (không đọc/ghi được cấu hình người khác) |
+| Nút "+" tạo nhanh bản ghi liên kết mà không rời form | ✅ | E2E |
+| Xuất Excel (tối đa 5.000 dòng, theo bộ lọc và cột đang hiện); nhập Excel/CSV có file mẫu, xem trước, báo lỗi từng dòng, ghi một lần toàn bộ hoặc không ghi gì | ✅ | E2E + kiểm thử đơn vị |
+| Kiểm tra trùng và khóa lạc quan khi hai người cùng sửa | ✅ | E2E |
+| Không xóa được bản ghi đang được dùng (gợi ý ngừng sử dụng thay vì xóa) | ✅ | E2E |
+| Trường dữ liệu động: 19 kiểu, bắt buộc, giá trị mặc định, hiện theo điều kiện, quyền xem/sửa riêng, công thức an toàn (không dùng eval), phiên bản + khôi phục, phân tích ảnh hưởng trước khi sửa, không xóa/đổi kiểu khi đã có dữ liệu | ✅ | 29 kiểm thử CSDL + kiểm thử đơn vị + E2E |
+
 ## Có sẵn trong CSDL, chờ giao diện
 
 | Chức năng | Trạng thái | Giai đoạn giao diện |
 |---|---|---|
-| Xe, tài xế (tách thông tin nhạy cảm), khách hàng, nhà cung cấp, địa điểm, tuyến, bảng giá (chống trùng hiệu lực), hạng mục chi phí, hỗ trợ dầu 39%, ngân hàng | 🟡 | GĐ3 |
-| Tìm bảng giá theo độ cụ thể (`find_price_lists`) | 🟡 | GĐ3–4 |
 | Đơn hàng, Shipment, phân công, ma trận chuyển trạng thái, lịch sử | 🟡 | GĐ4 |
 | Chứng từ, phê duyệt nhiều cấp, ứng tiền, chi phí chuyến, thanh toán, công nợ | 🟡 (chỉ đọc qua RLS; ghi qua RPC sẽ viết ở GĐ6–7) | GĐ6–7 |
-| Trường động, biểu mẫu, quy trình, cấu hình bảng theo người dùng | 🟡 | GĐ3, GĐ6 |
+| Biểu mẫu, quy trình cấu hình được | 🟡 | GĐ6 |
 
 ## Chưa triển khai
 
 | Chức năng | Giai đoạn |
 |---|---|
-| CRUD danh mục, DataTable cấu hình được, nút "+", nhập/xuất Excel, tải chứng từ, trường động + công thức | GĐ3 |
+| Tải chứng từ, ảnh, tệp đính kèm (kể cả trường động kiểu tệp, đang ghi "GĐ5"); xem qua signed URL | GĐ5 |
+| Trình thiết kế biểu mẫu (trang "Biểu mẫu" đang ghi "Giai đoạn 6") | GĐ6 |
 | Màn hình điều phối, bảng tổng hợp chuyến kiểu Excel, chi tiết chuyến | GĐ4 |
 | Tài xế nhận/từ chối, cập nhật tiến độ, hoàn thành chuyến kèm ảnh (nút đang khóa, ghi rõ "Giai đoạn 5") | GĐ5 |
 | Gửi ứng tiền/chi phí, duyệt, hủy duyệt có kiểm soát | GĐ6 |

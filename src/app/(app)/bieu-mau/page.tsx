@@ -9,8 +9,12 @@ export default async function Page() {
   return (
     <ComingSoon
       title="Quản lý biểu mẫu"
-      phase={3}
-      items={["Bố cục biểu mẫu theo module từ các trường đã định nghĩa", "Lưu phiên bản và khôi phục"]}
+      phase={6}
+      items={[
+        "Hiện tại: thứ tự, bắt buộc, hiện/ẩn và quyền của từng trường được cấu hình ở “Quản lý trường dữ liệu”, biểu mẫu tự dựng theo cấu hình đó",
+        "Giai đoạn 6: chia nhóm/tab trên biểu mẫu, điều kiện hiện trường, biểu mẫu riêng cho ứng tiền, chi phí, phê duyệt",
+        "Lưu phiên bản bố cục và khôi phục",
+      ]}
     />
   );
 }

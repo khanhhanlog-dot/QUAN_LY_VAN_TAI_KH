@@ -84,3 +84,9 @@ export const ACTION_ORDER = Object.keys(ACTION_LABELS);
 export function hasAny(perms: ReadonlySet<string>, required: readonly Permission[]) {
   return required.length === 0 || required.some((p) => perms.has(p));
 }
+
+/** "Xem – Phương tiện" */
+export function permissionLabel(code: string): string {
+  const [m, a] = code.split(".");
+  return `${ACTION_LABELS[a] ?? a} – ${MODULE_LABELS[m as ModuleKey] ?? m}`;
+}

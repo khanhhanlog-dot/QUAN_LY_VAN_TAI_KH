@@ -21,19 +21,31 @@ Quy ước: mọi server action (1) lấy người dùng từ phiên, (2) gọi 
 | `my_permissions()` | RPC | đăng nhập | Danh sách quyền hiệu lực của người gọi |
 | `find_price_lists(...)` | RPC | `price_lists.view` (RLS) | Ứng viên bảng giá theo độ cụ thể + ưu tiên |
 
+## 5.1b Đã triển khai (Giai đoạn 3)
+
+Danh mục dùng chung một bộ action theo định nghĩa thực thể (`src/lib/entities/definitions.ts`), quyền lấy từ `perm` của từng thực thể (`vehicles.*`, `drivers.*`, `customers.*`, `locations.*`, `price_lists.*`, `catalogs.*`…). Thông tin nhạy cảm cần thêm `*.view_sensitive`. Dữ liệu được kiểm tra bằng cùng hàm `validateRecord` ở giao diện và máy chủ.
+
+| Tên | Loại | Quyền | Mô tả |
+|---|---|---|---|
+| `saveRecord(entity, {id, parentId, values, expectedUpdatedAt, quick})` | server action | `*.create` / `*.update` | Thêm/sửa; khóa lạc quan theo `updated_at`; gộp `custom_fields` chỉ với trường được phép sửa; `quick` cho nút "+" |
+| `deleteRecord(entity, id)` | server action | `*.delete` | Bản ghi đang được dùng (khóa ngoại) báo gợi ý ngừng sử dụng |
+| `searchReferences(ref, q, ids)` | server action | `*.view` của bảng đích | Tìm cho ô chọn liên kết (30 kết quả, chỉ bản ghi đang dùng) |
+| `getEntityMeta(entity)` | server action | đăng nhập | Trường động + quyền thao tác, dùng cho form tạo nhanh |
+| `saveTableView` / `resetTableView` | server action → RPC `save_table_view` | đăng nhập | Lưu cấu hình bảng của chính mình |
+| `exportRecords(entity, params, columns)` | server action | `*.export` (hoặc `*.view`) | Excel theo bộ lọc, tối đa 5.000 dòng |
+| `importTemplate(entity)` | server action | `*.create` | File mẫu kèm sheet hướng dẫn |
+| `importPreview(entity, file)` / `importCommit(entity, rows)` | server action | `*.create` | Xlsx/CSV ≤ 2 MB, ≤ 2.000 dòng; báo lỗi từng dòng; ghi trong một lệnh insert |
+| `lookupPrice(params)` | server action → RPC `find_price_lists` | `price_lists.view` | Tra cứu giá, báo khi có nhiều bảng giá ngang hàng |
+| `saveField`, `setFieldStatus`, `deleteField` | server action → RPC `save_field_definition` | `fields.configure` | Tạo/sửa trường động kèm ghi chú thay đổi; kiểm tra công thức trước khi lưu |
+| `getFieldImpact` | server action → RPC `field_impact` | `fields.view` | Số bản ghi có dữ liệu, công thức và điều kiện hiển thị đang dùng trường |
+| `listFieldVersions`, `restoreFieldVersion` | server action → RPC `restore_field_version` | `fields.configure` | Khôi phục tạo phiên bản mới với nội dung cũ |
+| Trigger `fill_master_code`, `guard_field_definitions`, `snapshot_field_definition` | CSDL | – | Mã tự sinh; chặn xóa/đổi kiểu trường có dữ liệu; lưu phiên bản |
+
 ## 5.2 Kế hoạch các giai đoạn sau
 
 | Giai đoạn | Tên | Quyền | Ghi chú |
 |---|---|---|---|
-| 3 | `upsertVehicle`, `upsertVehicleFinancials`, `upsertLoanSchedule`, `addMaintenanceRecord` | `vehicles.*` | |
-| 3 | `upsertDriver`, `upsertDriverSensitive`, `inviteDriverLogin` | `drivers.*` | |
-| 3 | `upsertCustomer`, `upsertSupplier`, `upsertLocation`, `quickCreateLocation`, `upsertRoute` | `customers.*`, `locations.*` | quick create dùng cho nút "+" |
-| 3 | `upsertPriceList`, `upsertFuelSupportRule` | `price_lists.*` | |
-| 3 | `upsertCatalogItem`, `upsertExpenseCategory`, `reorderItems` | `catalogs.*` | |
-| 3 | `createField`, `updateField` (kèm `analyzeFieldImpact`), `deactivateField`, `restoreFieldVersion` | `fields.configure` | Kiểm tra công thức/báo cáo/quy trình dùng trường trước khi lưu |
-| 3 | `saveTableView`, `resetTableView`, `saveRoleDefaultView` | đăng nhập / `settings.configure` | |
-| 3 | `importRows` (Excel/CSV), `exportRows` | `*.create` / `*.export` | Xem trước + báo lỗi từng dòng trước khi ghi |
-| 3 | `uploadDocument`, `getDocumentUrl` (signed URL 5 phút), `archiveDocument` | `documents.*` | |
+| 5 | `uploadDocument`, `getDocumentUrl` (signed URL 5 phút), `archiveDocument` | `documents.*` | Dời từ GĐ3 |
 | 4 | RPC `create_order_with_shipments(order, shipments[])` | `dispatch.create` | Một transaction; tính giá + hỗ trợ dầu, chụp snapshot |
 | 4 | `updateShipment(id, version, patch)` | `shipments.update` | Khóa lạc quan theo `version` |
 | 4 | RPC `assign_shipment(shipment_id, driver_id, vehicle_id)` | `dispatch.update` | Thay phân công cũ bằng `superseded`, thông báo tài xế |

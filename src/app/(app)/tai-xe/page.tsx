@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth/session";
-import { ComingSoon } from "@/components/layout/coming-soon";
+import { PageHeader } from "@/components/layout/page-header";
+import { EntityListSection } from "@/components/entities/entity-list-section";
 
 export const metadata: Metadata = { title: "Tài xế" };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePagePermission("drivers.view");
+  const sp = await searchParams;
   return (
-    <ComingSoon
-      title="Tài xế"
-      phase={3}
-      items={["Hồ sơ tài xế, hợp đồng, lương và phụ cấp, quy tắc tính lương", "CCCD và tài khoản ngân hàng chỉ hiện với người có quyền xem dữ liệu nhạy cảm", "Mời tài xế đăng nhập bằng Google và gắn với hồ sơ", "Tệp đính kèm hợp đồng, giấy tờ"]}
-    />
+    <>
+      <PageHeader
+        title="Tài xế"
+        description="Bấm vào mã tài xế để xem chi tiết, giấy tờ tùy thân, tài khoản ngân hàng và tài khoản đăng nhập."
+      />
+      <EntityListSection entityKey="drivers" searchParams={sp} revalidate="/tai-xe" />
+    </>
   );
 }

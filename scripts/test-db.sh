@@ -10,4 +10,7 @@ psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/00_supabase_stub.sql > /de
 for f in supabase/migrations/*.sql; do
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f" > /dev/null 2> >(grep -v NOTICE >&2)
 done
-psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/01_security_tests.sql 2>&1 | sed -E 's/^psql:[^:]+:[0-9]+: (NOTICE|ERROR):  /\1: /'
+for t in supabase/tests/0[1-9]_*.sql; do
+  psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1 | sed -E 's/^psql:[^:]+:[0-9]+: (NOTICE|ERROR):  /\1: /'
+  [ "${PIPESTATUS[0]}" -eq 0 ] || exit 1
+done

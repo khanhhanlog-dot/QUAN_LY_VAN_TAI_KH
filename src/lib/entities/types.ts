@@ -1,0 +1,142 @@
+import type { ModuleKey } from "@/lib/permissions";
+
+export type FieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "currency"
+  | "percent"
+  | "date"
+  | "datetime"
+  | "select"
+  | "multiselect"
+  | "boolean"
+  | "email"
+  | "phone"
+  | "url"
+  | "reference"
+  | "gps"
+  | "formula"
+  | "file";
+
+export type Option = { value: string; label: string };
+
+export type FieldDef = {
+  key: string;
+  label: string;
+  type: FieldType;
+  required?: boolean;
+  options?: Option[];
+  /** Thực thể được tham chiếu (khóa trong ENTITIES) với type = reference */
+  ref?: string;
+  /** Hiển thị mặc định trong bảng */
+  list?: boolean;
+  /** Có bộ lọc nhanh trên bảng (select/boolean/reference) */
+  filter?: boolean;
+  /** Chỉ đọc (cột sinh tự động) */
+  readOnly?: boolean;
+  /** Không hiện trên biểu mẫu */
+  hideInForm?: boolean;
+  placeholder?: string;
+  help?: string;
+  min?: number;
+  max?: number;
+  maxLength?: number;
+  /** Số nguyên */
+  integer?: boolean;
+  /** Chỉ hiện khi trường khác có một trong các giá trị */
+  showIf?: { field: string; in: string[] };
+  /** Chiếm cả hàng trên biểu mẫu */
+  wide?: boolean;
+  /** Mặc định khi tạo mới */
+  defaultValue?: unknown;
+  /** Công thức (type = formula) */
+  formula?: string;
+  /** Trường động (lưu trong custom_fields) */
+  custom?: boolean;
+  /** Định dạng hiển thị (trường động) */
+  displayFormat?: string;
+};
+
+export type EntityDef = {
+  key: string;
+  table: string;
+  /** Tên hiển thị số nhiều / số ít */
+  label: string;
+  singular: string;
+  /** Module quyền: view/create/update/delete/export */
+  perm: ModuleKey;
+  /** Có quyền xuất riêng (module có action export) */
+  hasExport: boolean;
+  /** Khóa chính (mặc định id) */
+  pk?: string;
+  fields: FieldDef[];
+  /** Các cột tìm kiếm bằng ô tìm nhanh */
+  search: string[];
+  defaultSort: { key: string; desc?: boolean };
+  /** Các cột tạo nhãn khi được tham chiếu */
+  labelCols: string[];
+  /** Hỗ trợ trường động (module trong field_definitions) */
+  customModule?: string;
+  /** Các trường hiện trong biểu mẫu tạo nhanh từ nút "+" */
+  quickFields?: string[];
+  /** Trang chi tiết (thay {id}) */
+  detailPath?: string;
+  /** Giá trị cố định khi ghi + điều kiện lọc khi đọc */
+  fixed?: Record<string, string>;
+  /** Thực thể con: cột khóa ngoại trỏ tới cha */
+  parentKey?: string;
+  /** Một bản ghi duy nhất theo cha (pk = parentKey) */
+  singleton?: boolean;
+  /** Mã tự sinh khi để trống */
+  autoCode?: boolean;
+  /** Điều kiện chỉ được chọn khi tham chiếu (ví dụ chỉ bản ghi đang hoạt động) */
+  activeFilter?: { col: string; value: string | boolean };
+  /** Gợi ý hiển thị khi xóa bị chặn do đang được tham chiếu */
+  archiveHint?: string;
+  /** Dữ liệu nhạy cảm: cần thêm quyền {perm}.view_sensitive */
+  sensitive?: boolean;
+  /** Mọi thao tác ghi dùng quyền {perm}.update (bảng con, bản ghi đơn) */
+  writeAsUpdate?: boolean;
+  /** Không cho xóa (dùng trạng thái hủy) */
+  noDelete?: boolean;
+};
+
+/** Cấu hình hiển thị bảng lưu theo người dùng */
+export type TableViewConfig = {
+  hidden?: string[];
+  order?: string[];
+  widths?: Record<string, number>;
+  pinned?: string[];
+  density?: "compact" | "normal";
+  pageSize?: number;
+};
+
+/** Định nghĩa trường động đọc từ field_definitions (truyền được sang client) */
+export type CustomFieldRow = {
+  id: string;
+  module: string;
+  field_key: string;
+  label: string;
+  description: string | null;
+  field_kind: string;
+  data_type: string;
+  is_required: boolean;
+  is_editable: boolean;
+  is_visible: boolean;
+  is_searchable: boolean;
+  is_filterable: boolean;
+  is_sortable: boolean;
+  default_value: unknown;
+  display_format: string | null;
+  sort_order: number;
+  view_permission: string | null;
+  edit_permission: string | null;
+  validation: { min?: number; max?: number; maxLength?: number; pattern?: string } | null;
+  formula: string | null;
+  visibility_condition: string | null;
+  options: Option[] | string[] | null;
+  reference_target: string | null;
+  status: string;
+  version: number;
+};

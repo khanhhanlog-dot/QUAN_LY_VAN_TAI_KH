@@ -17,10 +17,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/tong-quan", label: "Tổng quan", icon: "LayoutDashboard", anyOf: ["dashboard.view"] },
       { href: "/dieu-phoi", label: "Điều phối", icon: "Route", anyOf: ["dispatch.view"], phase: 4 },
       { href: "/chuyen-xe", label: "Quản lý chuyến xe", icon: "Truck", anyOf: ["shipments.view"], phase: 4 },
-      { href: "/tai-xe", label: "Tài xế", icon: "IdCard", anyOf: ["drivers.view"], phase: 3 },
-      { href: "/phuong-tien", label: "Phương tiện", icon: "Bus", anyOf: ["vehicles.view"], phase: 3 },
-      { href: "/khach-hang", label: "Khách hàng và địa điểm", icon: "Building2", anyOf: ["customers.view", "locations.view"], phase: 3 },
-      { href: "/bang-gia", label: "Bảng giá", icon: "Tags", anyOf: ["price_lists.view"], phase: 3 },
+      { href: "/tai-xe", label: "Tài xế", icon: "IdCard", anyOf: ["drivers.view"] },
+      { href: "/phuong-tien", label: "Phương tiện", icon: "Bus", anyOf: ["vehicles.view"] },
+      { href: "/khach-hang", label: "Khách hàng và địa điểm", icon: "Building2", anyOf: ["customers.view", "locations.view"] },
+      { href: "/bang-gia", label: "Bảng giá", icon: "Tags", anyOf: ["price_lists.view"] },
     ],
   },
   {
@@ -35,9 +35,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Quản trị",
     items: [
-      { href: "/danh-muc", label: "Danh mục hệ thống", icon: "ListTree", anyOf: ["catalogs.view"], phase: 3 },
-      { href: "/truong-du-lieu", label: "Quản lý trường dữ liệu", icon: "Columns3", anyOf: ["fields.view"], phase: 3 },
-      { href: "/bieu-mau", label: "Quản lý biểu mẫu", icon: "FileInput", anyOf: ["forms.view"], phase: 3 },
+      { href: "/danh-muc", label: "Danh mục hệ thống", icon: "ListTree", anyOf: ["catalogs.view"] },
+      { href: "/truong-du-lieu", label: "Quản lý trường dữ liệu", icon: "Columns3", anyOf: ["fields.view"] },
+      { href: "/bieu-mau", label: "Quản lý biểu mẫu", icon: "FileInput", anyOf: ["forms.view"], phase: 6 },
       { href: "/quy-trinh", label: "Quản lý quy trình", icon: "Workflow", anyOf: ["workflows.view"], phase: 6 },
       { href: "/nguoi-dung", label: "Người dùng và phân quyền", icon: "Users", anyOf: ["users.view"] },
       { href: "/nhat-ky", label: "Nhật ký hệ thống", icon: "ScrollText", anyOf: ["audit_logs.view"] },

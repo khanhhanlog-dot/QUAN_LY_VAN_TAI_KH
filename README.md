@@ -61,7 +61,7 @@ npm run build       # build production
 
 ### 1.2 Kiểm thử bảo mật CSDL (không cần Supabase)
 
-Chạy toàn bộ migration trên một CSDL Postgres **tạm** rồi chạy 68 kiểm thử (RLS, tài xế chỉ thấy chuyến của mình, không tự cấp quyền, không sửa/xóa nhật ký, không xóa dữ liệu có phát sinh tài chính…):
+Chạy toàn bộ migration trên một CSDL Postgres **tạm** rồi chạy 97 kiểm thử (RLS, trường dữ liệu động, mã tự sinh, tài xế chỉ thấy chuyến của mình, không tự cấp quyền, không sửa/xóa nhật ký, không xóa dữ liệu có phát sinh tài chính…):
 
 ```bash
 # dùng PGHOST/PGPORT/PGUSER nếu Postgres không ở mặc định; TEST_DB đổi tên CSDL tạm (mặc định gha_tms_test)
@@ -85,6 +85,8 @@ Ghi `.env.local` với URL `http://127.0.0.1:54321` và anon key cục bộ, r�
 ```bash
 BASE_URL=http://localhost:3000 SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=<anon cục bộ> \
 TEST_PASSWORD=<mật khẩu ở trên> CHROMIUM_PATH=<đường dẫn chrome> node scripts/e2e-smoke.mjs e2e-screenshots
+# Giai đoạn 3: danh mục, trường động, nhập/xuất Excel, bảng giá (chạy trên dữ liệu mới)
+TEST_PASSWORD=<mật khẩu ở trên> CHROMIUM_PATH=<đường dẫn chrome> node scripts/e2e-phase3.mjs e2e-screenshots-gd3
 ```
 
 Kịch bản kiểm thử: chuyển hướng khi chưa đăng nhập; tài khoản chưa được mời bị giữ ở trang chờ; Super Admin xem tổng quan, mời người dùng qua giao diện, ma trận quyền, nhật ký, cấu hình; người xem báo cáo bị chặn khi gõ thẳng URL; điều phối bị chặn xem nhật ký; tài xế A chỉ thấy chuyến của mình kèm link Google Maps; tài xế B không thấy chuyến của người khác; menu điện thoại. Kiểm thử thay đổi dữ liệu (mời tài khoản `stranger`), nên muốn chạy lại thì `npx supabase db reset` và tạo lại tài khoản.
