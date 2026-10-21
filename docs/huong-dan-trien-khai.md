@@ -53,7 +53,7 @@ Dành cho người không cần biết lập trình. Làm lần lượt 4 bướ
 
 4. Bấm **Deploy**, chờ khoảng 2–3 phút. Vercel cho một đường link, ví dụ `https://quan-ly-van-tai-kh.vercel.app`. Đây là **link ứng dụng**; link tài xế là link này thêm `/tx` ở cuối.
 5. Nếu sau này gắn tên miền riêng, thêm `NEXT_PUBLIC_SITE_URL` bằng tên miền đó trong **Settings → Environment Variables**, rồi **Deployments → ⋯ → Redeploy**.
-6. Nên chỉnh vùng chạy gần Việt Nam: **Settings → Functions → Function Region** chọn **Singapore (sin1)**.
+6. Vùng chạy đã được đặt sẵn là **Singapore (sin1)** trong tệp `vercel.json` (cùng vùng với Supabase). Kiểm tra ở **Settings → Functions → Function Region**; nếu Supabase không ở Singapore thì báo Claude đổi cho khớp.
 
 ## Bước 3. Bật đăng nhập Google
 

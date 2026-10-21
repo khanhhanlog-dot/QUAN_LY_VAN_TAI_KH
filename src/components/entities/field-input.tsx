@@ -131,6 +131,18 @@ export function FieldInput({
     case "file":
       return <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Tải tệp/ảnh cho trường động sẽ có ở Giai đoạn 5.</p>;
     default:
+      if (field.suggestions?.length) {
+        return (
+          <>
+            <Input {...common} maxLength={field.maxLength} placeholder={field.placeholder} autoComplete="off" list={`${field.key}-goi-y`} {...register(field.key)} />
+            <datalist id={`${field.key}-goi-y`}>
+              {field.suggestions.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
+          </>
+        );
+      }
       return <Input {...common} maxLength={field.maxLength} placeholder={field.placeholder} autoComplete="off" {...register(field.key)} />;
   }
 }

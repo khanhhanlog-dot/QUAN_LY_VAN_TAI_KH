@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useTransition } from "react";
+import { useEffect, useMemo, useTransition } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -38,6 +38,7 @@ export function EntityFormDialog({
   revalidate,
   onSaved,
   readOnly = false,
+  initialValues,
 }: {
   entityKey: string;
   customRows: CustomFieldRow[];
@@ -50,6 +51,8 @@ export function EntityFormDialog({
   revalidate?: string;
   onSaved?: (res: { id: string; label: string }) => void;
   readOnly?: boolean;
+  /** Giá trị điền sẵn khi thêm mới (ví dụ chữ vừa gõ để tìm, thông tin chuyến đang tạo) */
+  initialValues?: Values;
 }) {
   const entity = getEntity(entityKey);
   const fields = useMemo(() => formFields(entityKey, customRows, quick), [entityKey, customRows, quick]);
@@ -65,7 +68,14 @@ export function EntityFormDialog({
     return { values: {}, errors: Object.fromEntries(keys.map((k) => [k, { type: "validate", message: errors[k] }])) };
   };
 
-  const form = useForm<Values>({ resolver, defaultValues: toFormValues(fields, record ?? null), mode: "onSubmit" });
+  const blank = () =>
+    initialValues ? toFormValues(fields, { ...Object.fromEntries(fields.map((f) => [f.key, f.defaultValue])), ...initialValues }) : toFormValues(fields, null);
+  const form = useForm<Values>({ resolver, defaultValues: record ? toFormValues(fields, record) : blank(), mode: "onSubmit" });
+  // Mở lại hộp thêm mới: điền giá trị mới nhất (chữ vừa gõ, thông tin chuyến)
+  useEffect(() => {
+    if (open && !record) form.reset(blank());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const values = useWatch({ control: form.control }) as Values;
 
   function onSubmit(v: Values) {
@@ -81,7 +91,7 @@ export function EntityFormDialog({
       if (res.ok) {
         toast.success(res.message);
         onOpenChange(false);
-        form.reset(toFormValues(fields, null));
+        form.reset(blank());
         if (res.data) onSaved?.(res.data);
       } else {
         toast.error(res.error);

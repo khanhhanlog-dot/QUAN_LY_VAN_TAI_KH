@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReferenceSelect } from "@/components/entities/reference-select";
+import { EntityFormDialog } from "@/components/entities/entity-form-dialog";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -55,7 +56,13 @@ const newRow = (from?: Row): Row => ({
 const toIso = (v: string) => (v ? `${v}:00+07:00` : "");
 const num = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
 
-export function OrderForm({ order }: { order?: { id: string; code: string; customerId: string; customerName: string } }) {
+export function OrderForm({
+  order,
+  canCreatePriceList,
+}: {
+  order?: { id: string; code: string; customerId: string; customerName: string };
+  canCreatePriceList: boolean;
+}) {
   const [customer, setCustomer] = useState({ id: order?.customerId ?? "", label: order?.customerName ?? "" });
   const [payer, setPayer] = useState("");
   const [orderDate, setOrderDate] = useState(todayVN());
@@ -133,6 +140,7 @@ export function OrderForm({ order }: { order?: { id: string; code: string; custo
           index={i}
           row={row}
           customerId={customer.id}
+          canCreatePriceList={canCreatePriceList}
           canRemove={rows.length > 1}
           onChange={(patch) => update(row.key, patch)}
           onRemove={() => setRows((rs) => rs.filter((r) => r.key !== row.key))}
@@ -156,6 +164,7 @@ function ShipmentEditor({
   index,
   row,
   customerId,
+  canCreatePriceList,
   canRemove,
   onChange,
   onRemove,
@@ -164,6 +173,7 @@ function ShipmentEditor({
   index: number;
   row: Row;
   customerId: string;
+  canCreatePriceList: boolean;
   canRemove: boolean;
   onChange: (patch: Partial<Row>) => void;
   onRemove: () => void;
@@ -172,6 +182,8 @@ function ShipmentEditor({
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [quoteError, setQuoteError] = useState("");
   const [loading, startQuote] = useTransition();
+  const [priceDialog, setPriceDialog] = useState(false);
+  const [quoteNonce, setQuoteNonce] = useState(0);
   const day = row.pickupAt.slice(0, 10);
   const canQuote = Boolean(row.pickupLocationId && row.deliveryLocationId && /^\d{4}-\d{2}-\d{2}$/.test(day));
 
@@ -193,7 +205,7 @@ function ShipmentEditor({
       });
     }, 250);
     return () => clearTimeout(t);
-  }, [canQuote, customerId, row.pickupLocationId, row.deliveryLocationId, row.vehicleTypeId, day]);
+  }, [canQuote, customerId, row.pickupLocationId, row.deliveryLocationId, row.vehicleTypeId, day, quoteNonce]);
 
   const shownQuote = canQuote ? quote : null;
   const candidates = shownQuote?.candidates ?? [];
@@ -253,7 +265,7 @@ function ShipmentEditor({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={id("vtype")}>Loại xe</Label>
-            <ReferenceSelect id={id("vtype")} refKey="vehicle_types" value={row.vehicleTypeId} onChange={(v) => onChange({ vehicleTypeId: v, priceListId: "" })} allowQuickCreate={false} />
+            <ReferenceSelect id={id("vtype")} refKey="vehicle_types" value={row.vehicleTypeId} onChange={(v) => onChange({ vehicleTypeId: v, priceListId: "" })} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={id("qty")}>Số lượng ({PRICING_UNITS[unit] ?? unit})</Label>
@@ -273,7 +285,6 @@ function ShipmentEditor({
               id={id("vehicle")}
               refKey="vehicles"
               value={row.vehicleId}
-              allowQuickCreate={false}
               onChange={(v) => {
                 onChange({ vehicleId: v });
                 if (v) {
@@ -290,7 +301,7 @@ function ShipmentEditor({
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
-            <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} onChange={(v) => onChange({ driverId: v })} allowQuickCreate={false} />
+            <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} onChange={(v) => onChange({ driverId: v })} />
           </div>
         </div>
 
@@ -326,7 +337,14 @@ function ShipmentEditor({
                 </p>
               ) : manual ? (
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <p className="text-sm text-amber-700 sm:col-span-3">Không có bảng giá phù hợp: nhập đơn giá thủ công.</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
+                    <p className="text-sm text-amber-700">Không có bảng giá phù hợp: nhập đơn giá thủ công cho chuyến này.</p>
+                    {canCreatePriceList ? (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setPriceDialog(true)}>
+                        <Plus /> Tạo bảng giá cho tuyến này
+                      </Button>
+                    ) : null}
+                  </div>
                   <div className="space-y-1.5">
                     <Label htmlFor={id("price")}>Đơn giá (đ) *</Label>
                     <Input id={id("price")} type="number" min="0" step="1000" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value })} aria-invalid={!row.unitPrice} />
@@ -385,6 +403,27 @@ function ShipmentEditor({
           )}
         </div>
       </CardContent>
+      {canCreatePriceList ? (
+        <EntityFormDialog
+          entityKey="price_lists"
+          customRows={[]}
+          open={priceDialog}
+          onOpenChange={setPriceDialog}
+          initialValues={{
+            customer_id: customerId || null,
+            pickup_location_id: row.pickupLocationId || null,
+            delivery_location_id: row.deliveryLocationId || null,
+            vehicle_type_id: row.vehicleTypeId || null,
+            unit_price: num(row.unitPrice) ?? null,
+            pricing_unit: row.pricingUnit,
+            effective_from: day,
+          }}
+          onSaved={() => {
+            onChange({ priceListId: "", unitPrice: "" });
+            setQuoteNonce((n) => n + 1);
+          }}
+        />
+      ) : null}
     </Card>
   );
 }

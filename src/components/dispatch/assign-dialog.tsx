@@ -72,7 +72,7 @@ export function AssignDialog({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor={`v-${shipmentId}`}>Xe</Label>
-              <ReferenceSelect id={`v-${shipmentId}`} refKey="vehicles" value={vehicle.id} initialLabel={vehicle.label} onChange={pickVehicle} allowQuickCreate={false} />
+              <ReferenceSelect id={`v-${shipmentId}`} refKey="vehicles" value={vehicle.id} initialLabel={vehicle.label} onChange={pickVehicle} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`d-${shipmentId}`}>Tài xế</Label>
@@ -83,7 +83,6 @@ export function AssignDialog({
                 value={driver.id}
                 initialLabel={driver.label}
                 onChange={(id, label) => setDriver({ id, label })}
-                allowQuickCreate={false}
               />
             </div>
           </div>

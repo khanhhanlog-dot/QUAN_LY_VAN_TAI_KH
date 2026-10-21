@@ -119,7 +119,12 @@ export function ReferenceSelect({
                 <Loader2 className="size-4 animate-spin" /> Đang tìm…
               </li>
             ) : null}
-            {!loading && options.length === 0 ? <li className="px-2 py-2 text-muted-foreground">Không có kết quả phù hợp</li> : null}
+            {!loading && options.length === 0 ? (
+              <li className="px-2 py-2 text-muted-foreground">
+                {q.trim() ? `Chưa có “${q.trim()}”.` : "Danh sách đang trống."}
+                {canQuick ? " Bấm “Thêm mới” bên dưới để tạo ngay." : allowQuickCreate && entity?.quickFields ? " Bạn chưa có quyền thêm mới, nhờ quản trị viên tạo trong danh mục." : ""}
+              </li>
+            ) : null}
             {options.map((o) => (
               <li key={o.value}>
                 <button
@@ -145,7 +150,7 @@ export function ReferenceSelect({
                   setQuickOpen(true);
                 }}
               >
-                <Plus className="size-4" /> Thêm {entity.singular} mới
+                <Plus className="size-4" /> {q.trim() ? `Thêm mới “${q.trim()}”` : `Thêm ${entity.singular} mới`}
               </button>
             </div>
           ) : null}
@@ -180,6 +185,7 @@ export function ReferenceSelect({
           open={quickOpen}
           onOpenChange={setQuickOpen}
           quick
+          initialValues={q.trim() ? { [entity.quickFields?.[0] ?? entity.labelCols[0]]: q.trim() } : undefined}
           onSaved={(res) => pick({ value: res.id, label: res.label })}
         />
       ) : null}

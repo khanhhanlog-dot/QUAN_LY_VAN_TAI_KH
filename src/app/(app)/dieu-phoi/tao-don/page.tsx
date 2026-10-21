@@ -11,7 +11,7 @@ import { OrderForm } from "./order-form";
 export const metadata: Metadata = { title: "Tạo đơn hàng" };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ don?: string }> }) {
-  await requirePagePermission("dispatch.create");
+  const me = await requirePagePermission("dispatch.create");
   const { don } = await searchParams;
   let order: { id: string; code: string; customerId: string; customerName: string } | undefined;
   if (don) {
@@ -39,7 +39,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
             : "Một đơn hàng gồm một hoặc nhiều chuyến. Mã đơn và mã chuyến tự sinh khi lưu; giá lấy theo bảng giá và được chụp lại trên từng chuyến."
         }
       />
-      <OrderForm order={order} />
+      <OrderForm order={order} canCreatePriceList={me.permissions.has("price_lists.create")} />
     </>
   );
 }

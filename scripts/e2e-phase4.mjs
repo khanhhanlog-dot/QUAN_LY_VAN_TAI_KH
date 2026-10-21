@@ -37,6 +37,12 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await s1.getByRole("button", { name: "Nhân bản" }).click();
   const s2 = page.locator("[data-slot=card]").filter({ hasText: "Chuyến 2" });
   check(await visible(s2.getByText("BG001")), "Nhân bản chuyến giữ tuyến và bảng giá");
+  // Điều phối không có quyền tạo tài xế: báo rõ thay vì im lặng
+  await s2.getByLabel("Tài xế (có thể phân công sau)").click();
+  await page.getByPlaceholder("Gõ để tìm…").fill("Lê Văn Mới");
+  check(await visible(page.getByText("Chưa có “Lê Văn Mới”")), "Không tìm thấy thì báo rõ");
+  check(await visible(page.getByText("chưa có quyền thêm mới")), "Người không có quyền tạo tài xế được hướng dẫn nhờ quản trị viên");
+  await page.keyboard.press("Escape");
   await shot(page, "p4-01-tao-don");
   await page.getByRole("button", { name: /Lưu đơn hàng \(2 chuyến\)/ }).click();
   check(await toast(page, "Đã lưu 2 chuyến"), "Lưu đơn hàng 2 chuyến");
@@ -125,6 +131,37 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   await page.locator("tbody tr").first().locator("td").nth(1).getByRole("link").click();
   await page.getByText("Lịch sử trạng thái").waitFor();
   check((await page.getByRole("button", { name: /Phân công|Đổi/ }).count()) === 0, "Kế toán không thấy nút phân công");
+});
+
+// ---------------------------------------------------------------------------
+// C2. Super Admin tạo nhanh tài xế, loại xe ngay trong màn hình tạo đơn
+// ---------------------------------------------------------------------------
+await asUser("owner@khanhha.test", desktop, async (page) => {
+  await page.goto(`${BASE}/dieu-phoi/tao-don`);
+  const s1 = page.locator("[data-slot=card]").filter({ hasText: "Chuyến 1" });
+  await s1.getByLabel("Tài xế (có thể phân công sau)").click();
+  await page.getByPlaceholder("Gõ để tìm…").fill("Lê Văn Mới");
+  await page.getByRole("button", { name: "Thêm mới “Lê Văn Mới”" }).click();
+  check((await dialog(page).getByLabel("Họ tên").inputValue()) === "Lê Văn Mới", "Hộp thêm nhanh điền sẵn tên vừa gõ");
+  await dialog(page).getByLabel("Số điện thoại").fill("0912345678").catch(() => {});
+  await dialog(page).getByRole("button", { name: "Lưu" }).click();
+  check(await visible(s1.getByText("Lê Văn Mới")), "Tài xế mới được chọn ngay vào chuyến, không phải quay lại danh mục");
+  await s1.getByLabel("Loại xe", { exact: true }).click();
+  await page.getByPlaceholder("Gõ để tìm…").fill("Xe ben");
+  await page.getByRole("button", { name: "Thêm mới “Xe ben”" }).click();
+  check(await visible(dialog(page).getByText("Gõ hoặc chọn gợi ý")), "Ô tên loại xe có hướng dẫn và gợi ý");
+  await dialog(page).getByRole("button", { name: "Lưu" }).click();
+  check(await visible(s1.getByText("Xe ben")), "Loại xe mới được chọn ngay");
+  await pick(page, s1.getByLabel("Điểm nhận *"), "Long An", "Kho Mẫu Long An");
+  await pick(page, s1.getByLabel("Điểm giao *"), "Bình Dương", "Kho Mẫu Bình Dương");
+  await page.locator("#order-customer").click();
+  await page.getByPlaceholder("Gõ để tìm…").fill("Mẫu B");
+  await page.getByRole("option", { name: /Công ty Mẫu B/ }).first().click();
+  await s1.getByRole("button", { name: "Tạo bảng giá cho tuyến này" }).click();
+  await dialog(page).getByLabel("Đơn giá *").fill("2500000").catch(() => {});
+  await dialog(page).getByRole("button", { name: "Lưu" }).click();
+  check(await visible(s1.getByText("Bảng giá áp dụng")), "Tạo bảng giá ngay trong màn hình tạo đơn, chuyến tự áp giá mới");
+  await shot(page, "p4-07-tao-nhanh");
 });
 
 // ---------------------------------------------------------------------------

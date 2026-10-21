@@ -42,6 +42,8 @@ export type FieldDef = {
   hideInForm?: boolean;
   placeholder?: string;
   help?: string;
+  /** Gợi ý giá trị thường dùng (ô chữ vẫn cho nhập tự do) */
+  suggestions?: string[];
   min?: number;
   max?: number;
   maxLength?: number;

@@ -13,10 +13,20 @@ const code = (autoCode: boolean, extra: Partial<FieldDef> = {}): FieldDef => ({
   maxLength: 30,
   required: !autoCode,
   placeholder: autoCode ? "Để trống để tự sinh" : undefined,
+  help: autoCode
+    ? "Không bắt buộc. Để trống thì hệ thống tự đặt mã; chỉ nhập khi công ty đã có mã riêng (ví dụ XT8T)."
+    : "Mã ngắn, không trùng, dùng để tìm nhanh và nhập Excel.",
   ...extra,
 });
 const isActive: FieldDef = { key: "is_active", label: "Đang sử dụng", type: "boolean", list: true, filter: true, defaultValue: true };
-const sortOrder: FieldDef = { key: "sort_order", label: "Thứ tự", type: "number", integer: true, defaultValue: 0 };
+const sortOrder: FieldDef = {
+  key: "sort_order",
+  label: "Thứ tự hiển thị",
+  type: "number",
+  integer: true,
+  defaultValue: 0,
+  help: "Số nhỏ đứng trước trong danh sách chọn (1, 2, 3…). Để 0 nếu không cần sắp xếp.",
+};
 const notes: FieldDef = { key: "notes", label: "Ghi chú", type: "textarea", wide: true };
 
 export const VEHICLE_STATUS: Option[] = [
@@ -491,8 +501,17 @@ export const ENTITIES: Record<string, EntityDef> = {
     activeFilter: { col: "is_active", value: true },
     fields: [
       code(true),
-      { key: "name", label: "Tên loại xe", type: "text", required: true, list: true, maxLength: 150 },
-      { key: "payload_tons", label: "Tải trọng (tấn)", type: "number", min: 0, list: true },
+      {
+        key: "name", label: "Tên loại xe", type: "text", required: true, list: true, maxLength: 150,
+        placeholder: "Ví dụ: Xe tải 8 tấn",
+        help: "Gõ hoặc chọn gợi ý. Bảng giá có thể đặt giá riêng theo từng loại xe.",
+        suggestions: [
+          "Xe tải 1,25 tấn", "Xe tải 2,5 tấn", "Xe tải 3,5 tấn", "Xe tải 5 tấn", "Xe tải 8 tấn", "Xe tải 10 tấn", "Xe tải 15 tấn",
+          "Xe tải thùng kín", "Xe tải thùng bạt", "Xe tải đông lạnh", "Xe ben", "Xe bồn",
+          "Đầu kéo container 20 feet", "Đầu kéo container 40 feet", "Sơ mi rơ moóc",
+        ],
+      },
+      { key: "payload_tons", label: "Tải trọng (tấn)", type: "number", min: 0, list: true, help: "Khối lượng hàng được phép chở, ví dụ 8." },
       { key: "description", label: "Mô tả", type: "text", list: true, wide: true, maxLength: 500 },
       { ...sortOrder, list: true },
       isActive,
