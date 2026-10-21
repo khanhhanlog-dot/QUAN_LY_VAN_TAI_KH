@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { isUuid } from "@/lib/entities/record";
+import { isUuid, moduleCustomFields } from "@/lib/entities/record";
+import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { PageHeader } from "@/components/layout/page-header";
 import { OrderForm } from "./order-form";
 
@@ -13,6 +14,11 @@ export const metadata: Metadata = { title: "Tạo đơn hàng" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ don?: string }> }) {
   const me = await requirePagePermission("dispatch.create");
   const { don } = await searchParams;
+  const sb = await createClient();
+  const [orderRows, shipRows] = await Promise.all([loadCustomFields(sb, "transport_orders"), loadCustomFields(sb, "shipments")]);
+  const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions);
+  const shipmentFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
+  const canAddField = me.permissions.has("fields.configure");
   let order: { id: string; code: string; customerId: string; customerName: string } | undefined;
   if (don) {
     if (!isUuid(don)) notFound();
@@ -39,7 +45,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
             : "Một đơn hàng gồm một hoặc nhiều chuyến. Mã đơn và mã chuyến tự sinh khi lưu; giá lấy theo bảng giá và được chụp lại trên từng chuyến."
         }
       />
-      <OrderForm order={order} canCreatePriceList={me.permissions.has("price_lists.create")} />
+      <OrderForm
+        order={order}
+        canCreatePriceList={me.permissions.has("price_lists.create")}
+        orderFields={orderFields}
+        shipmentFields={shipmentFields}
+        canAddField={canAddField}
+      />
     </>
   );
 }

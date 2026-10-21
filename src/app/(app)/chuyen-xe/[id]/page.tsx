@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { AssignDialog } from "@/components/dispatch/assign-dialog";
 import { CancelDialog } from "@/components/dispatch/cancel-dialog";
+import { shipmentCustomFields } from "@/lib/shipments-query";
+import { CustomFieldsCard } from "./custom-fields-card";
 
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
 
@@ -101,7 +103,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
-  const [rowRes, extraRes, histRes, asgRes, changeRes] = await Promise.all([
+  const [custom, rowRes, extraRes, histRes, asgRes, changeRes] = await Promise.all([
+    shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("shipments")
@@ -247,6 +250,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <p className="text-xs text-muted-foreground">Chi phí, tạm ứng và lợi nhuận chuyến sẽ hiển thị ở Giai đoạn 6.</p>
           </CardContent>
         </Card>
+
+        <CustomFieldsCard
+          shipmentId={s.id}
+          version={s.version}
+          fields={custom.defs}
+          values={s.custom_fields ?? {}}
+          canEdit={me.permissions.has("shipments.update") || me.permissions.has("dispatch.update")}
+          canAddField={me.permissions.has("fields.configure")}
+        />
 
         <Card className="lg:col-span-2">
           <CardHeader>

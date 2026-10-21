@@ -77,6 +77,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   check(await visible(page.getByText("Biển số là bắt buộc")), "Bỏ trống trường bắt buộc bị báo lỗi");
 
   await page.locator("#f_plate_number").fill("51D-999.99");
+  check((await page.locator("#f_plate_number").inputValue()) === "51D99999", "Ô biển số tự viết hoa, bỏ dấu chấm và gạch");
   await page.getByRole("button", { name: "Thêm loại xe mới" }).click();
   await dialog(page).locator("#f_name").fill("Xe đầu kéo thử nghiệm");
   await dialog(page).getByRole("button", { name: "Lưu" }).click();
@@ -86,7 +87,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   await page.locator("#f_registration_expiry").fill("2027-03-31");
   await dialog(page).getByRole("button", { name: "Lưu" }).click();
   check(await toast(page, "Đã thêm phương tiện"), "Lưu phương tiện mới");
-  const newRow = page.getByRole("row").filter({ hasText: "51D-999.99" });
+  const newRow = page.getByRole("row").filter({ hasText: "51D99999" });
   check(await visible(newRow), "Phương tiện mới hiện trên bảng");
   check(await visible(newRow.getByText(/^XE\d{3}$/)), "Mã xe tự sinh dạng XE###");
   check(await visible(newRow.getByText("2.500")), "Trường công thức tính đúng (2,5 tấn × 1000 = 2.500)");
@@ -131,20 +132,20 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   await shot(page, "p3-02-xem-truoc-nhap");
   await page.getByRole("button", { name: "Nhập 1 dòng hợp lệ" }).click();
   check(await toast(page, "Đã nhập 1 dòng"), "Chỉ ghi dòng hợp lệ");
-  check(await visible(page.getByRole("row").filter({ hasText: "51E-111.11" })), "Dòng nhập từ CSV hiện trên bảng");
+  check(await visible(page.getByRole("row").filter({ hasText: "51E11111" })), "Dòng nhập từ CSV hiện trên bảng");
 
   // Không xóa được xe đã có chuyến
   await page.getByRole("row").filter({ hasText: "51C-000.01" }).getByRole("button", { name: "Xóa" }).click();
   await dialog(page).getByRole("button", { name: "Xóa" }).click();
   check(await toast(page, "không xóa được"), "Xe đã có chuyến không xóa được, gợi ý chuyển trạng thái");
   await page.keyboard.press("Escape");
-  await page.getByRole("row").filter({ hasText: "51E-111.11" }).getByRole("button", { name: "Xóa" }).click();
+  await page.getByRole("row").filter({ hasText: "51E11111" }).getByRole("button", { name: "Xóa" }).click();
   await dialog(page).getByRole("button", { name: "Xóa" }).click();
   check(await toast(page, "Đã xóa"), "Xóa được xe chưa phát sinh nghiệp vụ");
   await shot(page, "p3-03-phuong-tien");
 
   // Chi tiết xe: tài chính + lịch trả nợ
-  await page.getByRole("row").filter({ hasText: "51D-999.99" }).getByRole("link").first().click();
+  await page.getByRole("row").filter({ hasText: "51D99999" }).getByRole("link").first().click();
   await page.waitForURL(/\/phuong-tien\/[0-9a-f-]{36}$/);
   await page.getByRole("button", { name: "Nhập thông tin" }).click();
   await dialog(page).locator("#f_purchase_price").fill("1.000.000.000");

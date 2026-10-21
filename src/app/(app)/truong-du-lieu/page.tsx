@@ -19,9 +19,9 @@ const TYPE_LABEL: Record<string, string> = {
   phone: "Điện thoại", url: "Đường dẫn", reference: "Liên kết", gps: "GPS",
 };
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ module?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ module?: string; them?: string }> }) {
   const me = await requirePagePermission("fields.view", "fields.configure");
-  const { module: mp } = await searchParams;
+  const { module: mp, them } = await searchParams;
   const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === mp) ?? CUSTOM_FIELD_MODULES[0];
   const supabase = await createClient();
   const custom = await loadCustomFields(supabase, mod.module, true);
@@ -57,6 +57,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
           numericSystem={numericSystem}
           systemKeys={(entity?.fields ?? []).map((f) => f.key)}
           permissions={ALL_PERMISSIONS}
+          autoOpen={them === "1"}
         />
         {entity ? (
           <Card>
@@ -72,7 +73,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
             </CardContent>
           </Card>
         ) : (
-          <p className="text-sm text-muted-foreground">Màn hình {mod.label.toLowerCase()} sẽ hoàn thiện ở Giai đoạn 4; trường bổ sung tạo trước sẽ tự xuất hiện khi màn hình hoàn thiện.</p>
+          <p className="text-sm text-muted-foreground">Trường bổ sung của {mod.label.toLowerCase()} hiện trong màn hình tạo đơn hàng, bảng chuyến xe (cột và tìm kiếm nâng cao) và chi tiết chuyến.</p>
         )}
       </div>
     </>

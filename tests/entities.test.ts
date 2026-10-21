@@ -41,7 +41,7 @@ describe("Kiểm tra dữ liệu bản ghi", () => {
     const { data, errors } = validateRecord(vehicles.fields, { plate_number: " 51C-1 ", model_year: "1800", status: "bay", brand: "" });
     expect(errors.model_year).toMatch(/không được nhỏ hơn/);
     expect(errors.status).toMatch(/không có trong danh sách/);
-    expect(data.plate_number).toBe("51C-1");
+    expect(data.plate_number).toBe("51C1") // biển số được chuẩn hóa: chữ hoa liền, bỏ ký tự đặc biệt;
     expect(data.brand).toBeNull();
     expect(validateRecord(vehicles.fields, {}).errors.plate_number).toBe("Biển số là bắt buộc");
   });

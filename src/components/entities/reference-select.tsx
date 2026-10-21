@@ -184,6 +184,7 @@ export function ReferenceSelect({
           customRows={meta.customRows}
           open={quickOpen}
           onOpenChange={setQuickOpen}
+          canAddField={meta.access.configureFields}
           quick
           initialValues={q.trim() ? { [entity.quickFields?.[0] ?? entity.labelCols[0]]: q.trim() } : undefined}
           onSaved={(res) => pick({ value: res.id, label: res.label })}

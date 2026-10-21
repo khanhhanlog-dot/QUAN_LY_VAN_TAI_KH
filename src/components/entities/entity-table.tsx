@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useMemo, useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -39,7 +39,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { TONE_BADGE } from "@/lib/tones";
 import { getEntity } from "@/lib/entities/definitions";
-import { effectiveFields, formatValue } from "@/lib/entities/record";
+import { advancedFields, effectiveFields, formatValue } from "@/lib/entities/record";
+import { encodeCondition, parseConditions } from "@/lib/advanced-filter";
+import { AdvancedFilter } from "@/components/advanced-filter";
 import { deleteRecord, resetTableView, saveTableView } from "@/lib/entities/actions";
 import type { EntityAccess } from "@/lib/entities/access";
 import type { RefLabels } from "@/lib/entities/server";
@@ -47,6 +49,7 @@ import type { CustomFieldRow, FieldDef, TableViewConfig } from "@/lib/entities/t
 import { EntityFormDialog } from "./entity-form-dialog";
 import { ConfirmDialog } from "./confirm-dialog";
 import { ExportButton, ImportDialog } from "./excel-buttons";
+import { ColumnsMenu } from "@/components/grid/columns-menu";
 
 type Row = Record<string, unknown>;
 
@@ -62,6 +65,9 @@ export type EntityTableProps = {
   dir?: "asc" | "desc";
   q?: string;
   filters: Record<string, string>;
+  /** Điều kiện tìm kiếm nâng cao trên URL */
+  adv: string[];
+  advLabels: Record<string, string>;
   filterOptions: Record<string, { value: string; label: string }[]>;
   view: TableViewConfig | null;
   access: EntityAccess;
@@ -73,7 +79,7 @@ export type EntityTableProps = {
 
 const ACTIONS_COL = "__actions";
 
-function defaultView(fields: FieldDef[]): Required<Omit<TableViewConfig, "pageSize">> {
+function defaultView(fields: FieldDef[]): Required<Omit<TableViewConfig, "pageSize" | "rowHeight">> {
   return {
     hidden: fields.filter((f) => !f.list).map((f) => f.key),
     order: [],
@@ -102,6 +108,11 @@ export function EntityTable(props: EntityTableProps) {
   const [sizing, setSizing] = useState<ColumnSizingState>(() => initial.widths ?? {});
   const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: initial.pinned ?? base.pinned, right: [ACTIONS_COL] }));
   const [density, setDensity] = useState<"compact" | "normal">(initial.density ?? "normal");
+  const [rowHeight, setRowHeight] = useState<number | null>(props.view?.rowHeight ?? null);
+  const [dragCol, setDragCol] = useState<string | null>(null);
+  const resizeRow = useRef<{ y: number; h: number } | null>(null);
+  const advFields = useMemo(() => advancedFields(fields), [fields]);
+  const advConds = useMemo(() => parseConditions(props.adv, advFields), [props.adv, advFields]);
   const [editing, setEditing] = useState<Row | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<Row | null>(null);
@@ -115,6 +126,43 @@ export function EntityTable(props: EntityTableProps) {
       else sp.set(k, v);
     }
     startNav(() => router.push(`${pathname}?${sp.toString()}`, { scroll: false }));
+  }
+
+  function setAdv(list: string[]) {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete("a");
+    sp.delete("page");
+    for (const a of list) sp.append("a", a);
+    startNav(() => router.push(`${pathname}?${sp.toString()}`, { scroll: false }));
+  }
+
+  /** Kéo mép dưới của một dòng để đổi chiều cao mọi dòng */
+  function startRowResize(e: ReactPointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const tr = (e.currentTarget as HTMLElement).closest("tr");
+    resizeRow.current = { y: e.clientY, h: tr?.getBoundingClientRect().height ?? 36 };
+    const move = (ev: PointerEvent) => {
+      if (!resizeRow.current) return;
+      setRowHeight(Math.round(Math.min(200, Math.max(28, resizeRow.current.h + ev.clientY - resizeRow.current.y))));
+    };
+    const up = () => {
+      resizeRow.current = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  function dropColumn(target: string) {
+    if (!dragCol || dragCol === target) return;
+    const ids = table.getAllLeafColumns().map((c) => c.id).filter((x) => x !== ACTIONS_COL);
+    const from = ids.indexOf(dragCol);
+    const to = ids.indexOf(target);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setOrder(ids);
+    setDragCol(null);
   }
 
   const pk = entity.pk ?? "id";
@@ -241,6 +289,7 @@ export function EntityTable(props: EntityTableProps) {
       widths: sizing,
       pinned: pinning.left ?? [],
       density,
+      rowHeight,
       pageSize: size,
     };
   }
@@ -271,6 +320,7 @@ export function EntityTable(props: EntityTableProps) {
     (f) => f.filter && f !== tabField && (f.type === "select" || f.type === "boolean" || f.type === "reference"),
   );
   const cellPad = density === "compact" ? "px-2 py-1" : "px-3 py-2";
+  const tall = rowHeight !== null && rowHeight >= 52;
 
   return (
     <Card className="overflow-hidden">
@@ -339,47 +389,14 @@ export function EntityTable(props: EntityTableProps) {
             )}
           </NativeSelect>
         ))}
+        <AdvancedFilter fields={advFields} value={advConds} valueLabels={props.advLabels} onApply={(conds) => setAdv(conds.map(encodeCondition))} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Columns3 /> Cột
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-0">
-              <div className="border-b px-3 py-2 text-xs text-muted-foreground">Ẩn/hiện, sắp xếp và cố định cột. Kéo mép tiêu đề cột để đổi độ rộng.</div>
-              <ul className="max-h-80 overflow-y-auto p-1">
-                {leafColumns.map((c, i) => {
-                  const f = (c.columnDef.meta as { field: FieldDef } | undefined)?.field;
-                  const pinned = c.getIsPinned() === "left";
-                  return (
-                    <li key={c.id} className="flex items-center gap-1 rounded px-2 py-1 hover:bg-accent">
-                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                        <input type="checkbox" checked={c.getIsVisible()} onChange={c.getToggleVisibilityHandler()} />
-                        <span className="truncate">{f?.label ?? c.id}</span>
-                        {f?.custom ? <span className="text-[10px] text-muted-foreground">bổ sung</span> : null}
-                      </label>
-                      <button type="button" className="rounded p-1 hover:bg-background disabled:opacity-30" disabled={i === 0} onClick={() => moveColumn(c.id, -1)} aria-label="Lên">
-                        <ArrowUp className="size-3.5" />
-                      </button>
-                      <button type="button" className="rounded p-1 hover:bg-background disabled:opacity-30" disabled={i === leafColumns.length - 1} onClick={() => moveColumn(c.id, 1)} aria-label="Xuống">
-                        <ArrowDown className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className={cn("rounded p-1 hover:bg-background", pinned && "text-primary")}
-                        onClick={() => c.pin(pinned ? false : "left")}
-                        aria-label={pinned ? "Bỏ cố định" : "Cố định bên trái"}
-                        title={pinned ? "Bỏ cố định" : "Cố định bên trái"}
-                      >
-                        {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </PopoverContent>
-          </Popover>
+          <ColumnsMenu
+            columns={leafColumns}
+            label={(c) => (c.columnDef.meta as { field: FieldDef } | undefined)?.field?.label ?? c.id}
+            note={(c) => ((c.columnDef.meta as { field: FieldDef } | undefined)?.field?.custom ? "bổ sung" : null)}
+            onMove={moveColumn}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -416,6 +433,7 @@ export function EntityTable(props: EntityTableProps) {
                   setSizing({});
                   setPinning({ left: base.pinned, right: [ACTIONS_COL] });
                   setDensity("normal");
+                  setRowHeight(null);
                   toast.success(r.message);
                 } else toast.error(r.error);
               })
@@ -426,7 +444,7 @@ export function EntityTable(props: EntityTableProps) {
           {access.export ? (
             <ExportButton
               entityKey={entityKey}
-              params={{ q: props.q, sort: props.sort, dir: props.dir, filters: props.filters }}
+              params={{ q: props.q, sort: props.sort, dir: props.dir, filters: props.filters, adv: props.adv }}
               visibleColumns={table.getVisibleLeafColumns().map((c) => c.id).filter((id) => id !== ACTIONS_COL)}
             />
           ) : null}
@@ -457,7 +475,27 @@ export function EntityTable(props: EntityTableProps) {
                     <th
                       key={h.id}
                       style={pinStyle(col, true)}
-                      className={cn("relative border-b bg-muted text-left text-xs font-medium whitespace-nowrap text-muted-foreground", cellPad)}
+                      draggable={col.id !== ACTIONS_COL && !col.getIsResizing()}
+                      onDragStart={(e) => {
+                        setDragCol(col.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", col.id);
+                      }}
+                      onDragOver={(e) => {
+                        if (dragCol && col.id !== ACTIONS_COL) e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        dropColumn(col.id);
+                      }}
+                      onDragEnd={() => setDragCol(null)}
+                      title={col.id !== ACTIONS_COL ? "Kéo để đổi vị trí cột" : undefined}
+                      className={cn(
+                        "relative border-b bg-muted text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
+                        col.id !== ACTIONS_COL && "cursor-grab active:cursor-grabbing",
+                        dragCol === col.id && "opacity-50",
+                        cellPad,
+                      )}
                     >
                       {col.getCanSort() ? (
                         <button
@@ -491,19 +529,34 @@ export function EntityTable(props: EntityTableProps) {
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={table.getVisibleLeafColumns().length} className="px-3 py-12 text-center text-muted-foreground">
-                  {props.q || Object.keys(props.filters).length ? "Không có dữ liệu phù hợp với điều kiện tìm/lọc." : `Chưa có ${entity.singular} nào.`}
+                  {props.q || Object.keys(props.filters).length || advConds.length ? "Không có dữ liệu phù hợp với điều kiện tìm/lọc." : `Chưa có ${entity.singular} nào.`}
                 </td>
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="group border-b last:border-0 hover:bg-muted/40">
-                  {row.getVisibleCells().map((cell) => (
+                <tr key={row.id} className="group border-b last:border-0 hover:bg-muted/40" style={rowHeight ? { height: rowHeight } : undefined}>
+                  {row.getVisibleCells().map((cell, ci) => (
                     <td
                       key={cell.id}
                       style={pinStyle(cell.column)}
-                      className={cn("truncate bg-card group-hover:bg-muted", cellPad)}
+                      className={cn("bg-card group-hover:bg-muted", tall ? "align-top break-words whitespace-normal" : "truncate", ci === 0 && "relative", cellPad)}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {tall ? (
+                        <div className="overflow-hidden" style={{ maxHeight: rowHeight! - 12 }}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </div>
+                      ) : (
+                        flexRender(cell.column.columnDef.cell, cell.getContext())
+                      )}
+                      {ci === 0 ? (
+                        <div
+                          onPointerDown={startRowResize}
+                          onDoubleClick={() => setRowHeight(null)}
+                          className="absolute right-0 bottom-0 left-0 h-1.5 cursor-row-resize hover:bg-primary/40"
+                          title="Kéo để đổi chiều cao dòng (bấm đúp để trả về mặc định)"
+                          aria-hidden
+                        />
+                      ) : null}
                     </td>
                   ))}
                 </tr>
@@ -549,6 +602,7 @@ export function EntityTable(props: EntityTableProps) {
           refLabels={refLabels}
           revalidate={props.revalidate}
           onSaved={() => router.refresh()}
+          canAddField={access.configureFields}
         />
       ) : null}
       <ConfirmDialog

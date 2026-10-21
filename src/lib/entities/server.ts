@@ -1,7 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ENTITIES } from "./definitions";
-import { effectiveFields, flattenRow, rowLabel } from "./record";
+import { applyConditions, parseConditions } from "@/lib/advanced-filter";
+import { addDaysYMD, startOfDayVN } from "@/lib/format";
+import { advancedFields, effectiveFields, flattenRow, rowLabel } from "./record";
 import type { CustomFieldRow, EntityDef, FieldDef, TableViewConfig } from "./types";
 
 export const PAGE_SIZES = [20, 50, 100] as const;
@@ -14,6 +16,8 @@ export type ListParams = {
   page?: number;
   size?: number;
   filters?: Record<string, string>;
+  /** Điều kiện tìm kiếm nâng cao (chuỗi a=truong.toan_tu.gia_tri) */
+  adv?: string[];
   parentId?: string;
 };
 
@@ -73,7 +77,28 @@ function applyFilters(query: any, entity: EntityDef, fields: FieldDef[], params:
     if (f.type === "boolean") q = q.eq(columnRef(f), f.custom ? value : value === "true");
     else q = q.eq(columnRef(f), value);
   }
+  if (params.adv?.length) {
+    const adv = advancedFields(fields);
+    q = applyConditions(q, parseConditions(params.adv, adv), adv, {
+      column: (k) => columnRef(fields.find((f) => f.key === k)!),
+      dateTime: (k) => fields.find((f) => f.key === k)?.type === "datetime",
+      dayStart: startOfDayVN,
+      nextDayStart: (d) => startOfDayVN(addDaysYMD(d, 1)),
+    });
+  }
   return q;
+}
+
+/** Nhãn của các giá trị tham chiếu trong điều kiện tìm kiếm nâng cao */
+export async function advValueLabels(supabase: SupabaseClient, fields: FieldDef[], adv: string[] | undefined) {
+  const conds = parseConditions(adv, advancedFields(fields)).filter((c) => fields.find((f) => f.key === c.field)?.type === "reference");
+  if (!conds.length) return {};
+  const labels = await resolveRefLabels(
+    supabase,
+    fields.filter((f) => conds.some((c) => c.field === f.key)),
+    conds.map((c) => ({ [c.field]: c.value })),
+  );
+  return Object.assign({}, ...Object.values(labels)) as Record<string, string>;
 }
 
 export async function listRows(
@@ -191,6 +216,7 @@ export function parseListParams(sp: Record<string, string | string[] | undefined
     page: Number.isInteger(page) && page > 0 ? page : 1,
     size: Number.isInteger(size) ? size : undefined,
     filters,
+    adv: (Array.isArray(sp.a) ? sp.a : sp.a ? [sp.a] : []).slice(0, 20),
   };
 }
 

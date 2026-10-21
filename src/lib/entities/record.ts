@@ -2,6 +2,7 @@
 // Cùng một hàm chạy hai phía nên quy tắc kiểm tra không bị lệch nhau.
 import { computeFormula } from "@/lib/formula";
 import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
+import type { AdvField, AdvFieldKind } from "@/lib/advanced-filter";
 import type { CustomFieldRow, EntityDef, FieldDef, Option } from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -9,6 +10,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^[0-9+().\s-]{6,20}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
+/** Chữ hoa liền, chỉ chữ và số (biển số xe) */
+export function compactUpper(v: string): string {
+  return v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
 
 export function isUuid(v: unknown): v is string {
   return typeof v === "string" && UUID_RE.test(v);
@@ -172,7 +178,7 @@ export function validateRecord(fields: FieldDef[], raw: Record<string, unknown>)
       case "phone":
       case "url":
       case "gps": {
-        const s = String(v).trim();
+        const s = f.compactUpper ? compactUpper(String(v)) : String(v).trim();
         if (f.maxLength && s.length > f.maxLength) errors[f.key] = `${f.label} tối đa ${f.maxLength} ký tự`;
         else if (f.type === "email" && !EMAIL_RE.test(s)) errors[f.key] = `${f.label} không đúng định dạng email`;
         else if (f.type === "phone" && !PHONE_RE.test(s)) errors[f.key] = `${f.label} không đúng định dạng số điện thoại`;
@@ -319,4 +325,34 @@ export function formatValue(f: FieldDef, v: unknown, refLabel?: string | null): 
 export function rowLabel(entity: EntityDef, row: Record<string, unknown>): string {
   const parts = entity.labelCols.map((c) => row[c]).filter((x) => x !== null && x !== undefined && x !== "");
   return parts.map(String).join(" – ");
+}
+
+const ADV_KIND: Partial<Record<FieldDef["type"], AdvFieldKind>> = {
+  text: "text",
+  textarea: "text",
+  email: "text",
+  phone: "text",
+  url: "text",
+  number: "number",
+  currency: "number",
+  percent: "number",
+  date: "date",
+  datetime: "date",
+  select: "select",
+  reference: "reference",
+  boolean: "boolean",
+};
+
+/** Các trường dùng được trong tìm kiếm nâng cao */
+export function advancedFields(fields: FieldDef[]): AdvField[] {
+  return fields.flatMap((f) => {
+    const kind = ADV_KIND[f.type];
+    if (!kind || (kind === "reference" && !f.ref)) return [];
+    return [{ key: f.key, label: f.label, kind, options: f.options?.map((o) => ({ value: o.value, label: o.label })), ref: f.ref }];
+  });
+}
+
+/** Trường bổ sung của một module không có trong bộ danh mục chung (đơn hàng, chuyến) */
+export function moduleCustomFields(module: string, customRows: CustomFieldRow[], permissions?: Set<string>): FieldDef[] {
+  return effectiveFields({ fields: [], customModule: module } as unknown as EntityDef, customRows, permissions);
 }

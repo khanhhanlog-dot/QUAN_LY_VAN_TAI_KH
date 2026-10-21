@@ -9,6 +9,8 @@ import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReferenceSelect } from "@/components/entities/reference-select";
 import { EntityFormDialog } from "@/components/entities/entity-form-dialog";
+import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
+import type { FieldDef } from "@/lib/entities/types";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -30,6 +32,7 @@ type Row = {
   surchargeAmount: string;
   fuelSupportRate: string;
   notes: string;
+  custom: Record<string, unknown>;
 };
 
 let seq = 0;
@@ -50,6 +53,7 @@ const newRow = (from?: Row): Row => ({
   surchargeAmount: from?.surchargeAmount ?? "",
   fuelSupportRate: from?.fuelSupportRate ?? "",
   notes: from?.notes ?? "",
+  custom: from?.custom ?? {},
 });
 
 /** "2026-10-21T08:00" (giờ VN) -> ISO có múi giờ */
@@ -59,14 +63,22 @@ const num = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", 
 export function OrderForm({
   order,
   canCreatePriceList,
+  orderFields,
+  shipmentFields,
+  canAddField,
 }: {
   order?: { id: string; code: string; customerId: string; customerName: string };
   canCreatePriceList: boolean;
+  /** Trường bổ sung do người dùng tự thêm cho đơn hàng / chuyến */
+  orderFields: FieldDef[];
+  shipmentFields: FieldDef[];
+  canAddField: boolean;
 }) {
   const [customer, setCustomer] = useState({ id: order?.customerId ?? "", label: order?.customerName ?? "" });
   const [payer, setPayer] = useState("");
   const [orderDate, setOrderDate] = useState(todayVN());
   const [notes, setNotes] = useState("");
+  const [orderCustom, setOrderCustom] = useState<Record<string, unknown>>({});
   const [rows, setRows] = useState<Row[]>(() => [newRow()]);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -82,6 +94,7 @@ export function OrderForm({
         payerCustomerId: payer,
         orderDate,
         notes,
+        custom: orderCustom,
         shipments: rows.map((s) => ({
           pickupAt: toIso(s.pickupAt),
           expectedDeliveryAt: toIso(s.expectedDeliveryAt),
@@ -97,6 +110,7 @@ export function OrderForm({
           surchargeAmount: num(s.surchargeAmount),
           fuelSupportRate: num(s.fuelSupportRate),
           notes: s.notes,
+          custom: s.custom,
         })),
       });
       if (!r.ok || !r.data) return void toast.error(r.ok ? "Không lưu được đơn hàng" : r.error);
@@ -130,6 +144,12 @@ export function OrderForm({
               <Label htmlFor="order-notes">Ghi chú đơn hàng</Label>
               <Textarea id="order-notes" className="min-h-14" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
             </div>
+            <CustomFieldsEditor fields={orderFields} idPrefix="order-cf-" onChange={setOrderCustom} className="sm:col-span-2 lg:col-span-4" />
+            {canAddField ? (
+              <a href="/truong-du-lieu?module=transport_orders&them=1" target="_blank" rel="noopener" className="text-sm font-medium text-primary hover:underline sm:col-span-2 lg:col-span-4">
+                + Thêm trường cho đơn hàng
+              </a>
+            ) : null}
           </CardContent>
         </Card>
       )}
@@ -141,6 +161,8 @@ export function OrderForm({
           row={row}
           customerId={customer.id}
           canCreatePriceList={canCreatePriceList}
+          shipmentFields={shipmentFields}
+          canAddField={canAddField}
           canRemove={rows.length > 1}
           onChange={(patch) => update(row.key, patch)}
           onRemove={() => setRows((rs) => rs.filter((r) => r.key !== row.key))}
@@ -165,6 +187,8 @@ function ShipmentEditor({
   row,
   customerId,
   canCreatePriceList,
+  shipmentFields,
+  canAddField,
   canRemove,
   onChange,
   onRemove,
@@ -174,6 +198,8 @@ function ShipmentEditor({
   row: Row;
   customerId: string;
   canCreatePriceList: boolean;
+  shipmentFields: FieldDef[];
+  canAddField: boolean;
   canRemove: boolean;
   onChange: (patch: Partial<Row>) => void;
   onRemove: () => void;
@@ -402,6 +428,16 @@ function ShipmentEditor({
             </div>
           )}
         </div>
+        {shipmentFields.length || canAddField ? (
+          <div className="mt-4 space-y-2 border-t pt-4">
+            <CustomFieldsEditor fields={shipmentFields} idPrefix={`s${row.key}-cf-`} initial={row.custom} onChange={(custom) => onChange({ custom })} />
+            {canAddField ? (
+              <a href="/truong-du-lieu?module=shipments&them=1" target="_blank" rel="noopener" className="inline-block text-sm font-medium text-primary hover:underline">
+                + Thêm trường cho chuyến
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </CardContent>
       {canCreatePriceList ? (
         <EntityFormDialog

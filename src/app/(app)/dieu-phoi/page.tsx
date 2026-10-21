@@ -13,12 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DispatchTable } from "@/components/dispatch/dispatch-table";
 import { TabLink } from "@/components/dispatch/tab-link";
+import { SearchForm } from "@/components/layout/search-form";
 
 export const metadata: Metadata = { title: "Điều phối" };
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ ngay?: string; tt?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ ngay?: string; tt?: string; q?: string }> }) {
   const me = await requirePagePermission("dispatch.view");
   const sp = await searchParams;
   const today = todayVN();
@@ -47,8 +48,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   ]);
   if (dayRes.error) throw dayRes.error;
   if (upcomingRes.error) throw upcomingRes.error;
-  const all = (dayRes.data ?? []) as ShipmentListRow[];
-  const upcoming = (upcomingRes.data ?? []) as ShipmentListRow[];
+  const term = (sp.q ?? "").trim().toLowerCase().slice(0, 100);
+  const match = (r: ShipmentListRow) =>
+    !term ||
+    [r.shipment_code, r.order_code, r.customer_name, r.plate_number, r.driver_name, r.pickup_name, r.delivery_name, r.notes].some((v) => v?.toLowerCase().includes(term));
+  const all = ((dayRes.data ?? []) as ShipmentListRow[]).filter(match);
+  const upcoming = ((upcomingRes.data ?? []) as ShipmentListRow[]).filter(match);
   const now = new Date().getTime();
   const lateCount = all.filter((r) => isLate(r, now)).length;
   const rows = tab === "tre" ? all.filter((r) => isLate(r, now)) : tab ? all.filter((r) => r.status === tab) : all;
@@ -63,6 +68,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
     if (d !== today) q.set("ngay", d);
     const t = p.tt ?? tab;
     if (t) q.set("tt", t);
+    if (term) q.set("q", sp.q!.trim());
     const s = q.toString();
     return s ? `/dieu-phoi?${s}` : "/dieu-phoi";
   };
@@ -105,6 +111,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
             <Link href="/dieu-phoi">Hôm nay</Link>
           </Button>
         ) : null}
+        <SearchForm
+          action="/dieu-phoi"
+          q={sp.q}
+          keep={{ ngay: day !== today ? day : undefined, tt: tab || undefined }}
+          placeholder="Tìm mã chuyến, khách, biển số, tài xế…"
+          className="flex w-full gap-2 sm:ml-auto sm:w-96"
+        />
       </div>
 
       <Card className="overflow-hidden">
@@ -119,7 +132,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
           rows={rows}
           canAssign={canAssign}
           canCancel={canCancel}
-          emptyText={all.length === 0 ? "Chưa có chuyến nào nhận hàng trong ngày này." : "Không có chuyến ở trạng thái này."}
+          emptyText={term ? "Không có chuyến phù hợp với từ khóa." : all.length === 0 ? "Chưa có chuyến nào nhận hàng trong ngày này." : "Không có chuyến ở trạng thái này."}
         />
       </Card>
 

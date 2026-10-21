@@ -7,25 +7,31 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MarkAllReadButton, OpenNotification } from "./notification-actions";
+import { SearchForm } from "@/components/layout/search-form";
+import { sanitizeSearch } from "@/lib/entities/server";
 
 export const metadata: Metadata = { title: "Thông báo" };
 
-export default async function NotificationsPage() {
+export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requireActiveUser();
+  const term = sanitizeSearch((await searchParams).q ?? "");
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("notifications")
     .select("id, type, title, body, link, read_at, created_at")
     .order("created_at", { ascending: false })
     .limit(100);
+  if (term) query = query.or(`title.ilike.*${term}*,body.ilike.*${term}*`);
+  const { data, error } = await query;
   if (error) throw error;
   const rows = data ?? [];
   return (
     <>
       <PageHeader title="Thông báo" actions={rows.some((r) => !r.read_at) ? <MarkAllReadButton /> : null} />
+      <SearchForm action="/thong-bao" q={term} placeholder="Tìm trong thông báo (mã chuyến, tên tài xế…)" className="mb-3 flex w-full gap-2 sm:w-96" />
       <Card>
         {rows.length === 0 ? (
-          <EmptyState title="Chưa có thông báo" />
+          <EmptyState title={term ? "Không có thông báo phù hợp" : "Chưa có thông báo"} />
         ) : (
           <ul className="divide-y">
             {rows.map((n) => (

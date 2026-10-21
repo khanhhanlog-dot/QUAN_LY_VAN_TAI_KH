@@ -3,7 +3,7 @@ import { requireActiveUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getEntity } from "@/lib/entities/definitions";
 import { entityAccess } from "@/lib/entities/access";
-import { countByStatus, listRows, loadCustomFields, loadFilterOptions, loadTableView, parseListParams, visibleCustomRows } from "@/lib/entities/server";
+import { advValueLabels, countByStatus, listRows, loadCustomFields, loadFilterOptions, loadTableView, parseListParams, visibleCustomRows } from "@/lib/entities/server";
 import { cn } from "@/lib/utils";
 import { EntityTable } from "./entity-table";
 
@@ -23,7 +23,11 @@ export async function EntityListSection({ entityKey, searchParams, revalidate }:
   const params = parseListParams(searchParams);
   if (!params.size) params.size = view?.pageSize ?? 20;
   const { rows, total, page, size, refLabels, fields } = await listRows(supabase, entity, customRows, params);
-  const [filterOptions, statusCounts] = await Promise.all([loadFilterOptions(supabase, fields), countByStatus(supabase, entity, fields, params)]);
+  const [filterOptions, statusCounts, advLabels] = await Promise.all([
+    loadFilterOptions(supabase, fields),
+    countByStatus(supabase, entity, fields, params),
+    advValueLabels(supabase, fields, params.adv),
+  ]);
   return (
     <EntityTable
       key={entity.key}
@@ -38,6 +42,8 @@ export async function EntityListSection({ entityKey, searchParams, revalidate }:
       dir={params.dir}
       q={params.q}
       filters={params.filters ?? {}}
+      adv={params.adv ?? []}
+      advLabels={advLabels}
       filterOptions={filterOptions}
       view={view}
       access={access}

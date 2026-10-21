@@ -42,6 +42,8 @@ export type FieldDef = {
   hideInForm?: boolean;
   placeholder?: string;
   help?: string;
+  /** Viết hoa, bỏ dấu cách và ký tự đặc biệt khi gõ (biển số xe: 61K31295) */
+  compactUpper?: boolean;
   /** Gợi ý giá trị thường dùng (ô chữ vẫn cho nhập tự do) */
   suggestions?: string[];
   min?: number;
@@ -116,6 +118,8 @@ export type TableViewConfig = {
   widths?: Record<string, number>;
   pinned?: string[];
   density?: "compact" | "normal";
+  /** Chiều cao dòng (px) do người dùng kéo giãn */
+  rowHeight?: number | null;
   pageSize?: number;
 };
 

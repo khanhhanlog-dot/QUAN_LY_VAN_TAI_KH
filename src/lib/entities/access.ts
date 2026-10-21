@@ -1,6 +1,6 @@
 import type { EntityDef } from "./types";
 
-export type EntityAccess = { view: boolean; create: boolean; update: boolean; delete: boolean; export: boolean; import: boolean };
+export type EntityAccess = { view: boolean; create: boolean; update: boolean; delete: boolean; export: boolean; import: boolean; configureFields: boolean };
 
 /** Quyền thao tác trên một thực thể, khớp với RLS trong CSDL (CSDL vẫn là lớp kiểm tra cuối). */
 export function entityAccess(entity: EntityDef, perms: Set<string>): EntityAccess {
@@ -11,5 +11,13 @@ export function entityAccess(entity: EntityDef, perms: Set<string>): EntityAcces
   const update = sensitiveOk && has("update");
   const del = !entity.noDelete && sensitiveOk && (entity.writeAsUpdate ? has("update") : has("delete"));
   const exp = view && (entity.hasExport ? has("export") : true);
-  return { view, create, update, delete: del, export: exp, import: create && !entity.parentKey && !entity.singleton };
+  return {
+    view,
+    create,
+    update,
+    delete: del,
+    export: exp,
+    import: create && !entity.parentKey && !entity.singleton,
+    configureFields: Boolean(entity.customModule) && perms.has("fields.configure"),
+  };
 }

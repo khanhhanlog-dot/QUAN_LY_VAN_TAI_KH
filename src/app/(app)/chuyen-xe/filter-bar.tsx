@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { ReferenceSelect } from "@/components/entities/reference-select";
 
-type Filters = { tu: string; den: string; tt: string; kh: string; q: string };
+type Filters = { tu: string; den: string; tt: string; kh: string; q: string; adv: string[] };
 
 export function ShipmentFilterBar({ filters }: { filters: Filters }) {
   const [v, setV] = useState(filters);
@@ -14,6 +14,7 @@ export function ShipmentFilterBar({ filters }: { filters: Filters }) {
   function apply(next = v) {
     const q = new URLSearchParams();
     for (const k of ["tu", "den", "tt", "kh", "q"] as const) if (next[k]) q.set(k, next[k]);
+    for (const a of next.adv) q.append("a", a);
     router.push(`/chuyen-xe?${q.toString()}`);
   }
   return (

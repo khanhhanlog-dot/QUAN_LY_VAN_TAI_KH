@@ -169,6 +169,7 @@ export async function saveTableView(tableKey: string, config: TableViewConfig): 
           .slice(0, 200),
       ),
       density: config.density === "compact" ? "compact" : "normal",
+      rowHeight: typeof config.rowHeight === "number" && config.rowHeight >= 28 && config.rowHeight <= 200 ? Math.round(config.rowHeight) : null,
       pageSize: [20, 50, 100].includes(config.pageSize ?? 0) ? config.pageSize : 20,
     };
     const supabase = await createClient();

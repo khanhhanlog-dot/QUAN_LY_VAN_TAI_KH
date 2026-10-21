@@ -1,13 +1,33 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  type Column,
+  type ColumnDef,
+  type ColumnOrderState,
+  type ColumnPinningState,
+  type ColumnSizingState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, RotateCcw, Save } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AdvancedFilter } from "@/components/advanced-filter";
+import { ColumnsMenu } from "@/components/grid/columns-menu";
+import { encodeCondition, parseConditions, type AdvField } from "@/lib/advanced-filter";
+import { formatValue } from "@/lib/entities/record";
+import { computeFormula } from "@/lib/formula";
+import { resetTableView, saveTableView } from "@/lib/entities/actions";
+import type { FieldDef, TableViewConfig } from "@/lib/entities/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { LOCKED_STATUSES, PRICING_UNITS } from "@/lib/status";
-import { isLate, type ShipmentListRow } from "@/lib/shipments";
+import { SHIPMENT_ADV_FIELDS, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
 
@@ -17,6 +37,7 @@ type Col = {
   width: number;
   align?: "right";
   edit?: EditableField;
+  custom?: boolean;
   render: (r: ShipmentListRow) => ReactNode;
 };
 
@@ -79,8 +100,32 @@ const COLS: Col[] = [
   { key: "notes", label: "Ghi chú", width: 220, edit: "notes", render: (r) => r.notes },
 ];
 
-/** Bảng chuyến dạng Excel: cột cố định mã chuyến, sửa nhanh các ô được phép */
-export function ShipmentGrid({ rows: initial, canEdit }: { rows: ShipmentListRow[]; canEdit: boolean }) {
+const DEFAULT_PINNED = ["pickup_at", "shipment_code"];
+
+/** Bảng chuyến dạng Excel: chọn/ẩn cột, kéo đổi chỗ, kéo giãn cột và dòng, cố định cột, sửa nhanh các ô được phép */
+export function ShipmentGrid({
+  rows: initial,
+  canEdit,
+  view,
+  adv,
+  advLabels,
+  customDefs,
+  customAdv,
+}: {
+  rows: ShipmentListRow[];
+  canEdit: boolean;
+  view: TableViewConfig | null;
+  adv: string[];
+  advLabels: Record<string, string>;
+  /** Trường bổ sung của chuyến (người dùng tự thêm): hiện thành cột */
+  customDefs: FieldDef[];
+  customAdv: AdvField[];
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [navPending, startNav] = useTransition();
+  const [savePending, startSave] = useTransition();
   const [rows, setRows] = useState(initial);
   // Dữ liệu mới từ máy chủ (đổi bộ lọc, chuyển trang) thay cho bản đang sửa
   const [prevInitial, setPrevInitial] = useState(initial);
@@ -88,61 +133,254 @@ export function ShipmentGrid({ rows: initial, canEdit }: { rows: ShipmentListRow
     setPrevInitial(initial);
     setRows(initial);
   }
+  const [visibility, setVisibility] = useState<VisibilityState>(() => Object.fromEntries((view?.hidden ?? []).map((k) => [k, false])));
+  const [order, setOrder] = useState<ColumnOrderState>(() => view?.order ?? []);
+  const [sizing, setSizing] = useState<ColumnSizingState>(() => view?.widths ?? {});
+  const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: view?.pinned ?? DEFAULT_PINNED }));
+  const [rowHeight, setRowHeight] = useState<number | null>(view?.rowHeight ?? null);
+  const [dragCol, setDragCol] = useState<string | null>(null);
+  const resizeRow = useRef<{ y: number; h: number } | null>(null);
+  const advFields = useMemo(() => [...SHIPMENT_ADV_FIELDS, ...customAdv], [customAdv]);
+  const advConds = useMemo(() => parseConditions(adv, advFields), [adv, advFields]);
+  const allCols = useMemo<Col[]>(
+    () => [
+      ...COLS,
+      ...customDefs.map((d) => ({
+        key: `cf_${d.key}`,
+        label: d.label,
+        width: d.type === "textarea" ? 220 : 140,
+        align: ["number", "currency", "percent", "formula"].includes(d.type) ? ("right" as const) : undefined,
+        custom: true,
+        render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, r.custom_fields ?? {}) : r.custom_fields?.[d.key]),
+      })),
+    ],
+    [customDefs],
+  );
 
-  if (rows.length === 0) return <p className="px-6 py-10 text-center text-sm text-muted-foreground">Không có chuyến phù hợp với bộ lọc.</p>;
+  const columns = useMemo<ColumnDef<ShipmentListRow>[]>(
+    () =>
+      allCols.map((c) => ({
+        id: c.key,
+        header: c.label,
+        size: c.width,
+        minSize: 50,
+        meta: { col: c },
+        cell: ({ row }) => {
+          const r = row.original;
+          const editable = canEdit && c.edit && (c.edit === "notes" || !LOCKED_STATUSES.includes(r.status));
+          return editable ? <EditCell row={r} col={c} onSaved={(nr) => setRows((rs) => rs.map((x) => (x.id === nr.id ? nr : x)))} /> : c.render(r);
+        },
+      })),
+    [canEdit, allCols],
+  );
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: rows,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (r) => r.id,
+    columnResizeMode: "onChange",
+    state: { columnVisibility: visibility, columnOrder: order, columnSizing: sizing, columnPinning: pinning },
+    onColumnVisibilityChange: setVisibility,
+    onColumnOrderChange: setOrder,
+    onColumnSizingChange: setSizing,
+    onColumnPinningChange: setPinning,
+  });
+  const ids = () => table.getAllLeafColumns().map((c) => c.id);
+
+  function moveColumn(id: string, delta: number) {
+    const list = ids();
+    const i = list.indexOf(id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    setOrder(list);
+  }
+  function dropColumn(target: string) {
+    if (!dragCol || dragCol === target) return;
+    const list = ids();
+    const from = list.indexOf(dragCol);
+    const to = list.indexOf(target);
+    list.splice(to, 0, list.splice(from, 1)[0]);
+    setOrder(list);
+    setDragCol(null);
+  }
+  function startRowResize(e: ReactPointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const tr = (e.currentTarget as HTMLElement).closest("tr");
+    resizeRow.current = { y: e.clientY, h: tr?.getBoundingClientRect().height ?? 36 };
+    const move = (ev: PointerEvent) => {
+      if (resizeRow.current) setRowHeight(Math.round(Math.min(200, Math.max(28, resizeRow.current.h + ev.clientY - resizeRow.current.y))));
+    };
+    const up = () => {
+      resizeRow.current = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  function setAdv(list: string[]) {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete("a");
+    sp.delete("trang");
+    for (const a of list) sp.append("a", a);
+    startNav(() => router.push(`${pathname}?${sp.toString()}`, { scroll: false }));
+  }
+  function pinStyle(col: Column<ShipmentListRow>, header = false): CSSProperties {
+    const side = col.getIsPinned();
+    return side
+      ? { width: col.getSize(), minWidth: col.getSize(), maxWidth: col.getSize(), position: "sticky", left: col.getStart("left"), zIndex: header ? 30 : 10 }
+      : { width: col.getSize(), minWidth: col.getSize(), maxWidth: col.getSize() };
+  }
+  const tall = rowHeight !== null && rowHeight >= 52;
+  const label = (c: Column<ShipmentListRow>) => (c.columnDef.meta as { col: Col }).col.label;
+
   return (
-    <div className="max-h-[70vh] overflow-auto">
-      <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
-        <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
-          <tr>
-            {COLS.map((c, i) => (
-              <th
-                key={c.key}
-                style={{ width: c.width, minWidth: c.width }}
-                className={cn(
-                  "border-b px-2 py-2 font-medium whitespace-nowrap",
-                  c.align === "right" && "text-right",
-                  i < 2 && "sticky z-30 bg-muted",
-                  i === 0 && "left-0",
-                  i === 1 && "left-[140px] border-r",
-                )}
-              >
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className={cn("group", r.status === "cancelled" && "text-muted-foreground line-through decoration-muted-foreground/40")}>
-              {COLS.map((c, i) => {
-                const editable = canEdit && c.edit && (c.edit === "notes" || !LOCKED_STATUSES.includes(r.status));
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
+        <AdvancedFilter fields={advFields} value={advConds} valueLabels={advLabels} onApply={(conds) => setAdv(conds.map(encodeCondition))} />
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <ColumnsMenu columns={table.getAllLeafColumns()} label={label} note={(c) => ((c.columnDef.meta as { col: Col }).col.custom ? "bổ sung" : null)} onMove={moveColumn} />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={savePending}
+            onClick={() =>
+              startSave(async () => {
+                const r = await saveTableView("shipment_grid", {
+                  hidden: Object.entries(visibility).filter(([, v]) => !v).map(([k]) => k),
+                  order: ids(),
+                  widths: sizing,
+                  pinned: pinning.left ?? [],
+                  rowHeight,
+                  pageSize: 100,
+                });
+                if (r.ok) toast.success(r.message);
+                else toast.error(r.error);
+              })
+            }
+          >
+            <Save /> Lưu cấu hình
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={savePending}
+            title="Khôi phục cấu hình mặc định"
+            onClick={() =>
+              startSave(async () => {
+                const r = await resetTableView("shipment_grid");
+                if (!r.ok) return void toast.error(r.error);
+                setVisibility({});
+                setOrder([]);
+                setSizing({});
+                setPinning({ left: DEFAULT_PINNED });
+                setRowHeight(null);
+                toast.success(r.message);
+              })
+            }
+          >
+            <RotateCcw /> Mặc định
+          </Button>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-6 py-10 text-center text-sm text-muted-foreground">Không có chuyến phù hợp với bộ lọc.</p>
+      ) : (
+        <div className={cn("max-h-[70vh] overflow-auto transition-opacity", navPending && "opacity-60")}>
+          <table className="border-separate border-spacing-0 text-sm" style={{ width: table.getTotalSize(), tableLayout: "fixed" }}>
+            <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
+              <tr>
+                {table.getFlatHeaders().map((h) => {
+                  const col = h.column;
+                  const c = (col.columnDef.meta as { col: Col }).col;
+                  const lastPinned = col.getIsPinned() && col.getIsLastColumn("left");
+                  return (
+                    <th
+                      key={h.id}
+                      style={pinStyle(col, true)}
+                      draggable={!col.getIsResizing()}
+                      onDragStart={(e) => {
+                        setDragCol(col.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", col.id);
+                      }}
+                      onDragOver={(e) => dragCol && e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        dropColumn(col.id);
+                      }}
+                      onDragEnd={() => setDragCol(null)}
+                      title="Kéo để đổi vị trí cột"
+                      className={cn(
+                        "relative cursor-grab border-b bg-muted px-2 py-2 font-medium whitespace-nowrap active:cursor-grabbing",
+                        c.align === "right" && "text-right",
+                        lastPinned && "border-r",
+                        dragCol === col.id && "opacity-50",
+                      )}
+                    >
+                      <span className="block truncate">{c.label}</span>
+                      <div
+                        onMouseDown={h.getResizeHandler()}
+                        onTouchStart={h.getResizeHandler()}
+                        onDoubleClick={() => col.resetSize()}
+                        className={cn("absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/40", col.getIsResizing() && "bg-primary")}
+                        aria-hidden
+                      />
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => {
+                const r = row.original;
                 return (
-                  <td
-                    key={c.key}
-                    className={cn(
-                      "border-b bg-card px-2 py-1.5 group-hover:bg-muted/40",
-                      c.align === "right" && "text-right tabular-nums",
-                      i < 2 && "sticky z-10",
-                      i === 0 && "left-0 whitespace-nowrap",
-                      i === 1 && "left-[140px] border-r whitespace-nowrap",
-                      !editable && "truncate",
-                    )}
-                    style={{ maxWidth: c.width }}
-                  >
-                    {editable ? (
-                      <EditCell row={r} col={c} onSaved={(nr) => setRows((rs) => rs.map((x) => (x.id === nr.id ? nr : x)))} />
-                    ) : (
-                      c.render(r)
-                    )}
-                  </td>
+                  <tr key={row.id} style={rowHeight ? { height: rowHeight } : undefined} className={cn("group", r.status === "cancelled" && "text-muted-foreground line-through decoration-muted-foreground/40")}>
+                    {row.getVisibleCells().map((cell, ci) => {
+                      const c = (cell.column.columnDef.meta as { col: Col }).col;
+                      const lastPinned = cell.column.getIsPinned() && cell.column.getIsLastColumn("left");
+                      return (
+                        <td
+                          key={cell.id}
+                          style={pinStyle(cell.column)}
+                          className={cn(
+                            "border-b bg-card px-2 py-1.5 group-hover:bg-muted/40",
+                            c.align === "right" && "text-right tabular-nums",
+                            tall ? "align-top break-words whitespace-normal" : "truncate whitespace-nowrap",
+                            lastPinned && "border-r",
+                            ci === 0 && "relative",
+                          )}
+                        >
+                          {tall ? (
+                            <div className="overflow-hidden" style={{ maxHeight: rowHeight! - 10 }}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </div>
+                          ) : (
+                            flexRender(cell.column.columnDef.cell, cell.getContext())
+                          )}
+                          {ci === 0 ? (
+                            <div
+                              onPointerDown={startRowResize}
+                              onDoubleClick={() => setRowHeight(null)}
+                              className="absolute right-0 bottom-0 left-0 h-1.5 cursor-row-resize hover:bg-primary/40"
+                              title="Kéo để đổi chiều cao dòng (bấm đúp để trả về mặc định)"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 );
               })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -70,7 +70,17 @@ export const ENTITIES: Record<string, EntityDef> = {
     archiveHint: "Xe đã có chuyến hoặc chi phí thì không xóa được; hãy chuyển trạng thái sang Tạm ngừng hoặc Đã bán.",
     fields: [
       code(true),
-      { key: "plate_number", label: "Biển số", type: "text", required: true, list: true, maxLength: 20, placeholder: "51C-123.45" },
+      {
+        key: "plate_number",
+        label: "Biển số",
+        type: "text",
+        required: true,
+        list: true,
+        maxLength: 20,
+        placeholder: "61K31295",
+        compactUpper: true,
+        help: "Viết liền, không dấu chấm, gạch. Gõ chữ thường sẽ tự thành chữ hoa. Tài xế nhập đúng số này để xem chuyến.",
+      },
       { key: "vehicle_type_id", label: "Loại xe", type: "reference", ref: "vehicle_types", list: true, filter: true },
       { key: "brand", label: "Hãng xe", type: "text", list: true, maxLength: 100 },
       { key: "model_year", label: "Năm sản xuất", type: "number", integer: true, min: 1950, max: 2100, displayFormat: "plain" },
@@ -155,6 +165,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     key: "maintenance_records",
     noDelete: true,
     table: "maintenance_records",
+    customModule: "maintenance_records",
     label: "Sửa chữa, bảo dưỡng",
     singular: "lần sửa chữa/bảo dưỡng",
     perm: "vehicles",
@@ -374,6 +385,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   routes: {
     key: "routes",
     table: "routes",
+    customModule: "routes",
     label: "Tuyến đường",
     singular: "tuyến đường",
     perm: "locations",
@@ -397,6 +409,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   price_lists: {
     key: "price_lists",
     table: "transport_price_lists",
+    customModule: "price_lists",
     label: "Bảng giá vận chuyển",
     singular: "bảng giá",
     perm: "price_lists",
@@ -444,6 +457,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   fuel_rules: {
     key: "fuel_rules",
     table: "fuel_support_rules",
+    customModule: "fuel_rules",
     label: "Quy tắc hỗ trợ dầu",
     singular: "quy tắc hỗ trợ dầu",
     perm: "price_lists",
@@ -489,6 +503,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   vehicle_types: {
     key: "vehicle_types",
     table: "vehicle_types",
+    customModule: "vehicle_types",
     label: "Loại xe",
     singular: "loại xe",
     perm: "catalogs",
@@ -520,6 +535,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   expense_categories: {
     key: "expense_categories",
     table: "expense_categories",
+    customModule: "expense_categories",
     label: "Hạng mục chi phí",
     singular: "hạng mục chi phí",
     perm: "catalogs",
@@ -528,6 +544,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     search: ["code", "name", "group_name"],
     defaultSort: { key: "sort_order" },
     labelCols: ["name"],
+    quickFields: ["name", "group_name"],
     activeFilter: { col: "is_active", value: true },
     fields: [
       code(true),
@@ -568,6 +585,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   banks: {
     key: "banks",
     table: "banks",
+    customModule: "banks",
     label: "Ngân hàng",
     singular: "ngân hàng",
     perm: "catalogs",
@@ -609,6 +627,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   payment_methods: {
     key: "payment_methods",
     table: "payment_methods",
+    customModule: "payment_methods",
     label: "Phương thức thanh toán",
     singular: "phương thức thanh toán",
     perm: "catalogs",
@@ -616,6 +635,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     search: ["code", "name"],
     defaultSort: { key: "sort_order" },
     labelCols: ["name"],
+    quickFields: ["name"],
     activeFilter: { col: "is_active", value: true },
     fields: [
       code(false, { maxLength: 30 }),
@@ -628,6 +648,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   company_entities: {
     key: "company_entities",
     table: "company_entities",
+    customModule: "company_entities",
     label: "Đơn vị nội bộ",
     singular: "đơn vị nội bộ",
     perm: "catalogs",
@@ -636,6 +657,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     search: ["code", "name", "tax_code"],
     defaultSort: { key: "code" },
     labelCols: ["name"],
+    quickFields: ["name"],
     activeFilter: { col: "is_active", value: true },
     fields: [
       code(true),
@@ -650,6 +672,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   salary_rules: {
     key: "salary_rules",
     table: "salary_rules",
+    customModule: "salary_rules",
     label: "Quy tắc tính lương",
     singular: "quy tắc tính lương",
     perm: "catalogs",
@@ -657,6 +680,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     search: ["code", "name"],
     defaultSort: { key: "code" },
     labelCols: ["name"],
+    quickFields: ["name", "method", "rate", "effective_from"],
     activeFilter: { col: "is_active", value: true },
     fields: [
       code(false),
@@ -682,6 +706,7 @@ export const ENTITIES: Record<string, EntityDef> = {
   catalog_items: {
     key: "catalog_items",
     table: "catalog_items",
+    customModule: "catalog_items",
     label: "Giá trị danh mục",
     singular: "giá trị danh mục",
     perm: "catalogs",
@@ -689,6 +714,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     search: ["code", "name"],
     defaultSort: { key: "sort_order" },
     labelCols: ["name"],
+    quickFields: ["catalog_id", "name"],
     activeFilter: { col: "is_active", value: true },
     fields: [
       { key: "catalog_id", label: "Danh mục", type: "reference", ref: "catalogs", required: true, list: true, filter: true },
@@ -708,6 +734,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     search: ["code", "name"],
     defaultSort: { key: "name" },
     labelCols: ["name"],
+    quickFields: ["name", "code"],
     fields: [
       { key: "code", label: "Mã", type: "text", required: true, list: true, maxLength: 50, help: "Chữ thường không dấu, ví dụ: tinh_thanh" },
       { key: "name", label: "Tên danh mục", type: "text", required: true, list: true, maxLength: 150 },
@@ -729,6 +756,17 @@ export const CUSTOM_FIELD_MODULES: { module: string; label: string; entity?: str
   { module: "customers", label: "Khách hàng", entity: "customers" },
   { module: "suppliers", label: "Nhà cung cấp", entity: "suppliers" },
   { module: "locations", label: "Địa điểm", entity: "locations" },
-  { module: "transport_orders", label: "Đơn hàng (chưa hiện trên màn hình)" },
-  { module: "shipments", label: "Chuyến xe (chưa hiện trên màn hình)" },
+  { module: "transport_orders", label: "Đơn hàng" },
+  { module: "shipments", label: "Chuyến xe" },
+  { module: "vehicle_types", label: "Loại xe", entity: "vehicle_types" },
+  { module: "routes", label: "Tuyến đường", entity: "routes" },
+  { module: "price_lists", label: "Bảng giá", entity: "price_lists" },
+  { module: "fuel_rules", label: "Quy tắc hỗ trợ dầu", entity: "fuel_rules" },
+  { module: "expense_categories", label: "Loại chi phí", entity: "expense_categories" },
+  { module: "banks", label: "Ngân hàng", entity: "banks" },
+  { module: "payment_methods", label: "Phương thức thanh toán", entity: "payment_methods" },
+  { module: "company_entities", label: "Pháp nhân công ty", entity: "company_entities" },
+  { module: "salary_rules", label: "Quy tắc lương", entity: "salary_rules" },
+  { module: "maintenance_records", label: "Bảo dưỡng, sửa chữa", entity: "maintenance_records" },
+  { module: "catalog_items", label: "Mục danh mục", entity: "catalog_items" },
 ];

@@ -5,9 +5,11 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
 import { formatDateTime, todayVN } from "@/lib/format";
-import { isUuid } from "@/lib/entities/record";
+import { isUuid, splitCustom, validateRecord } from "@/lib/entities/record";
 import { LOCKED_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
-import { applyShipmentFilters, parseShipmentFilters } from "@/lib/shipments-query";
+import { formatValue } from "@/lib/entities/record";
+import { computeFormula } from "@/lib/formula";
+import { applyShipmentFilters, parseShipmentFilters, shipmentCustomFields } from "@/lib/shipments-query";
 import type { ShipmentListRow } from "@/lib/shipments";
 
 /** Các trường được sửa nhanh trên bảng; mọi thay đổi được ghi nhật ký hệ thống (trigger audit) */
@@ -57,11 +59,12 @@ export type FileResult = { filename: string; base64: string; count: number; trun
 const EXPORT_LIMIT = 5000;
 
 /** Xuất bảng tổng hợp chuyến theo bộ lọc đang chọn */
-export async function exportShipments(sp: Record<string, string | undefined>): Promise<ActionResult<FileResult>> {
+export async function exportShipments(sp: Record<string, string | string[] | undefined>): Promise<ActionResult<FileResult>> {
   return runAction(async () => {
-    await requirePermission("shipments.export");
-    const f = parseShipmentFilters(sp);
+    const me = await requirePermission("shipments.export");
     const supabase = await createClient();
+    const custom = await shipmentCustomFields(supabase, me.permissions);
+    const f = parseShipmentFilters(sp, custom.adv);
     const { data, error } = await applyShipmentFilters(supabase.from("shipment_list").select("*"), f)
       .order("pickup_at")
       .order("shipment_code")
@@ -97,10 +100,12 @@ export async function exportShipments(sp: Record<string, string | undefined>): P
       { header: "Chứng từ", key: "document_status", width: 16 },
       { header: "Quyết toán", key: "settlement_status", width: 18 },
       { header: "Ghi chú", key: "notes", width: 30 },
+      ...custom.defs.map((d) => ({ header: d.label, key: `cf_${d.key}`, width: 18 })),
     ];
     for (const r of rows) {
       ws.addRow({
         ...r,
+        ...Object.fromEntries(custom.defs.map((d) => [`cf_${d.key}`, formatValue(d, d.type === "formula" ? computeFormula(d.formula, r.custom_fields ?? {}) : r.custom_fields?.[d.key])])),
         pickup_at: formatDateTime(r.pickup_at),
         expected_delivery_at: formatDateTime(r.expected_delivery_at),
         quantity: Number(r.quantity),
@@ -129,4 +134,26 @@ export async function exportShipments(sp: Record<string, string | undefined>): P
       truncated: all.length > EXPORT_LIMIT,
     };
   });
+}
+
+/** Sửa các trường bổ sung của chuyến (giữ nguyên trường người dùng không được xem/sửa) */
+export async function updateShipmentCustom(id: string, values: Record<string, unknown>, version: number): Promise<ActionResult> {
+  return runAction(async () => {
+    const me = await requirePermission("shipments.update", "dispatch.update");
+    if (!isUuid(id) || !Number.isInteger(version)) throw new ActionError("Dữ liệu không hợp lệ.");
+    const supabase = await createClient();
+    const editable = (await shipmentCustomFields(supabase, me.permissions)).defs.filter((d) => !d.readOnly && d.type !== "formula");
+    if (!editable.length) throw new ActionError("Chuyến chưa có trường bổ sung nào bạn được sửa.");
+    const { data: parsed, errors } = validateRecord(editable, values ?? {});
+    const first = Object.values(errors)[0];
+    if (first) throw new ActionError(first);
+    const { data: cur, error: curErr } = await supabase.from("shipments").select("custom_fields").eq("id", id).maybeSingle();
+    if (curErr) throw curErr;
+    if (!cur) throw new ActionError("Không tìm thấy chuyến.");
+    const merged = { ...((cur.custom_fields as Record<string, unknown>) ?? {}), ...splitCustom(editable, parsed).custom };
+    const { data, error } = await supabase.from("shipments").update({ custom_fields: merged }).eq("id", id).eq("version", version).select("id");
+    if (error) throw error;
+    if (!data?.length) throw new ActionError("Chuyến vừa được người khác sửa. Vui lòng tải lại trang rồi thử lại.");
+    revalidatePath(`/chuyen-xe/${id}`);
+  }, "Đã lưu trường bổ sung.");
 }

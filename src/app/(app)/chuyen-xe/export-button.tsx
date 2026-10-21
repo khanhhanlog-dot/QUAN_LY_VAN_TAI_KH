@@ -5,7 +5,7 @@ import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportShipments } from "./actions";
 
-export function ExportShipmentsButton({ params }: { params: Record<string, string> }) {
+export function ExportShipmentsButton({ params }: { params: Record<string, string | string[]> }) {
   const [pending, start] = useTransition();
   return (
     <Button

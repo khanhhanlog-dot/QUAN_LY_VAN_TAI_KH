@@ -2,7 +2,7 @@
 import { Controller, type Control, type UseFormRegister } from "react-hook-form";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { formatNumber } from "@/lib/format";
-import { parseNumberVN } from "@/lib/entities/record";
+import { compactUpper, parseNumberVN } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 import { ReferenceSelect } from "./reference-select";
 
@@ -15,6 +15,7 @@ export function FieldInput({
   invalid,
   refLabel,
   disabled,
+  idPrefix = "f_",
 }: {
   field: FieldDef;
   control: Control<Values>;
@@ -22,8 +23,10 @@ export function FieldInput({
   invalid?: boolean;
   refLabel?: string;
   disabled?: boolean;
+  /** Tiền tố id của ô nhập (nhiều biểu mẫu trên cùng trang) */
+  idPrefix?: string;
 }) {
-  const id = `f_${field.key}`;
+  const id = `${idPrefix}${field.key}`;
   const common = { id, "aria-invalid": invalid || undefined, disabled };
   switch (field.type) {
     case "textarea":
@@ -131,6 +134,24 @@ export function FieldInput({
     case "file":
       return <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Tải tệp/ảnh cho trường động sẽ có ở Giai đoạn 5.</p>;
     default:
+      if (field.compactUpper) {
+        const reg = register(field.key);
+        return (
+          <Input
+            {...common}
+            {...reg}
+            maxLength={field.maxLength}
+            placeholder={field.placeholder}
+            autoComplete="off"
+            autoCapitalize="characters"
+            className="font-mono uppercase"
+            onChange={(e) => {
+              e.target.value = compactUpper(e.target.value);
+              return reg.onChange(e);
+            }}
+          />
+        );
+      }
       if (field.suggestions?.length) {
         return (
           <>

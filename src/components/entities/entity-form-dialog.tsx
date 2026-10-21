@@ -39,6 +39,7 @@ export function EntityFormDialog({
   onSaved,
   readOnly = false,
   initialValues,
+  canAddField = false,
 }: {
   entityKey: string;
   customRows: CustomFieldRow[];
@@ -53,6 +54,8 @@ export function EntityFormDialog({
   readOnly?: boolean;
   /** Giá trị điền sẵn khi thêm mới (ví dụ chữ vừa gõ để tìm, thông tin chuyến đang tạo) */
   initialValues?: Values;
+  /** Hiện liên kết "Thêm trường" (người có quyền cấu hình trường dữ liệu) */
+  canAddField?: boolean;
 }) {
   const entity = getEntity(entityKey);
   const fields = useMemo(() => formFields(entityKey, customRows, quick), [entityKey, customRows, quick]);
@@ -120,6 +123,14 @@ export function EntityFormDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {quick ? "Chỉ cần các thông tin chính; bổ sung chi tiết sau trong danh mục." : "Trường có dấu * là bắt buộc."}
+            {canAddField && entity.customModule ? (
+              <>
+                {" "}
+                <a href={`/truong-du-lieu?module=${entity.customModule}&them=1`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
+                  + Thêm trường cho biểu mẫu này
+                </a>
+              </>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
         <form

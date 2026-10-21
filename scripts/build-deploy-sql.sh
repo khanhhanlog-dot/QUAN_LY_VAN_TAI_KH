@@ -55,3 +55,6 @@ upgrade nang-cap-giai-doan-4.sql "Giai đoạn 4 (điều phối)" "to_regclass(
 
 upgrade nang-cap-giai-doan-5a.sql "Giai đoạn 5a (tài xế nhận chuyến qua link)" "to_regprocedure('public.driver_link_login(text)') is not null" \
   supabase/migrations/20261021000014_driver_link.sql
+
+upgrade nang-cap-giai-doan-5b.sql "Giai đoạn 5b (trường bổ sung cho mọi biểu mẫu)" "private.custom_field_table('vehicle_types') is not null" \
+  supabase/migrations/20261021000015_custom_fields_everywhere.sql

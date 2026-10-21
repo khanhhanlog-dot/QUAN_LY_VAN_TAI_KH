@@ -72,6 +72,7 @@ export function FieldManager({
   numericSystem,
   systemKeys,
   permissions,
+  autoOpen = false,
 }: {
   module: string;
   moduleLabel: string;
@@ -80,10 +81,12 @@ export function FieldManager({
   numericSystem: { key: string; label: string }[];
   systemKeys: string[];
   permissions: readonly string[];
+  /** Mở sẵn hộp thêm trường (đến từ liên kết "Thêm trường" trong biểu mẫu) */
+  autoOpen?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<CustomFieldRow | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen && canConfigure);
   const [historyOf, setHistoryOf] = useState<CustomFieldRow | null>(null);
   const [deleting, setDeleting] = useState<CustomFieldRow | null>(null);
   const [deleteImpact, setDeleteImpact] = useState<FieldImpact | null>(null);

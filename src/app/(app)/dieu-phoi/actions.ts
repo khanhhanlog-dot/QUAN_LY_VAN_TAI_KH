@@ -3,6 +3,19 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
+import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
+import { moduleCustomFields, splitCustom, validateRecord } from "@/lib/entities/record";
+import type { FieldDef } from "@/lib/entities/types";
+
+/** Kiểm tra và chuẩn hóa giá trị trường bổ sung (cùng quy tắc với biểu mẫu danh mục) */
+function customValues(fields: FieldDef[], raw: Record<string, unknown> | undefined, prefix: string): Record<string, unknown> {
+  const editable = fields.filter((f) => !f.readOnly && f.type !== "formula");
+  if (!editable.length) return {};
+  const { data, errors } = validateRecord(editable, raw ?? {});
+  const first = Object.values(errors)[0];
+  if (first) throw new ActionError(prefix + first);
+  return splitCustom(editable, data).custom;
+}
 
 const uuid = z.uuid("Giá trị không hợp lệ");
 const optUuid = uuid.optional().or(z.literal("").transform(() => undefined));
@@ -85,6 +98,7 @@ const shipmentSchema = z
     surchargeAmount: optNum("Phụ phí", { min: 0 }),
     fuelSupportRate: optNum("Tỷ lệ hỗ trợ dầu", { min: 0, max: 100 }),
     notes: z.string().max(1000).optional(),
+    custom: z.record(z.string(), z.unknown()).optional(),
   })
   .refine((s) => s.pickupLocationId !== s.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
   .refine((s) => !s.expectedDeliveryAt || Date.parse(s.expectedDeliveryAt) >= Date.parse(s.pickupAt), {
@@ -97,6 +111,7 @@ const orderSchema = z.object({
   payerCustomerId: optUuid,
   orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   notes: z.string().max(2000).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
   shipments: z.array(shipmentSchema).min(1, "Đơn hàng phải có ít nhất một chuyến").max(100, "Mỗi lần tạo tối đa 100 chuyến"),
 });
 
@@ -105,7 +120,7 @@ export type CreateOrderInput = z.input<typeof orderSchema>;
 /** Tạo đơn hàng gồm nhiều chuyến (hoặc thêm chuyến vào đơn có sẵn) trong một giao dịch */
 export async function createOrder(input: CreateOrderInput): Promise<ActionResult<{ order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[] }>> {
   return runAction(async () => {
-    await requirePermission("dispatch.create");
+    const me = await requirePermission("dispatch.create");
     const p = orderSchema.safeParse(input);
     if (!p.success) {
       const issue = p.error.issues[0];
@@ -114,10 +129,14 @@ export async function createOrder(input: CreateOrderInput): Promise<ActionResult
     }
     const d = p.data;
     if (!d.orderId && !d.customerId) throw new ActionError("Vui lòng chọn khách hàng.");
+    const supabase = await createClient();
+    const [orderRows, shipRows] = await Promise.all([loadCustomFields(supabase, "transport_orders"), loadCustomFields(supabase, "shipments")]);
+    const orderCustom = d.orderId ? {} : customValues(moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions), d.custom, "Đơn hàng: ");
+    const shipFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
     const order = d.orderId
       ? { id: d.orderId }
-      : { customer_id: d.customerId, payer_customer_id: d.payerCustomerId ?? "", order_date: d.orderDate, notes: d.notes ?? "" };
-    const shipments = d.shipments.map((s) => ({
+      : { customer_id: d.customerId, payer_customer_id: d.payerCustomerId ?? "", order_date: d.orderDate, notes: d.notes ?? "", custom_fields: orderCustom };
+    const shipments = d.shipments.map((s, i) => ({
       pickup_at: new Date(s.pickupAt).toISOString(),
       expected_delivery_at: s.expectedDeliveryAt ? new Date(s.expectedDeliveryAt).toISOString() : "",
       pickup_location_id: s.pickupLocationId,
@@ -132,8 +151,8 @@ export async function createOrder(input: CreateOrderInput): Promise<ActionResult
       surcharge_amount: s.surchargeAmount ?? "",
       fuel_support_rate: s.fuelSupportRate ?? "",
       notes: s.notes ?? "",
+      custom_fields: customValues(shipFields, s.custom, `Chuyến ${i + 1}: `),
     }));
-    const supabase = await createClient();
     const { data, error } = await supabase.rpc("create_transport_order", { p_order: order, p_shipments: shipments });
     if (error) throw error;
     revalidatePath("/dieu-phoi");
