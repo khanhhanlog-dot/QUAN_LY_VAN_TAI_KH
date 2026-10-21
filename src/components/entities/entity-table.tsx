@@ -31,11 +31,13 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { TONE_BADGE } from "@/lib/tones";
 import { getEntity } from "@/lib/entities/definitions";
 import { effectiveFields, formatValue } from "@/lib/entities/record";
 import { deleteRecord, resetTableView, saveTableView } from "@/lib/entities/actions";
@@ -65,6 +67,8 @@ export type EntityTableProps = {
   access: EntityAccess;
   /** Đường dẫn cần làm mới sau khi ghi */
   revalidate: string;
+  /** Số bản ghi theo từng trạng thái cho dãy tab lọc (null nếu thực thể không có tab) */
+  statusCounts?: { field: string; counts: Record<string, number> } | null;
 };
 
 const ACTIONS_COL = "__actions";
@@ -121,7 +125,7 @@ export function EntityTable(props: EntityTableProps) {
       id: f.key,
       accessorFn: (r) => r[f.key],
       header: f.label,
-      size: f.type === "textarea" || f.wide ? 240 : f.type === "boolean" ? 110 : f.key === "code" ? 100 : f.type === "date" ? 120 : 150,
+      size: f.type === "textarea" || f.wide ? 240 : f.type === "boolean" ? 110 : f.key === "code" ? 100 : f.type === "date" ? 120 : f.options?.some((o) => o.tone) ? 136 : 124,
       minSize: 60,
       enableSorting: !["reference", "formula", "multiselect", "file"].includes(f.type),
       meta: { field: f },
@@ -150,6 +154,10 @@ export function EntityTable(props: EntityTableProps) {
               {text || "(chưa có)"}
             </button>
           );
+        }
+        if (f.type === "select" && v != null && v !== "") {
+          const opt = f.options?.find((o) => o.value === v);
+          if (opt?.tone) return <Badge variant={TONE_BADGE[opt.tone]}>{opt.label}</Badge>;
         }
         if (f.type === "url" && typeof v === "string") {
           return (
@@ -258,11 +266,45 @@ export function EntityTable(props: EntityTableProps) {
     };
   }
 
-  const filterFields = fields.filter((f) => f.filter && (f.type === "select" || f.type === "boolean" || f.type === "reference"));
+  const tabField = props.statusCounts ? fields.find((f) => f.key === props.statusCounts!.field) : undefined;
+  const filterFields = fields.filter(
+    (f) => f.filter && f !== tabField && (f.type === "select" || f.type === "boolean" || f.type === "reference"),
+  );
   const cellPad = density === "compact" ? "px-2 py-1" : "px-3 py-2";
 
   return (
     <Card className="overflow-hidden">
+      {tabField && props.statusCounts ? (
+        <div className="flex gap-1 overflow-x-auto border-b px-3 pt-2" role="tablist" aria-label={`Lọc theo ${tabField.label.toLowerCase()}`}>
+          {[{ value: "", label: "Tất cả" }, ...(tabField.options ?? [])].map((o) => {
+            const active = (props.filters[tabField.key] ?? "") === o.value;
+            const n = props.statusCounts!.counts[o.value || "all"] ?? 0;
+            return (
+              <button
+                key={o.value || "all"}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setParams({ [`f_${tabField.key}`]: o.value, page: null })}
+                className={cn(
+                  "-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors",
+                  active ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {o.label}
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-[11px] tabular-nums",
+                    active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {n.toLocaleString("vi-VN")}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2 border-b p-3">
         <form
           className="relative w-full sm:w-64"

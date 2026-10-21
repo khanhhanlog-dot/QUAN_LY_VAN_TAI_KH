@@ -1,6 +1,6 @@
 # Trạng thái chức năng
 
-Cập nhật: 18/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) · 🟡 có CSDL/RLS, chưa có giao diện · ⏳ chưa triển khai (trong ứng dụng hiển thị nhãn "GĐx" và trang "Đang phát triển").
+Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) · 🟡 có CSDL/RLS, chưa có giao diện · ⏳ chưa triển khai (trong ứng dụng hiển thị nhãn "GĐx" và trang "Đang phát triển").
 
 ## Đã hoạt động (Giai đoạn 1–2)
 
@@ -11,7 +11,7 @@ Cập nhật: 18/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Mời người dùng (vai trò, gắn hồ sơ tài xế), thu hồi lời mời | ✅ | E2E + CSDL |
 | Khóa/mở tài khoản, gán vai trò, ma trận quyền theo vai trò, cấp/chặn quyền riêng | ✅ | E2E + CSDL (chặn tự cấp quyền, bảo vệ Super Admin) |
 | Menu và trang theo quyền; chặn truy cập bằng URL | ✅ | E2E |
-| Tổng quan: số chuyến hôm nay/tháng, chờ nhận, đang chạy, trễ, chờ quyết toán, phê duyệt chờ, tài khoản chờ, giấy tờ xe sắp hết hạn | ✅ | E2E (số liệu đọc trực tiếp từ CSDL) |
+| Tổng quan: thẻ số liệu so với kỳ trước (hôm qua, cùng kỳ tháng trước), biểu đồ số chuyến 14 ngày, trạng thái chuyến trong tháng, sản lượng 6 tháng, chuyến gần đây, khách hàng nhiều chuyến nhất, việc cần xử lý, giấy tờ xe sắp hết hạn | ✅ | E2E + 6 kiểm thử CSDL (số liệu tính trực tiếp từ bảng chuyến qua RLS; tài xế chỉ được tính chuyến của mình) |
 | Thông báo trong ứng dụng, đánh dấu đã đọc | ✅ | E2E |
 | Nhật ký hệ thống (chỉ đọc, không sửa/xóa, che dữ liệu nhạy cảm) | ✅ | E2E + CSDL |
 | Cấu hình tham số hệ thống | ✅ | E2E |
@@ -34,6 +34,7 @@ Cập nhật: 18/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Xuất Excel (tối đa 5.000 dòng, theo bộ lọc và cột đang hiện); nhập Excel/CSV có file mẫu, xem trước, báo lỗi từng dòng, ghi một lần toàn bộ hoặc không ghi gì | ✅ | E2E + kiểm thử đơn vị |
 | Kiểm tra trùng và khóa lạc quan khi hai người cùng sửa | ✅ | E2E |
 | Không xóa được bản ghi đang được dùng (gợi ý ngừng sử dụng thay vì xóa) | ✅ | E2E |
+| Giao diện theo mẫu người dùng chọn (21/10/2026): menu xanh đậm, thẻ số liệu có biểu tượng màu, nhãn trạng thái màu, tab lọc trạng thái có số lượng, ô tìm nhanh chức năng (gõ có hoặc không dấu) | ✅ | E2E |
 | Trường dữ liệu động: 19 kiểu, bắt buộc, giá trị mặc định, hiện theo điều kiện, quyền xem/sửa riêng, công thức an toàn (không dùng eval), phiên bản + khôi phục, phân tích ảnh hưởng trước khi sửa, không xóa/đổi kiểu khi đã có dữ liệu | ✅ | 29 kiểm thử CSDL + kiểm thử đơn vị + E2E |
 
 ## Có sẵn trong CSDL, chờ giao diện

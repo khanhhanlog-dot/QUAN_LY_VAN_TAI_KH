@@ -20,6 +20,7 @@ Quy ước: mọi server action (1) lấy người dùng từ phiên, (2) gọi 
 | `updateSystemSetting` | server action | `settings.configure` | Sửa tham số hệ thống (JSON hợp lệ) |
 | `my_permissions()` | RPC | đăng nhập | Danh sách quyền hiệu lực của người gọi |
 | `find_price_lists(...)` | RPC | `price_lists.view` (RLS) | Ứng viên bảng giá theo độ cụ thể + ưu tiên |
+| `dashboard_shipment_stats(p_today)` | RPC (security invoker) | đăng nhập, dữ liệu theo RLS | Số liệu biểu đồ Tổng quan: theo ngày (14 ngày), theo tháng (6 tháng), theo trạng thái, top khách hàng, so với kỳ trước |
 
 ## 5.1b Đã triển khai (Giai đoạn 3)
 

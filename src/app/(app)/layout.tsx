@@ -7,6 +7,7 @@ import { hasAny } from "@/lib/permissions";
 import { Brand } from "@/components/layout/brand";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { NavSearch } from "@/components/layout/nav-search";
 import { UserMenu } from "@/components/layout/user-menu";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <Brand />
         <SidebarNav groups={groups} />
         {user.isDriver ? (
@@ -35,8 +36,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         ) : null}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-card/95 px-3 backdrop-blur sm:px-5">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-card/95 px-3 backdrop-blur sm:px-6">
           <MobileNav groups={groups} />
+          <NavSearch groups={groups} />
           <div className="flex-1" />
           <Link href="/thong-bao" className="relative rounded-md p-2 hover:bg-accent" aria-label={`Thông báo (${unread ?? 0} chưa đọc)`}>
             <Bell className="size-5" />

@@ -115,7 +115,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
 await asUser("stranger@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/`);
   check(await urlMatches(page, /\/tong-quan$/), "Sau khi được cấp quyền vào được Tổng quan");
-  await visible(page.getByText("Chỉ tiêu tài chính"));
+  await visible(page.getByText("Tổng quan tài chính"));
   check((await page.getByRole("link", { name: /Người dùng và phân quyền/ }).count()) === 0, "Người xem báo cáo không thấy menu phân quyền");
   await page.goto(`${BASE}/nguoi-dung`);
   check(await urlMatches(page, /\/khong\-co\-quyen/), "Gõ thẳng URL trang phân quyền -> bị chặn phía máy chủ");

@@ -102,6 +102,26 @@ export async function listRows(
   return { rows, total: count ?? rows.length, page, size, refLabels, fields };
 }
 
+/** Số bản ghi theo từng giá trị của trường tab trạng thái (giữ tìm kiếm và các bộ lọc khác, bỏ lọc trạng thái) */
+export async function countByStatus(supabase: SupabaseClient, entity: EntityDef, fields: FieldDef[], params: ListParams) {
+  const f = entity.statusTabs ? fields.find((x) => x.key === entity.statusTabs && x.type === "select") : undefined;
+  if (!f) return null;
+  const rest = { ...params, filters: { ...(params.filters ?? {}) } };
+  delete rest.filters[f.key];
+  const values = ["", ...(f.options ?? []).map((o) => o.value)];
+  const counts = await Promise.all(
+    values.map(async (v) => {
+      let q = supabase.from(entity.table).select(entity.pk ?? "id", { count: "exact", head: true });
+      q = applyFilters(q, entity, fields, rest);
+      if (v) q = q.eq(columnRef(f), v);
+      const { count, error } = await q;
+      if (error) throw error;
+      return [v || "all", count ?? 0] as const;
+    }),
+  );
+  return { field: f.key, counts: Object.fromEntries(counts) as Record<string, number> };
+}
+
 /** Lấy nhãn hiển thị cho các cột tham chiếu (một truy vấn cho mỗi bảng đích, qua RLS) */
 export async function resolveRefLabels(supabase: SupabaseClient, fields: FieldDef[], rows: Record<string, unknown>[]): Promise<RefLabels> {
   const out: RefLabels = {};

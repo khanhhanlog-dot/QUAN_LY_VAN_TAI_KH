@@ -31,14 +31,16 @@ export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavig
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                      active ? "bg-sidebar-accent text-white font-medium" : "text-sidebar-foreground/85 hover:bg-sidebar-accent/60 hover:text-white",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-primary text-white font-medium shadow-sm shadow-black/20"
+                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />
                     <span className="flex-1 truncate">{item.label}</span>
                     {item.phase ? (
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-sidebar-muted" title={`Hoàn thiện ở Giai đoạn ${item.phase}`}>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[10px]", active ? "bg-white/20 text-white" : "bg-white/10 text-sidebar-muted")} title={`Hoàn thiện ở Giai đoạn ${item.phase}`}>
                         GĐ{item.phase}
                       </span>
                     ) : null}

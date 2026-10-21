@@ -4,7 +4,7 @@
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BASE, asUser, check, desktop, finish, hidden, shot, visible } from "./e2e-lib.mjs";
+import { BASE, asUser, check, desktop, finish, hidden, shot, urlMatches, visible } from "./e2e-lib.mjs";
 
 const toast = (page, text) => visible(page.locator("[data-sonner-toast]").filter({ hasText: text }), 15000);
 
@@ -233,6 +233,33 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   await dialog(page).locator("#f_priority").fill("10");
   await dialog(page).getByRole("button", { name: "Lưu" }).click();
   check(await toast(page, "Đã thêm bảng giá"), "Bảng giá ưu tiên cao hơn được lưu");
+});
+
+// ---------------------------------------------------------------------------
+// E. Giao diện mới: Tổng quan có biểu đồ từ dữ liệu thật, tab lọc trạng thái, tìm nhanh chức năng
+// ---------------------------------------------------------------------------
+await asUser("owner@khanhha.test", desktop, async (page) => {
+  await page.goto(`${BASE}/tong-quan`);
+  check(await visible(page.getByText("Số chuyến 14 ngày gần đây")), "Tổng quan có biểu đồ số chuyến theo ngày");
+  check(await visible(page.getByRole("img", { name: /Biểu đồ tròn/ })), "Tổng quan có biểu đồ trạng thái chuyến");
+  check(await visible(page.locator("tbody").getByText("Chờ tài xế nhận")), "Chuyến gần đây hiển thị nhãn trạng thái");
+  check(await visible(page.getByText("Chưa triển khai – Giai đoạn 7")), "Chỉ tiêu tài chính ghi rõ chưa triển khai, không có số giả");
+  await shot(page, "p3-07-tong-quan");
+
+  await page.getByRole("combobox", { name: "Tìm chức năng" }).fill("bang gia");
+  await page.keyboard.press("Enter");
+  check(await urlMatches(page, /\/bang-gia/), "Tìm nhanh chức năng không dấu mở đúng màn hình");
+
+  await page.goto(`${BASE}/phuong-tien`);
+  const tabs = page.getByRole("tablist", { name: /Lọc theo trạng thái/ });
+  check(await visible(tabs.getByRole("tab", { name: /Tất cả/ })), "Bảng phương tiện có dãy tab trạng thái");
+  await tabs.getByRole("tab", { name: /Đang sửa chữa/ }).click();
+  check(await urlMatches(page, /f_status=maintenance/), "Bấm tab lọc theo trạng thái");
+  check(await visible(page.getByText("Không có dữ liệu phù hợp")), "Tab trạng thái chưa có xe hiển thị danh sách trống");
+  await tabs.getByRole("tab", { name: /Đang hoạt động/ }).click();
+  check(await urlMatches(page, /f_status=active/), "Chuyển tab trạng thái khác");
+  check(await visible(page.locator("tbody").getByText("Đang hoạt động").first()), "Trạng thái hiển thị dạng nhãn màu trong bảng");
+  await shot(page, "p3-08-tab-trang-thai");
 });
 
 await finish();

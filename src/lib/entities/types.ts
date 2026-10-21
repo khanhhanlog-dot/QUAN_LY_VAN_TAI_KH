@@ -19,7 +19,10 @@ export type FieldType =
   | "formula"
   | "file";
 
-export type Option = { value: string; label: string };
+import type { Tone } from "@/lib/tones";
+
+/** tone: màu nhãn khi hiển thị trong bảng (trạng thái) */
+export type Option = { value: string; label: string; tone?: Tone };
 
 export type FieldDef = {
   key: string;
@@ -92,6 +95,8 @@ export type EntityDef = {
   autoCode?: boolean;
   /** Điều kiện chỉ được chọn khi tham chiếu (ví dụ chỉ bản ghi đang hoạt động) */
   activeFilter?: { col: string; value: string | boolean };
+  /** Trường select hiển thị thành dãy tab lọc (kèm số lượng) phía trên bảng */
+  statusTabs?: string;
   /** Gợi ý hiển thị khi xóa bị chặn do đang được tham chiếu */
   archiveHint?: string;
   /** Dữ liệu nhạy cảm: cần thêm quyền {perm}.view_sensitive */

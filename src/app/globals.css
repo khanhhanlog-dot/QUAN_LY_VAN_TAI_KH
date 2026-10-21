@@ -4,31 +4,40 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.002 247);
+  --radius: 0.625rem;
+  --background: oklch(0.975 0.008 250);
   --foreground: oklch(0.21 0.03 264);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.03 264);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.03 264);
-  --primary: oklch(0.45 0.13 255);
+  --primary: oklch(0.55 0.2 260);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.96 0.006 247);
   --secondary-foreground: oklch(0.25 0.03 264);
   --muted: oklch(0.96 0.006 247);
   --muted-foreground: oklch(0.52 0.02 257);
-  --accent: oklch(0.95 0.02 250);
-  --accent-foreground: oklch(0.25 0.06 260);
+  --accent: oklch(0.955 0.025 255);
+  --accent-foreground: oklch(0.35 0.12 260);
   --destructive: oklch(0.58 0.22 27);
   --warning: oklch(0.75 0.15 75);
   --success: oklch(0.6 0.14 155);
-  --border: oklch(0.91 0.008 247);
+  --border: oklch(0.92 0.012 250);
   --input: oklch(0.91 0.008 247);
-  --ring: oklch(0.55 0.13 255);
-  --sidebar: oklch(0.24 0.04 262);
+  --ring: oklch(0.6 0.18 260);
+  --sidebar: oklch(0.2 0.055 262);
   --sidebar-foreground: oklch(0.92 0.01 250);
-  --sidebar-muted: oklch(0.68 0.03 255);
-  --sidebar-accent: oklch(0.32 0.05 262);
+  --sidebar-muted: oklch(0.66 0.04 258);
+  --sidebar-accent: oklch(0.28 0.06 262);
+  /* Bảng màu nhấn cho thẻ số liệu, biểu đồ, nhãn trạng thái */
+  --tone-blue: oklch(0.6 0.19 258);
+  --tone-purple: oklch(0.58 0.2 295);
+  --tone-red: oklch(0.63 0.21 25);
+  --tone-green: oklch(0.65 0.15 155);
+  --tone-amber: oklch(0.76 0.16 70);
+  --tone-teal: oklch(0.67 0.12 195);
+  --tone-pink: oklch(0.65 0.2 350);
+  --tone-gray: oklch(0.65 0.02 257);
 }
 
 @theme inline {
@@ -56,6 +65,14 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-muted: var(--sidebar-muted);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-tone-blue: var(--tone-blue);
+  --color-tone-purple: var(--tone-purple);
+  --color-tone-red: var(--tone-red);
+  --color-tone-green: var(--tone-green);
+  --color-tone-amber: var(--tone-amber);
+  --color-tone-teal: var(--tone-teal);
+  --color-tone-pink: var(--tone-pink);
+  --color-tone-gray: var(--tone-gray);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

@@ -1,8 +1,8 @@
 import type { EntityDef, FieldDef, Option } from "./types";
 
 const ACTIVE_STATUS: Option[] = [
-  { value: "active", label: "Đang hoạt động" },
-  { value: "inactive", label: "Ngừng hoạt động" },
+  { value: "active", label: "Đang hoạt động", tone: "green" },
+  { value: "inactive", label: "Ngừng hoạt động", tone: "gray" },
 ];
 
 const code = (autoCode: boolean, extra: Partial<FieldDef> = {}): FieldDef => ({
@@ -20,15 +20,15 @@ const sortOrder: FieldDef = { key: "sort_order", label: "Thứ tự", type: "num
 const notes: FieldDef = { key: "notes", label: "Ghi chú", type: "textarea", wide: true };
 
 export const VEHICLE_STATUS: Option[] = [
-  { value: "active", label: "Đang hoạt động" },
-  { value: "maintenance", label: "Đang sửa chữa" },
-  { value: "inactive", label: "Tạm ngừng" },
-  { value: "sold", label: "Đã bán/thanh lý" },
+  { value: "active", label: "Đang hoạt động", tone: "green" },
+  { value: "maintenance", label: "Đang sửa chữa", tone: "amber" },
+  { value: "inactive", label: "Tạm ngừng", tone: "gray" },
+  { value: "sold", label: "Đã bán/thanh lý", tone: "red" },
 ];
 export const DRIVER_STATUS: Option[] = [
-  { value: "active", label: "Đang làm việc" },
-  { value: "on_leave", label: "Tạm nghỉ" },
-  { value: "terminated", label: "Đã nghỉ việc" },
+  { value: "active", label: "Đang làm việc", tone: "green" },
+  { value: "on_leave", label: "Tạm nghỉ", tone: "amber" },
+  { value: "terminated", label: "Đã nghỉ việc", tone: "gray" },
 ];
 const ROLE_OPTIONS: Option[] = [
   { value: "admin", label: "Quản trị viên" },
@@ -56,6 +56,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     labelCols: ["plate_number", "code"],
     quickFields: ["plate_number", "vehicle_type_id"],
     activeFilter: { col: "status", value: "active" },
+    statusTabs: "status",
     archiveHint: "Xe đã có chuyến hoặc chi phí thì không xóa được; hãy chuyển trạng thái sang Tạm ngừng hoặc Đã bán.",
     fields: [
       code(true),
@@ -174,8 +175,8 @@ export const ENTITIES: Record<string, EntityDef> = {
       {
         key: "status", label: "Trạng thái", type: "select", required: true, defaultValue: "recorded",
         options: [
-          { value: "recorded", label: "Đã ghi nhận" },
-          { value: "cancelled", label: "Đã hủy" },
+          { value: "recorded", label: "Đã ghi nhận", tone: "green" },
+          { value: "cancelled", label: "Đã hủy", tone: "red" },
         ],
       },
       notes,
@@ -197,6 +198,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     labelCols: ["full_name", "code"],
     quickFields: ["full_name", "phone"],
     activeFilter: { col: "status", value: "active" },
+    statusTabs: "status",
     archiveHint: "Tài xế đã có chuyến hoặc ứng tiền thì không xóa được; hãy chuyển trạng thái sang Đã nghỉ việc.",
     fields: [
       code(true),
@@ -278,6 +280,7 @@ export const ENTITIES: Record<string, EntityDef> = {
     labelCols: ["name", "code"],
     quickFields: ["name", "tax_code", "phone"],
     activeFilter: { col: "status", value: "active" },
+    statusTabs: "status",
     archiveHint: "Khách hàng đã có đơn hàng, bảng giá hoặc công nợ thì không xóa được; hãy chuyển sang Ngừng hoạt động.",
     fields: [
       code(true),
@@ -420,9 +423,9 @@ export const ENTITIES: Record<string, EntityDef> = {
       {
         key: "status", label: "Trạng thái", type: "select", required: true, list: true, filter: true, defaultValue: "active",
         options: [
-          { value: "draft", label: "Nháp" },
-          { value: "active", label: "Đang áp dụng" },
-          { value: "inactive", label: "Ngừng áp dụng" },
+          { value: "draft", label: "Nháp", tone: "gray" },
+          { value: "active", label: "Đang áp dụng", tone: "green" },
+          { value: "inactive", label: "Ngừng áp dụng", tone: "gray" },
         ],
       },
       { key: "conditions", label: "Điều kiện áp dụng", type: "textarea", wide: true },

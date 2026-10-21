@@ -61,7 +61,7 @@ npm run build       # build production
 
 ### 1.2 Kiểm thử bảo mật CSDL (không cần Supabase)
 
-Chạy toàn bộ migration trên một CSDL Postgres **tạm** rồi chạy 97 kiểm thử (RLS, trường dữ liệu động, mã tự sinh, tài xế chỉ thấy chuyến của mình, không tự cấp quyền, không sửa/xóa nhật ký, không xóa dữ liệu có phát sinh tài chính…):
+Chạy toàn bộ migration trên một CSDL Postgres **tạm** rồi chạy 103 kiểm thử (RLS, trường dữ liệu động, mã tự sinh, tài xế chỉ thấy chuyến của mình, không tự cấp quyền, không sửa/xóa nhật ký, không xóa dữ liệu có phát sinh tài chính…):
 
 ```bash
 # dùng PGHOST/PGPORT/PGUSER nếu Postgres không ở mặc định; TEST_DB đổi tên CSDL tạm (mặc định gha_tms_test)
