@@ -16,7 +16,7 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Nhật ký hệ thống (chỉ đọc, không sửa/xóa, che dữ liệu nhạy cảm) | ✅ | E2E + CSDL |
 | Cấu hình tham số hệ thống | ✅ | E2E |
 | Hồ sơ cá nhân | ✅ | Kiểm thử đơn vị/thủ công |
-| Ứng dụng tài xế: xem chuyến được phân công, link Google Maps, gọi điện liên hệ | ✅ | E2E (tài xế khác không thấy) |
+| Ứng dụng tài xế (GĐ5a): mở link /tx không cần tài khoản, nhập biển số xe (tự viết hoa, bỏ ký tự đặc biệt), xem chuyến dạng thẻ (giờ nhận/giao, điểm nhận/giao, chỉ đường, gọi điện, ghi chú), bấm Nhận đơn; máy nhớ xe 30 ngày; điều phối nhận thông báo. Người dùng chọn chỉ cần biển số (ai biết biển số cũng xem/nhận được chuyến của xe đó) | ✅ | 19 kiểm thử CSDL + E2E |
 | Toàn bộ CSDL 54 bảng, RLS mọi bảng, trigger chống sửa sau duyệt, mã tự sinh, nhật ký tự động | ✅ | 68 kiểm thử CSDL; sinh mã đồng thời 300/300 không trùng |
 
 ## Đã hoạt động (Giai đoạn 3)
@@ -52,7 +52,7 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 |---|---|
 | Tải chứng từ, ảnh, tệp đính kèm (kể cả trường động kiểu tệp, đang ghi "GĐ5"); xem qua signed URL | GĐ5 |
 | Trình thiết kế biểu mẫu (trang "Biểu mẫu" đang ghi "Giai đoạn 6") | GĐ6 |
-| Tài xế nhận chuyến, cập nhật tiến độ, hoàn thành chuyến kèm ảnh (nút đang khóa, ghi rõ "Giai đoạn 5") | GĐ5 |
+| Tài xế bắt đầu chạy, hoàn thành chuyến kèm ảnh | GĐ5 |
 | Gửi ứng tiền/chi phí, duyệt, hủy duyệt có kiểm soát; cột tạm ứng, chi phí, lợi nhuận dự kiến trên bảng chuyến | GĐ6 |
 | Trường dữ liệu động của đơn hàng và chuyến hiển thị trên màn hình tạo đơn/chi tiết chuyến (đã định nghĩa được, chưa hiện) | GĐ5 |
 | Quyết toán, công nợ, 15 báo cáo, chỉ tiêu tài chính trên Tổng quan (đang ghi "Chưa triển khai – Giai đoạn 7") | GĐ7 |

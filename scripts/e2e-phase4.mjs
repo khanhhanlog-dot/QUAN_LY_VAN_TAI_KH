@@ -167,9 +167,11 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
 // ---------------------------------------------------------------------------
 // D. Tài xế: không còn nút từ chối
 // ---------------------------------------------------------------------------
-await asUser("taixe.a@khanhha.test", phone, async (page) => {
+await asUser(null, phone, async (page) => {
   await page.goto(`${BASE}/tx`);
-  check(await visible(page.getByText("Nhận chuyến").first()), "Ứng dụng tài xế hiện chuyến được phân công");
+  await page.getByLabel("Số xe").fill("51C00001");
+  await page.getByRole("button", { name: "Xem chuyến" }).click();
+  check(await visible(page.getByRole("button", { name: /Nhận đơn/ }).first()), "Ứng dụng tài xế hiện chuyến được phân công");
   check((await page.getByRole("button", { name: "Từ chối" }).count()) === 0, "Không còn nút từ chối chuyến");
 });
 

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PATHS = ["/dang-nhap", "/auth/callback", "/auth/error"];
+// /tx: ứng dụng tài xế mở bằng link + biển số xe, không cần tài khoản (quyền kiểm tra trong các hàm driver_link_* của CSDL).
+const PUBLIC_PATHS = ["/dang-nhap", "/auth/callback", "/auth/error", "/tx"];
 
 /** Làm mới phiên Supabase và chuyển người chưa đăng nhập về trang đăng nhập. */
 export async function updateSession(request: NextRequest) {

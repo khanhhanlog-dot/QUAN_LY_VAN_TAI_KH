@@ -52,3 +52,6 @@ upgrade() {
 
 upgrade nang-cap-giai-doan-4.sql "Giai đoạn 4 (điều phối)" "to_regclass('public.shipment_list') is not null" \
   supabase/migrations/20261021000013_dispatch.sql
+
+upgrade nang-cap-giai-doan-5a.sql "Giai đoạn 5a (tài xế nhận chuyến qua link)" "to_regprocedure('public.driver_link_login(text)') is not null" \
+  supabase/migrations/20261021000014_driver_link.sql

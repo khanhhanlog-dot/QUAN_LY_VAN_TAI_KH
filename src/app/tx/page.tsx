@@ -1,115 +1,141 @@
-import type { Metadata } from "next";
-import { CheckCircle2, ClipboardList, MapPin, Phone, Receipt, Wallet } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { formatDateTime } from "@/lib/format";
+import { Clock, MapPin, Navigation, Phone, Truck } from "lucide-react";
+import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
+import { formatDateTime, formatNumber } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { PlateForm } from "./plate-form";
+import { AcceptButton, ChangeVehicleButton } from "./trip-actions";
 
-export const metadata: Metadata = { title: "Ứng dụng tài xế" };
+export const dynamic = "force-dynamic";
 
-const STATUS: Record<string, { label: string; variant: "warning" | "success" | "secondary" | "destructive" | "default" }> = {
-  assigned: { label: "Chờ nhận chuyến", variant: "warning" },
-  accepted: { label: "Đã nhận", variant: "default" },
-  in_transit: { label: "Đang thực hiện", variant: "default" },
-  driver_completed: { label: "Đã hoàn thành", variant: "success" },
+const STATUS: Record<string, { label: string; variant: "warning" | "success" | "secondary" | "info" }> = {
+  assigned: { label: "Chờ nhận", variant: "warning" },
+  accepted: { label: "Đã nhận", variant: "info" },
+  in_transit: { label: "Đang chạy", variant: "info" },
+  driver_completed: { label: "Đã xong", variant: "success" },
   closed: { label: "Đã đóng", variant: "secondary" },
 };
 
-type Row = {
+type Trip = {
   shipment_id: string;
   shipment_code: string;
   status: string;
   pickup_at: string;
+  expected_delivery_at: string | null;
   plate_number: string | null;
+  vehicle_type_name: string | null;
+  quantity: number | null;
   notes: string | null;
   pickup_name: string;
   pickup_address: string;
+  pickup_contact: string | null;
   pickup_phone: string | null;
   pickup_maps_url: string | null;
+  pickup_gate_instructions: string | null;
   delivery_name: string;
   delivery_address: string;
+  delivery_contact: string | null;
   delivery_phone: string | null;
   delivery_maps_url: string | null;
+  delivery_gate_instructions: string | null;
+  driver_name: string;
+  accepted_at: string | null;
 };
 
 export default async function DriverHome() {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("driver_list_my_shipments", { p_include_finished: false });
+  const token = await driverLinkToken();
+  const supabase = anonClient();
+  const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string; driver_name: string | null } | null) : null;
+  if (!me) return <PlateForm />;
+
+  const { data, error } = await supabase.rpc("driver_link_trips", { p_token: token });
   if (error) throw error;
-  const rows = (data ?? []) as Row[];
+  const trips = (data ?? []) as Trip[];
+  const waiting = trips.filter((t) => t.status === "assigned").length;
 
   return (
-    <div className="space-y-5">
-      <section>
-        <h1 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-          <ClipboardList className="size-5" /> Chuyến được phân công
-        </h1>
-        {rows.length === 0 ? (
-          <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">Hiện chưa có chuyến nào được phân công cho bạn.</div>
-        ) : (
-          <ul className="space-y-3">
-            {rows.map((s) => (
-              <li key={s.shipment_id} className="rounded-xl border bg-card p-4 shadow-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-base font-semibold">{s.shipment_code}</span>
-                  <Badge variant={STATUS[s.status]?.variant ?? "outline"}>{STATUS[s.status]?.label ?? s.status}</Badge>
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Nhận hàng: {formatDateTime(s.pickup_at)}
-                  {s.plate_number ? ` · Xe ${s.plate_number}` : ""}
-                </div>
-                <Place label="Nơi nhận" name={s.pickup_name} address={s.pickup_address} phone={s.pickup_phone} maps={s.pickup_maps_url} />
-                <Place label="Nơi giao" name={s.delivery_name} address={s.delivery_address} phone={s.delivery_phone} maps={s.delivery_maps_url} />
-                {s.notes ? <p className="mt-2 rounded-md bg-muted p-2 text-sm">{s.notes}</p> : null}
-                <button disabled className="mt-3 h-12 w-full rounded-lg bg-primary/40 text-sm font-medium text-white" title="Giai đoạn 5">
-                  Nhận chuyến
-                </button>
-                <p className="mt-2 text-center text-xs text-muted-foreground">Nút nhận chuyến sẽ hoạt động ở Giai đoạn 5.</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 rounded-2xl bg-card p-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Truck className="size-6" />
+          </div>
+          <div>
+            <div className="font-mono text-lg font-semibold">{me.plate}</div>
+            <div className="text-sm text-muted-foreground">{waiting > 0 ? `${waiting} chuyến chờ nhận` : "Không có chuyến chờ nhận"}</div>
+          </div>
+        </div>
+        <ChangeVehicleButton />
+      </div>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tile icon={<Wallet className="size-6" />} title="Ứng tiền" phase={6} />
-        <Tile icon={<Receipt className="size-6" />} title="Nhập chi phí" phase={6} />
-        <Tile icon={<CheckCircle2 className="size-6" />} title="Hoàn thành chuyến" phase={5} />
-      </section>
+      {trips.length === 0 ? (
+        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">Xe chưa có chuyến nào được phân công.</div>
+      ) : (
+        <ul className="space-y-4">
+          {trips.map((t) => {
+            const st = STATUS[t.status] ?? { label: t.status, variant: "secondary" as const };
+            return (
+              <li key={t.shipment_id} data-trip={t.shipment_code} className={`rounded-2xl border-2 bg-card p-4 shadow-sm ${t.status === "assigned" ? "border-warning" : "border-transparent"}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-base font-semibold">{t.shipment_code}</div>
+                    <div className="text-sm text-muted-foreground">Tài xế: {t.driver_name}</div>
+                  </div>
+                  <Badge variant={st.variant}>{st.label}</Badge>
+                </div>
+
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
+                  <Clock className="size-4 shrink-0 text-primary" />
+                  <span>
+                    Nhận hàng <strong>{formatDateTime(t.pickup_at)}</strong>
+                    {t.expected_delivery_at ? <> · Giao trước {formatDateTime(t.expected_delivery_at)}</> : null}
+                  </span>
+                </div>
+
+                <Place label="Điểm nhận" name={t.pickup_name} address={t.pickup_address} contact={t.pickup_contact} phone={t.pickup_phone} maps={t.pickup_maps_url} gate={t.pickup_gate_instructions} />
+                <Place label="Điểm giao" name={t.delivery_name} address={t.delivery_address} contact={t.delivery_contact} phone={t.delivery_phone} maps={t.delivery_maps_url} gate={t.delivery_gate_instructions} />
+
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  {t.vehicle_type_name ? <span>Loại xe: {t.vehicle_type_name}</span> : null}
+                  {t.quantity ? <span>Số lượng: {formatNumber(t.quantity)}</span> : null}
+                </div>
+                {t.notes ? <p className="mt-2 rounded-lg bg-warning/10 p-2 text-sm">Ghi chú: {t.notes}</p> : null}
+
+                {t.status === "assigned" ? (
+                  <AcceptButton shipmentId={t.shipment_id} code={t.shipment_code} />
+                ) : t.accepted_at ? (
+                  <p className="mt-3 text-center text-sm text-success">Đã nhận lúc {formatDateTime(t.accepted_at)}</p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="text-center text-xs text-muted-foreground">Bắt đầu chạy, hoàn thành chuyến, ứng tiền và nhập chi phí sẽ có ở các bước sau.</p>
     </div>
   );
 }
 
-function Place({ label, name, address, phone, maps }: { label: string; name: string; address: string; phone: string | null; maps: string | null }) {
-  const mapsUrl = maps ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+function Place(p: { label: string; name: string; address: string; contact: string | null; phone: string | null; maps: string | null; gate: string | null }) {
+  const mapsUrl = p.maps ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}`;
   return (
     <div className="mt-3 flex gap-3">
       <MapPin className="mt-0.5 size-5 shrink-0 text-primary" />
       <div className="min-w-0 flex-1">
-        <div className="text-xs uppercase text-muted-foreground">{label}</div>
-        <div className="font-medium">{name}</div>
-        <div className="text-sm text-muted-foreground">{address}</div>
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border px-3 py-1.5 text-sm text-primary">
-            Mở Google Maps
+        <div className="text-xs font-medium uppercase text-muted-foreground">{p.label}</div>
+        <div className="font-semibold">{p.name}</div>
+        <div className="text-sm text-muted-foreground">{p.address}</div>
+        {p.gate ? <div className="text-sm">Cổng: {p.gate}</div> : null}
+        <div className="mt-2 flex flex-wrap gap-2">
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium text-primary">
+            <Navigation className="size-4" /> Chỉ đường
           </a>
-          {phone ? (
-            <a href={`tel:${phone}`} className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm">
-              <Phone className="size-4" /> {phone}
+          {p.phone ? (
+            <a href={`tel:${p.phone}`} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium">
+              <Phone className="size-4" /> {p.contact ? `${p.contact} · ` : ""}
+              {p.phone}
             </a>
           ) : null}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Tile({ icon, title, phase }: { icon: React.ReactNode; title: string; phase: number }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border bg-card p-4 opacity-70">
-      <div className="text-primary">{icon}</div>
-      <div>
-        <div className="font-medium">{title}</div>
-        <div className="text-xs text-muted-foreground">Chưa triển khai – Giai đoạn {phase}</div>
       </div>
     </div>
   );

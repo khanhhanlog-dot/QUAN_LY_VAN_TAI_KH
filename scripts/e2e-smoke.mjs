@@ -131,20 +131,41 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await shot(page, "10-dieu-phoi-khong-co-quyen");
 });
 
-// 6. Tài xế trên điện thoại
+// 6. Tài xế trên điện thoại: mở link, nhập số xe, nhận đơn (không cần tài khoản)
 await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await page.goto(`${BASE}/`);
   check(await urlMatches(page, /\/tx$/), "Tài xế vào thẳng ứng dụng tài xế");
-  check(await visible(page.getByText("Kho Mẫu Bình Dương").first()), "Tài xế A thấy chuyến được phân công");
-  check((await page.locator("li").filter({ hasText: "SHP-" }).count()) === 1, "Tài xế A chỉ thấy 1 chuyến");
-  check(await visible(page.getByRole("link", { name: "Mở Google Maps" })), "Có link mở Google Maps");
-  await shot(page, "11-tai-xe-dien-thoai");
+  check(await visible(page.getByText("Nhập số xe để xem chuyến")), "Ứng dụng tài xế hỏi số xe");
   await page.goto(`${BASE}/tong-quan`);
   check(await urlMatches(page, /\/khong\-co\-quyen/), "Tài xế không vào được Tổng quan quản trị");
 });
-await asUser("taixe.b@khanhha.test", phone, async (page) => {
+await asUser(null, phone, async (page) => {
   await page.goto(`${BASE}/tx`);
-  check(await visible(page.getByText("Hiện chưa có chuyến nào")), "Tài xế B không thấy chuyến của tài xế A");
+  check(await urlMatches(page, /\/tx$/), "Mở link tài xế không bị bắt đăng nhập");
+  const plate = page.getByLabel("Số xe");
+  await plate.fill("99x-999.99");
+  check((await plate.inputValue()) === "99X99999", "Ô số xe tự viết hoa và bỏ dấu chấm, gạch");
+  await page.getByRole("button", { name: "Xem chuyến" }).click();
+  check(await visible(page.getByText("Không tìm thấy xe có biển số này")), "Sai số xe thì báo rõ");
+  await plate.fill("51c00001");
+  await page.getByRole("button", { name: "Xem chuyến" }).click();
+  check(await visible(page.getByText("Kho Mẫu Bình Dương").first()), "Nhập số xe thấy chuyến dạng thẻ");
+  check((await page.locator("[data-trip]").count()) === 1, "Xe chỉ thấy chuyến của mình");
+  check(await visible(page.getByRole("link", { name: "Chỉ đường" }).first()), "Có nút chỉ đường Google Maps");
+  await shot(page, "11-tai-xe-dien-thoai");
+  await page.getByRole("button", { name: /Nhận đơn/ }).click();
+  check(await visible(page.getByText("Đã nhận lúc")), "Bấm Nhận đơn xong thẻ chuyển sang Đã nhận");
+  await page.reload();
+  check(await visible(page.getByText("Đã nhận lúc")), "Mở lại link vẫn nhớ xe, không phải nhập lại");
+  await shot(page, "11b-tai-xe-da-nhan");
+  await page.getByRole("button", { name: "Đổi xe" }).click();
+  await plate.fill("51C00002");
+  await page.getByRole("button", { name: "Xem chuyến" }).click();
+  check(await visible(page.getByText("Xe chưa có chuyến nào")), "Xe khác không thấy chuyến của xe 51C00001");
+});
+await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
+  await page.goto(`${BASE}/dieu-phoi`);
+  check(await visible(page.getByText("Đã nhận").first()), "Điều phối thấy chuyến tài xế đã nhận");
 });
 
 // 7. Giao diện điện thoại của khu quản trị
