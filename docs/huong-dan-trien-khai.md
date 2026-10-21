@@ -43,16 +43,16 @@ Dành cho người không cần biết lập trình. Làm lần lượt 4 bướ
 
 1. Vào https://vercel.com/signup → chọn **Hobby** → **Continue with GitHub**.
 2. **Add New… → Project** → chọn repo `QUAN_LY_VAN_TAI_KH` → **Import**. Nếu không thấy repo, bấm **Adjust GitHub App Permissions** và cho phép repo này.
-3. Mở mục **Environment Variables**, thêm 3 dòng:
+3. Mở mục **Environment Variables**, thêm 2 dòng bắt buộc (có thể dán nguyên cả 2 dòng `TÊN=giá trị` vào ô Key, Vercel tự tách):
 
    | Name | Value |
    |---|---|
    | `NEXT_PUBLIC_SUPABASE_URL` | Project URL ở Bước 1.5 |
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key ở Bước 1.5 (nếu là anon key thì đặt tên `NEXT_PUBLIC_SUPABASE_ANON_KEY`) |
-   | `NEXT_PUBLIC_SITE_URL` | tạm để `https://khanh-ha-tms.vercel.app`, sửa lại sau khi biết link thật |
+   | `NEXT_PUBLIC_SITE_URL` | *không bắt buộc*: chỉ cần khi gắn tên miền riêng; bỏ trống thì ứng dụng tự dùng link đang mở |
 
 4. Bấm **Deploy**, chờ khoảng 2–3 phút. Vercel cho một đường link, ví dụ `https://quan-ly-van-tai-kh.vercel.app`. Đây là **link ứng dụng**; link tài xế là link này thêm `/tx` ở cuối.
-5. Nếu link khác giá trị đã điền ở `NEXT_PUBLIC_SITE_URL`: vào **Settings → Environment Variables** sửa lại cho đúng, rồi **Deployments → ⋯ → Redeploy**.
+5. Nếu sau này gắn tên miền riêng, thêm `NEXT_PUBLIC_SITE_URL` bằng tên miền đó trong **Settings → Environment Variables**, rồi **Deployments → ⋯ → Redeploy**.
 6. Nên chỉnh vùng chạy gần Việt Nam: **Settings → Functions → Function Region** chọn **Singapore (sin1)**.
 
 ## Bước 3. Bật đăng nhập Google
