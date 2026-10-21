@@ -12,7 +12,7 @@ Mỗi điểm dưới đây đã có **giá trị mặc định đang dùng** tr
 | 6 | Tài xế nhập chi phí **có cần duyệt từng khoản** hay chỉ duyệt khi quyết toán chuyến? | Mọi loại chi phí đều cần duyệt (có thể tắt theo từng loại) | Khối lượng duyệt của kế toán |
 | 7 | Lương tài xế tính theo cách nào (theo chuyến, theo km, % doanh thu, công thức)? Có phụ cấp cố định không? | Hỗ trợ cả 5 cách; chưa chọn mặc định | Báo cáo chi phí tài xế (Giai đoạn 7) |
 | 8 | Có bao nhiêu **pháp nhân / công ty xuất hóa đơn** (ví dụ GHA và Khánh Hà là một hay hai công ty)? | Hỗ trợ nhiều đơn vị nội bộ (`company_entities`) | Bảng giá, công nợ, báo cáo |
-| 9 | Khi tài xế **từ chối chuyến**, điều phối phân công lại thủ công hay hệ thống gợi ý tài xế khác? | Phân công lại thủ công | Màn hình điều phối |
+| 9 | ~~Khi tài xế từ chối chuyến…~~ **Đã xác nhận 21/10/2026: không có khái niệm từ chối chuyến.** | Đã bỏ trạng thái từ chối | Màn hình điều phối |
 | 10 | Chứng từ bắt buộc để hoàn thành chuyến: ảnh giao hàng, phiếu giao hàng có ký nhận? | Bắt buộc ít nhất 1 ảnh giao hàng (cấu hình được) | Điều kiện hoàn thành chuyến |
 | 11 | Chi phí quản lý phân bổ (văn phòng, lương gián tiếp) phân bổ theo tiêu chí nào: số chuyến, doanh thu hay km? | Chưa phân bổ; báo cáo lợi nhuận trước phân bổ | Báo cáo lợi nhuận sau phân bổ |
 | 12 | Khấu hao và lãi vay có phân bổ vào **từng chuyến** không, hay chỉ tính theo xe/tháng? | Theo xe/tháng; phân bổ theo số chuyến của xe trong tháng khi báo cáo | Lợi nhuận từng chuyến |

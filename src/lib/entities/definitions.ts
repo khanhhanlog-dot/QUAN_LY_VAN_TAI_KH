@@ -710,6 +710,6 @@ export const CUSTOM_FIELD_MODULES: { module: string; label: string; entity?: str
   { module: "customers", label: "Khách hàng", entity: "customers" },
   { module: "suppliers", label: "Nhà cung cấp", entity: "suppliers" },
   { module: "locations", label: "Địa điểm", entity: "locations" },
-  { module: "transport_orders", label: "Đơn hàng (GĐ4)" },
-  { module: "shipments", label: "Chuyến xe (GĐ4)" },
+  { module: "transport_orders", label: "Đơn hàng (chưa hiện trên màn hình)" },
+  { module: "shipments", label: "Chuyến xe (chưa hiện trên màn hình)" },
 ];

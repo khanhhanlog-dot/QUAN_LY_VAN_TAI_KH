@@ -81,6 +81,16 @@ Client secret chỉ dán vào Supabase, không cần gửi cho Claude.
 2. Vào được trang **Tổng quan** là thành công. Từ đây mời thêm người dùng và tài xế ở màn hình **Người dùng và phân quyền**.
 3. Gửi link cho Claude để kiểm tra lại toàn bộ.
 
+## Nâng cấp khi có giai đoạn mới
+
+Mỗi giai đoạn có thể kèm một tệp nâng cấp cơ sở dữ liệu trong thư mục `supabase/deploy/` (ví dụ `nang-cap-giai-doan-4.sql`). Làm theo thứ tự:
+
+1. Mở tệp nâng cấp trên GitHub → **Copy raw file**.
+2. Supabase → **SQL Editor** → **New query** → dán → **Run**. Thấy "Success" là xong. Tệp tự báo "đã được nâng cấp trước đó" nếu lỡ chạy lần hai, không làm hỏng dữ liệu.
+3. Báo Claude để đưa mã mới lên Vercel (hoặc Vercel tự cập nhật khi mã mới vào nhánh `main`).
+
+Chạy tệp nâng cấp **trước** khi mã mới lên Vercel: mã cũ vẫn chạy bình thường với cơ sở dữ liệu đã nâng cấp, còn mã mới cần cơ sở dữ liệu mới.
+
 ## Khi gặp lỗi
 
 | Hiện tượng | Cách xử lý |

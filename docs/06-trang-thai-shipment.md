@@ -1,5 +1,7 @@
 # 6. Quy trình trạng thái Shipment
 
+> 21/10/2026: Khánh Hà xác nhận **không có khái niệm tài xế từ chối chuyến**. Trạng thái `rejected` đã bỏ khỏi CSDL (migration 0013). Đổi tài xế = điều phối phân công lại.
+
 Shipment có **ba trục trạng thái độc lập**, để "tài xế hoàn thành" không bị hiểu là "đã quyết toán".
 
 ## 6.1 Trạng thái vận hành (`status`)
@@ -9,11 +11,9 @@ stateDiagram-v2
   [*] --> draft: Điều phối tạo
   draft --> assigned: Phân công xe + tài xế
   assigned --> accepted: Tài xế nhận chuyến
-  assigned --> rejected: Tài xế từ chối (bắt buộc lý do)
-  rejected --> assigned: Phân công lại
   assigned --> draft: Gỡ phân công
-  rejected --> draft
   accepted --> assigned: Đổi tài xế (phân công cũ = superseded)
+  accepted --> draft: Gỡ phân công
   accepted --> in_transit: Tài xế đến/rời nơi nhận
   in_transit --> driver_completed: Tài xế bấm Hoàn thành (đủ dữ liệu bắt buộc)
   driver_completed --> in_transit: Trả lại cho tài xế bổ sung
@@ -22,7 +22,6 @@ stateDiagram-v2
   draft --> cancelled
   assigned --> cancelled
   accepted --> cancelled
-  rejected --> cancelled
   in_transit --> cancelled
   cancelled --> [*]
   closed --> [*]
@@ -30,16 +29,15 @@ stateDiagram-v2
 
 | Mã | Tên hiển thị | Ai chuyển | Điều kiện |
 |---|---|---|---|
-| `draft` | Nháp | Điều phối | – |
+| `draft` | Nháp – chưa phân công | Điều phối | – |
 | `assigned` | Đã phân công – chờ tài xế nhận | Điều phối | Có tài xế; tạo `shipment_assignments` (pending); thông báo tài xế |
 | `accepted` | Tài xế đã nhận | Tài xế | Phân công `pending` của chính tài xế |
-| `rejected` | Tài xế từ chối | Tài xế | Có lý do; thông báo điều phối |
 | `in_transit` | Đang thực hiện | Tài xế | Có `arrived_pickup_at` |
 | `driver_completed` | Tài xế đã hoàn thành | Tài xế | Có thời gian hoàn thành, kết quả giao, chứng từ bắt buộc theo cấu hình |
 | `closed` | Đã đóng | Kế toán | `settlement_status = settled` |
 | `cancelled` | Đã hủy | Điều phối/Quản lý | Bắt buộc `cancel_reason`; không xóa |
 
-Ma trận chuyển hợp lệ được kiểm tra trong CSDL (`private.shipment_transition_allowed`), mọi chuyển đổi ghi vào `shipment_status_history`.
+Ma trận chuyển hợp lệ được kiểm tra trong CSDL (`private.shipment_transition_allowed`), mọi chuyển đổi ghi vào `shipment_status_history`. Điều phối dùng hàm `assign_shipment` (phân công/đổi/gỡ) và `cancel_shipment` (hủy, bắt buộc lý do); tạo đơn dùng `create_transport_order`.
 
 ## 6.2 Trạng thái chứng từ (`document_status`)
 

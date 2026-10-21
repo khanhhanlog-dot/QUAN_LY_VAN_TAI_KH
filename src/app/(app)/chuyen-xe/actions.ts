@@ -1,0 +1,132 @@
+"use server";
+import ExcelJS from "exceljs";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
+import { formatDateTime, todayVN } from "@/lib/format";
+import { isUuid } from "@/lib/entities/record";
+import { LOCKED_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
+import { applyShipmentFilters, parseShipmentFilters } from "@/lib/shipments-query";
+import type { ShipmentListRow } from "@/lib/shipments";
+
+/** Các trường được sửa nhanh trên bảng; mọi thay đổi được ghi nhật ký hệ thống (trigger audit) */
+const EDITABLE = {
+  quantity: z.number().positive("Số lượng phải lớn hơn 0").max(1_000_000),
+  unit_price: z.number().min(0, "Đơn giá không được âm").max(100_000_000_000),
+  surcharge_amount: z.number().min(0, "Phụ phí không được âm").max(100_000_000_000),
+  fuel_support_rate: z.number().min(0).max(100, "Tỷ lệ hỗ trợ dầu từ 0 đến 100").nullable(),
+  notes: z.string().trim().max(1000).nullable(),
+} as const;
+export type EditableField = keyof typeof EDITABLE;
+
+export async function updateShipmentField(
+  id: string,
+  field: EditableField,
+  value: number | string | null,
+  version: number,
+): Promise<ActionResult<ShipmentListRow>> {
+  return runAction(async () => {
+    await requirePermission("shipments.update", "dispatch.update");
+    if (!isUuid(id) || !(field in EDITABLE) || !Number.isInteger(version)) throw new ActionError("Dữ liệu không hợp lệ.");
+    const parsed = EDITABLE[field].safeParse(field === "notes" ? (value === "" ? null : value) : value);
+    if (!parsed.success) throw new ActionError(parsed.error.issues[0]?.message ?? "Giá trị không hợp lệ.");
+    const supabase = await createClient();
+    const { data: cur, error: curErr } = await supabase.from("shipments").select("status, fuel_support_base").eq("id", id).maybeSingle();
+    if (curErr) throw curErr;
+    if (!cur) throw new ActionError("Không tìm thấy chuyến.");
+    if (field !== "notes" && LOCKED_STATUSES.includes(cur.status)) throw new ActionError("Chuyến đã đóng hoặc đã hủy, không sửa được giá.");
+    const patch: Record<string, unknown> = { [field]: parsed.data };
+    // Nhập tỷ lệ hỗ trợ dầu cho chuyến chưa có cơ sở tính: mặc định tính trên doanh thu cước
+    if (field === "fuel_support_rate") {
+      if (parsed.data === null) Object.assign(patch, { fuel_support_base: null, fuel_support_amount: 0 });
+      else if (!cur.fuel_support_base) patch.fuel_support_base = "freight_revenue";
+    }
+    const { data, error } = await supabase.from("shipments").update(patch).eq("id", id).eq("version", version).select("id");
+    if (error) throw error;
+    if (!data?.length) throw new ActionError("Chuyến vừa được người khác sửa. Vui lòng tải lại trang rồi thử lại.");
+    const { data: row, error: rowErr } = await supabase.from("shipment_list").select("*").eq("id", id).single();
+    if (rowErr) throw rowErr;
+    revalidatePath(`/chuyen-xe/${id}`);
+    return row as ShipmentListRow;
+  }, "Đã lưu.");
+}
+
+export type FileResult = { filename: string; base64: string; count: number; truncated: boolean };
+
+const EXPORT_LIMIT = 5000;
+
+/** Xuất bảng tổng hợp chuyến theo bộ lọc đang chọn */
+export async function exportShipments(sp: Record<string, string | undefined>): Promise<ActionResult<FileResult>> {
+  return runAction(async () => {
+    await requirePermission("shipments.export");
+    const f = parseShipmentFilters(sp);
+    const supabase = await createClient();
+    const { data, error } = await applyShipmentFilters(supabase.from("shipment_list").select("*"), f)
+      .order("pickup_at")
+      .order("shipment_code")
+      .limit(EXPORT_LIMIT + 1);
+    if (error) throw error;
+    const all = (data ?? []) as ShipmentListRow[];
+    const rows = all.slice(0, EXPORT_LIMIT);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "KHÁNH HÀ TMS";
+    const ws = wb.addWorksheet("Chuyến xe");
+    const money = "#,##0";
+    ws.columns = [
+      { header: "Ngày giờ nhận", key: "pickup_at", width: 17 },
+      { header: "Mã chuyến", key: "shipment_code", width: 18 },
+      { header: "Mã đơn hàng", key: "order_code", width: 18 },
+      { header: "Khách hàng", key: "customer_name", width: 28 },
+      { header: "Điểm nhận", key: "pickup_name", width: 26 },
+      { header: "Điểm giao", key: "delivery_name", width: 26 },
+      { header: "Giờ giao dự kiến", key: "expected_delivery_at", width: 17 },
+      { header: "Loại xe", key: "vehicle_type_name", width: 18 },
+      { header: "Biển số", key: "plate_number", width: 12 },
+      { header: "Tài xế", key: "driver_name", width: 22 },
+      { header: "Số lượng", key: "quantity", width: 10 },
+      { header: "Đơn vị tính", key: "pricing_unit", width: 11 },
+      { header: "Đơn giá", key: "unit_price", width: 14, style: { numFmt: money } },
+      { header: "Cước vận chuyển", key: "freight_amount", width: 15, style: { numFmt: money } },
+      { header: "Phụ phí", key: "surcharge_amount", width: 13, style: { numFmt: money } },
+      { header: "Tỷ lệ hỗ trợ dầu (%)", key: "fuel_support_rate", width: 12 },
+      { header: "Hỗ trợ dầu", key: "fuel_support_amount", width: 14, style: { numFmt: money } },
+      { header: "Tổng doanh thu", key: "total_revenue", width: 15, style: { numFmt: money } },
+      { header: "Trạng thái", key: "status", width: 22 },
+      { header: "Chứng từ", key: "document_status", width: 16 },
+      { header: "Quyết toán", key: "settlement_status", width: 18 },
+      { header: "Ghi chú", key: "notes", width: 30 },
+    ];
+    for (const r of rows) {
+      ws.addRow({
+        ...r,
+        pickup_at: formatDateTime(r.pickup_at),
+        expected_delivery_at: formatDateTime(r.expected_delivery_at),
+        quantity: Number(r.quantity),
+        pricing_unit: PRICING_UNITS[r.pricing_unit] ?? r.pricing_unit,
+        unit_price: Number(r.unit_price),
+        freight_amount: Number(r.freight_amount),
+        surcharge_amount: Number(r.surcharge_amount),
+        fuel_support_rate: r.fuel_support_rate === null ? null : Number(r.fuel_support_rate),
+        fuel_support_amount: Number(r.fuel_support_amount),
+        total_revenue: Number(r.total_revenue),
+        status: shipmentStatus(r.status).label,
+        document_status: documentStatus(r.document_status).label,
+        settlement_status: settlementStatus(r.settlement_status).label,
+      });
+    }
+    const header = ws.getRow(1);
+    header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+    ws.views = [{ state: "frozen", ySplit: 1, xSplit: 2 }];
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } };
+    const buf = await wb.xlsx.writeBuffer();
+    return {
+      filename: `chuyen-xe_${f.tu}_${f.den}_xuat-${todayVN()}.xlsx`,
+      base64: Buffer.from(buf as ArrayBuffer).toString("base64"),
+      count: rows.length,
+      truncated: all.length > EXPORT_LIMIT,
+    };
+  });
+}

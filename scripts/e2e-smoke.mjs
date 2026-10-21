@@ -103,8 +103,8 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   check(await visible(page.getByText("Tên doanh nghiệp hiển thị")), "Trang cấu hình hiển thị tham số");
   await shot(page, "08-cau-hinh");
 
-  await page.goto(`${BASE}/dieu-phoi`);
-  check(await visible(page.getByText("Chưa triển khai – sẽ hoàn thiện ở Giai đoạn 4")), "Màn hình chưa làm ghi rõ giai đoạn");
+  await page.goto(`${BASE}/bieu-mau`);
+  check(await visible(page.getByText("Chưa triển khai – sẽ hoàn thiện ở Giai đoạn 6")), "Màn hình chưa làm ghi rõ giai đoạn");
   await shot(page, "09-chua-trien-khai");
 
   await page.goto(`${BASE}/thong-bao`);
@@ -124,7 +124,7 @@ await asUser("stranger@khanhha.test", desktop, async (page) => {
 // 5. Điều phối
 await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/tong-quan`);
-  check(await visible(page.getByText("Chờ tài xế nhận / bị từ chối")), "Điều phối thấy chỉ tiêu chuyến");
+  check(await visible(page.getByText("Chờ tài xế nhận chuyến")), "Điều phối thấy chỉ tiêu chuyến");
   check((await page.getByRole("link", { name: "Nhật ký hệ thống" }).count()) === 0, "Điều phối không thấy menu nhật ký");
   await page.goto(`${BASE}/nhat-ky`);
   check(await urlMatches(page, /\/khong\-co\-quyen/), "Điều phối bị chặn khỏi nhật ký");

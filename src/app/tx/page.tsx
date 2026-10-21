@@ -9,7 +9,6 @@ export const metadata: Metadata = { title: "Ứng dụng tài xế" };
 const STATUS: Record<string, { label: string; variant: "warning" | "success" | "secondary" | "destructive" | "default" }> = {
   assigned: { label: "Chờ nhận chuyến", variant: "warning" },
   accepted: { label: "Đã nhận", variant: "default" },
-  rejected: { label: "Đã từ chối", variant: "destructive" },
   in_transit: { label: "Đang thực hiện", variant: "default" },
   driver_completed: { label: "Đã hoàn thành", variant: "success" },
   closed: { label: "Đã đóng", variant: "secondary" },
@@ -61,15 +60,10 @@ export default async function DriverHome() {
                 <Place label="Nơi nhận" name={s.pickup_name} address={s.pickup_address} phone={s.pickup_phone} maps={s.pickup_maps_url} />
                 <Place label="Nơi giao" name={s.delivery_name} address={s.delivery_address} phone={s.delivery_phone} maps={s.delivery_maps_url} />
                 {s.notes ? <p className="mt-2 rounded-md bg-muted p-2 text-sm">{s.notes}</p> : null}
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button disabled className="h-12 rounded-lg bg-primary/40 text-sm font-medium text-white" title="Giai đoạn 5">
-                    Nhận chuyến
-                  </button>
-                  <button disabled className="h-12 rounded-lg border text-sm font-medium text-muted-foreground" title="Giai đoạn 5">
-                    Từ chối
-                  </button>
-                </div>
-                <p className="mt-2 text-center text-xs text-muted-foreground">Nhận/từ chối chuyến sẽ hoạt động ở Giai đoạn 5.</p>
+                <button disabled className="mt-3 h-12 w-full rounded-lg bg-primary/40 text-sm font-medium text-white" title="Giai đoạn 5">
+                  Nhận chuyến
+                </button>
+                <p className="mt-2 text-center text-xs text-muted-foreground">Nút nhận chuyến sẽ hoạt động ở Giai đoạn 5.</p>
               </li>
             ))}
           </ul>

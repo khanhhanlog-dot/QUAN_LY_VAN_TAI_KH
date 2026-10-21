@@ -36,7 +36,7 @@ Ký hiệu: X = Xem · T = Tạo · S = Sửa · H = Xóa/Hủy · D = Duyệt �
 | Đối tượng | Quy tắc |
 |---|---|
 | Tài xế | Chỉ thấy `shipments` và `shipment_assignments` có `driver_id` là mình; hồ sơ `drivers` của mình; CCCD và tài khoản ngân hàng của mình; yêu cầu ứng/chi phí do mình tạo; chứng từ không nhạy cảm của chuyến mình. Không đọc danh mục khách hàng, xe, giá. Thông tin địa điểm của chuyến lấy qua hàm `driver_list_my_shipments()` (GĐ 5). |
-| Tài xế ghi dữ liệu | Không ghi trực tiếp vào bảng; chỉ qua hàm nghiệp vụ (nhận/từ chối, hoàn thành, ứng tiền, chi phí) kiểm tra đúng chuyến của mình. |
+| Tài xế ghi dữ liệu | Không ghi trực tiếp vào bảng; chỉ qua hàm nghiệp vụ (nhận chuyến, hoàn thành, ứng tiền, chi phí) kiểm tra đúng chuyến của mình. |
 | Tài khoản chờ duyệt / bị khóa | Không có quyền nào; chỉ thấy hồ sơ của chính mình. |
 | Khách ẩn danh | Bị thu hồi mọi quyền trên bảng `public`. |
 | Dữ liệu nhạy cảm | `driver_sensitive`, tài khoản ngân hàng tài xế: `drivers.view_sensitive`. `vehicle_financials`, `loan_schedules`: `vehicles.view_sensitive`. Chứng từ `is_sensitive`: `documents.view_sensitive`. |

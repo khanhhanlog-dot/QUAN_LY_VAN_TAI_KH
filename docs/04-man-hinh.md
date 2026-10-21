@@ -18,8 +18,8 @@ Trạng thái: ✅ đã có (Giai đoạn 1–2) · 🕐 khung đã có, chức 
 | Menu | Đường dẫn | Quyền xem | Nội dung | Trạng thái |
 |---|---|---|---|---|
 | Tổng quan | `/tong-quan` | `dashboard.view` | Thẻ KPI, chuyến hôm nay, chờ duyệt, giấy tờ xe sắp hết hạn | 🕐 (GĐ 7); hiện số liệu thật cơ bản |
-| Điều phối | `/dieu-phoi` | `dispatch.view` | Tạo đơn nhiều chuyến, tìm bảng giá, phân công, nút "+" tạo nhanh | 🕐 (GĐ 4) |
-| Quản lý chuyến xe | `/chuyen-xe` | `shipments.view` | Bảng dạng Excel mỗi dòng một Shipment, sửa nhanh, chi tiết chuyến | 🕐 (GĐ 4, 7) |
+| Điều phối | `/dieu-phoi` | `dispatch.view` | Xem theo ngày, tab trạng thái, chuyến trễ; tạo đơn nhiều chuyến (`/dieu-phoi/tao-don`), tìm bảng giá, phân công, hủy; chi tiết đơn (`/dieu-phoi/don-hang/[id]`); nút "+" tạo nhanh địa điểm, khách hàng | ✅ (GĐ 4) |
+| Quản lý chuyến xe | `/chuyen-xe` | `shipments.view` | Bảng dạng Excel mỗi dòng một Shipment, sửa nhanh, xuất Excel, chi tiết chuyến (`/chuyen-xe/[id]`) | ✅ (GĐ 4); cột chi phí/lợi nhuận GĐ 6 |
 | Tài xế | `/tai-xe` | `drivers.view` | Danh sách, hồ sơ, dữ liệu nhạy cảm theo quyền, mời đăng nhập | 🕐 (GĐ 3) |
 | Phương tiện | `/phuong-tien` | `vehicles.view` | Danh sách, khấu hao, vay, lịch trả nợ, bảo dưỡng | 🕐 (GĐ 3) |
 | Khách hàng và địa điểm | `/khach-hang` | `customers.view` / `locations.view` | Tab Khách hàng, Địa điểm, Tuyến, Nhà cung cấp | 🕐 (GĐ 3) |
@@ -41,7 +41,7 @@ Trạng thái: ✅ đã có (Giai đoạn 1–2) · 🕐 khung đã có, chức 
 | Đường dẫn | Màn hình | Trạng thái |
 |---|---|---|
 | `/tx` | Trang chính: các thẻ Chuyến được phân công, Ứng tiền, Nhập chi phí, Hoàn thành chuyến | ✅ khung + danh sách chuyến thật (chỉ xem) |
-| `/tx/chuyen/[id]` | Chi tiết chuyến, Nhận / Từ chối (bắt buộc lý do), link Google Maps, gọi điện | 🕐 (GĐ 5) |
+| `/tx/chuyen/[id]` | Chi tiết chuyến, Nhận chuyến (không có từ chối), link Google Maps, gọi điện | 🕐 (GĐ 5) |
 | `/tx/ung-tien` | Gửi yêu cầu ứng, theo dõi trạng thái | 🕐 (GĐ 6) |
 | `/tx/chi-phi` | Nhập nhiều khoản chi phí kèm ảnh hóa đơn | 🕐 (GĐ 6) |
 | `/tx/hoan-thanh/[id]` | Nhập mốc thời gian, km, ảnh giao hàng, hoàn thành | 🕐 (GĐ 5) |

@@ -80,7 +80,7 @@ export default async function DashboardPage() {
         .limit(6),
       count(supabase.from("shipments").select("id", head).in("status", ["accepted", "in_transit"])),
       count(supabase.from("shipments").select("id", head).in("status", ["assigned", "accepted", "in_transit"]).lt("expected_delivery_at", nowIso)),
-      count(supabase.from("shipments").select("id", head).in("status", ["assigned", "rejected"])),
+      count(supabase.from("shipments").select("id", head).eq("status", "assigned")),
       count(supabase.from("shipments").select("id", head).eq("status", "driver_completed")),
     ]);
     if (statsRes.error) throw statsRes.error;
@@ -110,7 +110,7 @@ export default async function DashboardPage() {
 
   const todos: { icon: LucideIcon; tone: Tone; label: string; value: number; href?: string }[] = [];
   if (canShip) {
-    todos.push({ icon: Clock, tone: "amber", label: "Chờ tài xế nhận / bị từ chối", value: waitingAccept });
+    todos.push({ icon: Clock, tone: "amber", label: "Chờ tài xế nhận chuyến", value: waitingAccept });
     todos.push({ icon: FileWarning, tone: "teal", label: "Đã giao, chờ chứng từ / quyết toán", value: waitingSettle });
   }
   if (pendingApprovals !== null) todos.push({ icon: BadgeCheck, tone: "purple", label: "Yêu cầu phê duyệt đang chờ", value: pendingApprovals, href: "/phe-duyet" });

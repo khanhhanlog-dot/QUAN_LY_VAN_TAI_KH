@@ -11,7 +11,7 @@ Khách hàng: **Công ty Vận tải Khánh Hà**. Phạm vi: vận tải hàng 
 | Điều phối | Tạo đơn, tạo chuyến, phân công xe/tài xế, theo dõi chuyến |
 | Quản lý vận hành | Quản lý xe, tài xế, bảo dưỡng; duyệt chi phí vận hành |
 | Kế toán | Duyệt chi phí, ứng tiền, thanh toán, quyết toán, công nợ |
-| Tài xế | Nhận/từ chối chuyến, ứng tiền, nhập chi phí, hoàn thành chuyến |
+| Tài xế | Nhận chuyến, ứng tiền, nhập chi phí, hoàn thành chuyến |
 | Người xem báo cáo | Chỉ xem dashboard và báo cáo |
 
 ## 1.2 Khái niệm cốt lõi
@@ -30,7 +30,7 @@ Khách hàng: **Công ty Vận tải Khánh Hà**. Phạm vi: vận tải hàng 
 1. Chỉ email Google đã được quản trị viên mời mới vào được hệ thống; tài khoản lạ ở trạng thái "chờ cấp quyền" và không thấy dữ liệu.
 2. Tài xế chỉ thấy chuyến được phân công cho mình và dữ liệu liên quan.
 3. Mỗi chuyến có tối đa **một phân công còn hiệu lực**; không thể có hai tài xế cùng nhận một chuyến.
-4. Từ chối chuyến phải có lý do; thời gian phản hồi được lưu; điều phối được thông báo.
+4. Không có khái niệm tài xế từ chối chuyến (Khánh Hà xác nhận 21/10/2026). Muốn đổi tài xế thì điều phối phân công lại; phân công cũ được lưu với trạng thái "Đã thay thế".
 5. Tìm bảng giá: chọn bảng giá **cụ thể nhất** (khách hàng > loại xe > nơi nhận/nơi giao), sau đó theo **độ ưu tiên**. Nếu vẫn hòa, người dùng phải chọn. Không có bảng giá phù hợp thì người dùng nhập tay và hệ thống ghi rõ "nhập tay".
 6. Hai bảng giá cùng phạm vi, cùng ưu tiên không được chồng thời gian hiệu lực (ràng buộc CSDL).
 7. Hỗ trợ dầu áp dụng theo thứ tự: giá trị riêng của chuyến → quy tắc khách hàng+tuyến / tuyến / khách hàng → quy tắc loại xe → mặc định hệ thống. Tham số và công thức được lưu vào `shipments.pricing_snapshot`.

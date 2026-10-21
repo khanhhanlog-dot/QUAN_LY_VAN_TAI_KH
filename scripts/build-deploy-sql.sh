@@ -21,3 +21,34 @@ mkdir -p "$(dirname "$OUT")"
   echo "commit;"
 } > "$OUT"
 echo "Đã tạo $OUT ($(wc -l < "$OUT") dòng)"
+
+# Tệp nâng cấp cho CSDL đã cài trước đó: mỗi giai đoạn một tệp, chạy đúng một lần theo thứ tự.
+upgrade() {
+  local name="$1" title="$2" guard="$3"; shift 3
+  local out="supabase/deploy/$name"
+  {
+    echo "-- ============================================================================="
+    echo "-- KHÁNH HÀ TMS – NÂNG CẤP CƠ SỞ DỮ LIỆU: $title"
+    echo "-- Dán toàn bộ tệp vào Supabase → SQL Editor → Run. Chạy MỘT LẦN trên CSDL đang dùng."
+    echo "-- Không xóa và không thêm dữ liệu nghiệp vụ. Tệp được ghép tự động – không sửa tay."
+    echo "-- ============================================================================="
+    echo "begin;"
+    echo
+    echo "do \$\$ begin"
+    echo "  if $guard then"
+    echo "    raise exception 'CSDL đã được nâng cấp $title trước đó, không cần chạy lại.';"
+    echo "  end if;"
+    echo "end \$\$;"
+    for f in "$@"; do
+      echo
+      echo "-- >>> $(basename "$f")"
+      cat "$f"
+    done
+    echo
+    echo "commit;"
+  } > "$out"
+  echo "Đã tạo $out ($(wc -l < "$out") dòng)"
+}
+
+upgrade nang-cap-giai-doan-4.sql "Giai đoạn 4 (điều phối)" "to_regclass('public.shipment_list') is not null" \
+  supabase/migrations/20261021000013_dispatch.sql
