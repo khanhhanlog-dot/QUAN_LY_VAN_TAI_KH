@@ -31,7 +31,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <Truck className="size-6" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">GHA TMS</h1>
+            <h1 className="text-xl font-semibold">KHÁNH HÀ TMS</h1>
             <p className="text-sm text-muted-foreground">Phần mềm quản lý vận tải – Công ty Vận tải Khánh Hà</p>
           </div>
         </div>

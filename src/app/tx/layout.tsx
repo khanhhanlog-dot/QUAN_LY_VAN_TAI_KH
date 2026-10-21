@@ -9,7 +9,7 @@ export default async function DriverLayout({ children }: { children: React.React
     <div className="mx-auto flex min-h-screen max-w-xl flex-col bg-background">
       <header className="sticky top-0 z-20 flex h-14 items-center gap-3 bg-sidebar px-4 text-white">
         <Link href="/tx" className="flex items-center gap-2 font-semibold">
-          <Truck className="size-5" /> GHA TMS
+          <Truck className="size-5" /> KHÁNH HÀ TMS
         </Link>
         <span className="flex-1 truncate text-right text-sm text-sidebar-muted">{user.fullName || user.email}</span>
         <form action={signOut}>

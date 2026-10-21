@@ -3,7 +3,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "GHA TMS – Quản lý vận tải", template: "%s · GHA TMS" },
+  title: { default: "KHÁNH HÀ TMS – Quản lý vận tải", template: "%s · KHÁNH HÀ TMS" },
   description: "Phần mềm quản lý vận tải cho Công ty Vận tải Khánh Hà",
   robots: { index: false, follow: false },
 };

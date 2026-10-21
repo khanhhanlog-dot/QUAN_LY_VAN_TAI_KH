@@ -4,7 +4,7 @@ Số liệu tra cứu ngày 16/10/2026 từ trang chính thức/tổng hợp cô
 
 ## 10.1 Giới hạn gói miễn phí
 
-| Dịch vụ | Gói miễn phí | Giới hạn quan trọng | Phù hợp GHA TMS? |
+| Dịch vụ | Gói miễn phí | Giới hạn quan trọng | Phù hợp KHÁNH HÀ TMS? |
 |---|---|---|---|
 | **Vercel Hobby** | 0 đ | 100 GB truyền dữ liệu, 1 triệu lượt gọi function, 4 giờ Active CPU/tháng. **Chỉ dùng cá nhân, phi thương mại.** | ⚠️ Không hợp lệ cho phần mềm của doanh nghiệp. Chỉ dùng để thử nghiệm cá nhân. |
 | Vercel Pro | 20 USD/tháng/thành viên phát triển (có 20 USD tín dụng sử dụng) | Người xem không tính phí | ✅ Hợp lệ thương mại |

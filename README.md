@@ -1,4 +1,4 @@
-# GHA TMS – Phần mềm quản lý vận tải (Công ty Vận tải Khánh Hà)
+# KHÁNH HÀ TMS – Phần mềm quản lý vận tải (Công ty Vận tải Khánh Hà)
 
 Ứng dụng web quản lý vận tải: điều phối, chuyến xe, ứng dụng tài xế, chi phí, phê duyệt, quyết toán, công nợ, báo cáo.
 Công nghệ: Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Supabase (PostgreSQL, Auth Google, Storage) · Vercel.
