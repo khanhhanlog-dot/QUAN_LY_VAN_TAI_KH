@@ -95,6 +95,8 @@ Kịch bản kiểm thử: chuyển hướng khi chưa đăng nhập; tài kho�
 
 ## 2. Tạo dự án Supabase thật
 
+> Hướng dẫn từng bước bằng giao diện web cho người không chuyên: [docs/huong-dan-trien-khai.md](docs/huong-dan-trien-khai.md).
+
 1. Đăng nhập [supabase.com](https://supabase.com) bằng **tài khoản email mới của công ty**, tạo Organization, rồi **New project**: region **Southeast Asia (Singapore)**, đặt mật khẩu CSDL mạnh và lưu vào trình quản lý mật khẩu.
 2. Chạy migration (chọn một cách):
    - **Supabase CLI (khuyến nghị):**
@@ -103,7 +105,7 @@ Kịch bản kiểm thử: chuyển hướng khi chưa đăng nhập; tài kho�
      npx supabase link --project-ref <ma-du-an>
      npx supabase db push          # chỉ chạy supabase/migrations, KHÔNG chạy seed.dev.sql
      ```
-   - **Thủ công:** mở SQL Editor, dán và chạy lần lượt từng tệp trong `supabase/migrations/` theo thứ tự tên.
+   - **Thủ công (không cần cài gì):** mở SQL Editor, dán toàn bộ `supabase/deploy/cai-dat-lan-dau.sql` rồi Run. Tệp này ghép sẵn mọi migration, tạo lại bằng `bash scripts/build-deploy-sql.sh` mỗi khi thêm migration.
 3. **Không** chạy `supabase/seed.dev.sql` trên dự án thật (tệp tự từ chối nếu phát hiện tài khoản thật).
 4. Project Settings → API: lấy **Project URL** và **Publishable key** (hoặc anon key). **Không** dùng service_role key trong ứng dụng.
 

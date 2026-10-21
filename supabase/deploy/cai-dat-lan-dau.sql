@@ -1,0 +1,3062 @@
+-- =============================================================================
+-- KHÁNH HÀ TMS – CÀI ĐẶT CƠ SỞ DỮ LIỆU LẦN ĐẦU
+-- Dán toàn bộ tệp vào Supabase → SQL Editor → Run. Chỉ chạy MỘT LẦN trên dự án mới.
+-- Không chứa dữ liệu mẫu. Tệp được ghép tự động từ supabase/migrations/ – không sửa tay.
+-- =============================================================================
+begin;
+
+-- >>> 20261016000001_foundation.sql
+-- =============================================================================
+-- GHA TMS - 0001: Nền tảng (schema, extension, hàm tiện ích)
+-- =============================================================================
+-- Quy ước:
+--   * Bảng nghiệp vụ nằm ở schema public (được PostgREST/Supabase API phục vụ, luôn bật RLS).
+--   * Hàm nội bộ dùng trong RLS/trigger nằm ở schema private (không được API phục vụ).
+--   * Tiền tệ: numeric(18,2) theo VND. Thời gian: timestamptz (hiển thị Asia/Ho_Chi_Minh).
+--   * Không xóa cứng dữ liệu đã phát sinh giao dịch: dùng status / archived_at.
+-- =============================================================================
+
+create extension if not exists btree_gist with schema extensions;
+
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to authenticated, service_role;
+
+-- Cập nhật updated_at tự động
+create or replace function private.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+-- Ghi created_by / updated_by theo người dùng hiện tại (nếu có)
+create or replace function private.set_actor_columns()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new.created_by := coalesce(new.created_by, auth.uid());
+  end if;
+  new.updated_by := coalesce(auth.uid(), new.updated_by);
+  return new;
+end;
+$$;
+
+-- Gắn trigger updated_at + actor cho một bảng có các cột created_by, updated_by, updated_at
+create or replace function private.attach_standard_triggers(tbl regclass)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  t text := tbl::text;
+  n text := replace(replace(tbl::text, 'public.', ''), '"', '');
+begin
+  execute format('create trigger trg_%s_updated_at before update on %s for each row execute function private.set_updated_at()', n, t);
+  execute format('create trigger trg_%s_actor before insert or update on %s for each row execute function private.set_actor_columns()', n, t);
+end;
+$$;
+
+-- Bộ đếm mã chứng từ theo ngày, an toàn khi nhiều người cùng tạo (một câu lệnh, khóa dòng)
+create table public.code_sequences (
+  scope text not null,
+  period text not null,
+  last_value integer not null default 0,
+  primary key (scope, period)
+);
+alter table public.code_sequences enable row level security;
+-- Không có policy: chỉ hàm security definer mới truy cập được.
+
+-- Sinh mã dạng PREFIX-YYYYMMDD-0001 theo ngày giờ Việt Nam
+create or replace function private.next_code(prefix text, at_time timestamptz default now())
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  d text := to_char(at_time at time zone 'Asia/Ho_Chi_Minh', 'YYYYMMDD');
+  v integer;
+begin
+  insert into public.code_sequences as cs (scope, period, last_value)
+  values (prefix, d, 1)
+  on conflict (scope, period) do update set last_value = cs.last_value + 1
+  returning last_value into v;
+  return prefix || '-' || d || '-' || lpad(v::text, greatest(4, length(v::text)), '0');
+end;
+$$;
+revoke all on function private.next_code(text, timestamptz) from public;
+grant execute on function private.next_code(text, timestamptz) to authenticated, service_role;
+
+-- >>> 20261016000002_rbac.sql
+-- =============================================================================
+-- GHA TMS - 0002: Người dùng, vai trò, quyền (RBAC) và lời mời truy cập
+-- =============================================================================
+-- Nguyên tắc:
+--   * Đăng nhập Google qua Supabase Auth chỉ tạo hồ sơ ở trạng thái "pending".
+--     Chỉ email đã được quản trị viên mời (user_invitations) mới được kích hoạt.
+--   * Quyền = hợp của quyền theo vai trò + quyền cấp riêng (grant), trừ quyền bị chặn riêng (deny).
+--   * Vai trò super_admin có toàn quyền; chỉ super_admin mới cấp/thu hồi được super_admin.
+--   * Không ai tự thay đổi vai trò, quyền hay trạng thái của chính mình.
+-- =============================================================================
+
+create table public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  email text not null unique check (email = lower(email)),
+  full_name text,
+  avatar_url text,
+  phone text,
+  status text not null default 'pending' check (status in ('pending', 'active', 'disabled')),
+  last_seen_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+comment on table public.profiles is 'Hồ sơ người dùng (1-1 với auth.users).';
+
+create table public.roles (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique check (code ~ '^[a-z][a-z0-9_]*$'),
+  name text not null,
+  description text,
+  is_system boolean not null default false,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+create table public.permissions (
+  code text primary key check (code ~ '^[a-z_]+\.[a-z_]+$'),
+  module text not null,
+  action text not null,
+  name text not null,
+  description text,
+  sort_order integer not null default 0
+);
+
+create table public.role_permissions (
+  role_id uuid not null references public.roles (id) on delete cascade,
+  permission_code text not null references public.permissions (code) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (role_id, permission_code)
+);
+
+create table public.user_roles (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  role_id uuid not null references public.roles (id) on delete restrict,
+  granted_by uuid references public.profiles (id),
+  granted_at timestamptz not null default now(),
+  primary key (user_id, role_id)
+);
+
+create table public.user_permission_overrides (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  permission_code text not null references public.permissions (code) on delete cascade,
+  effect text not null check (effect in ('grant', 'deny')),
+  reason text,
+  granted_by uuid references public.profiles (id),
+  created_at timestamptz not null default now(),
+  primary key (user_id, permission_code)
+);
+
+create table public.user_invitations (
+  id uuid primary key default gen_random_uuid(),
+  email text not null check (email = lower(email) and email like '%@%'),
+  role_codes text[] not null default '{}',
+  driver_id uuid, -- FK thêm ở migration danh mục
+  note text,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'revoked')),
+  invited_by uuid references public.profiles (id),
+  accepted_user_id uuid references public.profiles (id),
+  accepted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create unique index user_invitations_pending_email_uq on public.user_invitations (email) where status = 'pending';
+
+select private.attach_standard_triggers('public.profiles');
+select private.attach_standard_triggers('public.roles');
+select private.attach_standard_triggers('public.user_invitations');
+
+create index user_roles_role_idx on public.user_roles (role_id);
+create index role_permissions_perm_idx on public.role_permissions (permission_code);
+
+-- -----------------------------------------------------------------------------
+-- Hàm kiểm tra quyền (dùng trong RLS, trigger và server)
+-- -----------------------------------------------------------------------------
+create or replace function private.is_system_op()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select auth.uid() is null or coalesce(current_setting('gha.system_op', true), '') = 'on';
+$$;
+grant execute on function private.is_system_op() to authenticated, service_role;
+
+create or replace function private.is_active_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active');
+$$;
+
+create or replace function private.is_super_admin(uid uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.user_roles ur
+    join public.roles r on r.id = ur.role_id
+    join public.profiles p on p.id = ur.user_id
+    where ur.user_id = uid and r.code = 'super_admin' and p.status = 'active'
+  );
+$$;
+
+create or replace function private.has_perm(perm text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.is_active_user() and (
+    private.is_super_admin()
+    or (
+      not exists (
+        select 1 from public.user_permission_overrides o
+        where o.user_id = auth.uid() and o.permission_code = perm and o.effect = 'deny'
+      )
+      and (
+        exists (
+          select 1 from public.user_permission_overrides o
+          where o.user_id = auth.uid() and o.permission_code = perm and o.effect = 'grant'
+        )
+        or exists (
+          select 1
+          from public.user_roles ur
+          join public.role_permissions rp on rp.role_id = ur.role_id
+          where ur.user_id = auth.uid() and rp.permission_code = perm
+        )
+      )
+    )
+  );
+$$;
+
+grant execute on function private.is_active_user() to authenticated, service_role;
+grant execute on function private.is_super_admin(uuid) to authenticated, service_role;
+grant execute on function private.has_perm(text) to authenticated, service_role;
+
+-- RPC cho giao diện: danh sách quyền hiệu lực của chính người gọi
+create or replace function public.my_permissions()
+returns setof text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.code from public.permissions p
+  where private.has_perm(p.code)
+  order by p.code;
+$$;
+revoke all on function public.my_permissions() from public, anon;
+grant execute on function public.my_permissions() to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Lời mời: kích hoạt người dùng theo email đã được cho phép
+-- -----------------------------------------------------------------------------
+create or replace function private.apply_invitation(inv_id uuid, uid uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  inv public.user_invitations;
+begin
+  select * into inv from public.user_invitations where id = inv_id and status = 'pending' for update;
+  if not found then
+    return;
+  end if;
+
+  -- Đánh dấu thao tác hệ thống để trigger bảo vệ cho phép (chỉ trong phạm vi hàm này)
+  perform set_config('gha.system_op', 'on', true);
+
+  insert into public.user_roles (user_id, role_id, granted_by)
+  select uid, r.id, inv.invited_by from public.roles r where r.code = any (inv.role_codes)
+  on conflict do nothing;
+
+  update public.profiles set status = 'active' where id = uid and status = 'pending';
+
+  if inv.driver_id is not null then
+    update public.drivers set profile_id = uid where id = inv.driver_id and profile_id is null;
+  end if;
+
+  update public.user_invitations
+     set status = 'accepted', accepted_user_id = uid, accepted_at = now()
+   where id = inv.id;
+
+  perform set_config('gha.system_op', '', true);
+end;
+$$;
+
+-- Trigger trên auth.users: tạo hồ sơ khi người dùng đăng nhập lần đầu
+create or replace function private.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  inv_id uuid;
+  em text := lower(coalesce(new.email, ''));
+begin
+  if em = '' then
+    return new;
+  end if;
+
+  insert into public.profiles (id, email, full_name, avatar_url, status)
+  values (
+    new.id,
+    em,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name'),
+    new.raw_user_meta_data ->> 'avatar_url',
+    'pending'
+  )
+  on conflict (id) do nothing;
+
+  select id into inv_id from public.user_invitations where email = em and status = 'pending' limit 1;
+  if inv_id is not null then
+    perform private.apply_invitation(inv_id, new.id);
+  end if;
+
+  insert into public.audit_logs (actor_id, action, entity_type, entity_id, new_data)
+  values (new.id, 'auth.first_sign_in', 'profiles', new.id::text,
+          jsonb_build_object('email', em, 'invited', inv_id is not null));
+  return new;
+end;
+$$;
+
+-- RPC: mời / cấp quyền truy cập cho một email (dùng từ màn hình Người dùng và phân quyền)
+create or replace function public.invite_user(p_email text, p_role_codes text[], p_driver_id uuid default null, p_note text default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  em text := lower(trim(p_email));
+  existing_uid uuid;
+  inv_id uuid;
+begin
+  if not private.has_perm('users.create') then
+    raise exception 'Bạn không có quyền mời người dùng' using errcode = '42501';
+  end if;
+  if em !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'Email không hợp lệ' using errcode = '22023';
+  end if;
+  if coalesce(array_length(p_role_codes, 1), 0) = 0 then
+    raise exception 'Phải chọn ít nhất một vai trò' using errcode = '22023';
+  end if;
+  if exists (select 1 from unnest(p_role_codes) c where c not in (select code from public.roles)) then
+    raise exception 'Vai trò không tồn tại' using errcode = '22023';
+  end if;
+  if 'super_admin' = any (p_role_codes) and not private.is_super_admin() then
+    raise exception 'Chỉ Super Admin mới cấp được vai trò Super Admin' using errcode = '42501';
+  end if;
+
+  update public.user_invitations set status = 'revoked' where email = em and status = 'pending';
+
+  insert into public.user_invitations (email, role_codes, driver_id, note, invited_by)
+  values (em, p_role_codes, p_driver_id, p_note, auth.uid())
+  returning id into inv_id;
+
+  select id into existing_uid from public.profiles where email = em;
+  if existing_uid is not null then
+    if existing_uid = auth.uid() then
+      raise exception 'Không được tự cấp quyền cho chính mình' using errcode = '42501';
+    end if;
+    perform private.apply_invitation(inv_id, existing_uid);
+  end if;
+  return inv_id;
+end;
+$$;
+revoke all on function public.invite_user(text, text[], uuid, text) from public, anon;
+grant execute on function public.invite_user(text, text[], uuid, text) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Chống leo thang đặc quyền
+-- -----------------------------------------------------------------------------
+create or replace function private.guard_user_roles()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target uuid := coalesce(new.user_id, old.user_id);
+  rid uuid := coalesce(new.role_id, old.role_id);
+begin
+  if private.is_system_op() then
+    return coalesce(new, old); -- thao tác hệ thống (SQL editor / service role / hàm nội bộ)
+  end if;
+  if target = auth.uid() then
+    raise exception 'Không được tự thay đổi vai trò của chính mình' using errcode = '42501';
+  end if;
+  if (select code from public.roles where id = rid) = 'super_admin' and not private.is_super_admin() then
+    raise exception 'Chỉ Super Admin mới cấp/thu hồi được vai trò Super Admin' using errcode = '42501';
+  end if;
+  if private.is_super_admin(target) and not private.is_super_admin() then
+    raise exception 'Không được thay đổi vai trò của Super Admin' using errcode = '42501';
+  end if;
+  if tg_op = 'INSERT' then
+    new.granted_by := auth.uid();
+    new.granted_at := now();
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+create trigger trg_user_roles_guard before insert or update or delete on public.user_roles
+for each row execute function private.guard_user_roles();
+
+create or replace function private.guard_permission_overrides()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target uuid := coalesce(new.user_id, old.user_id);
+begin
+  if private.is_system_op() then
+    return coalesce(new, old);
+  end if;
+  if target = auth.uid() then
+    raise exception 'Không được tự thay đổi quyền của chính mình' using errcode = '42501';
+  end if;
+  if private.is_super_admin(target) and not private.is_super_admin() then
+    raise exception 'Không được thay đổi quyền của Super Admin' using errcode = '42501';
+  end if;
+  if tg_op <> 'DELETE' then
+    new.granted_by := auth.uid();
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+create trigger trg_user_perm_overrides_guard before insert or update or delete on public.user_permission_overrides
+for each row execute function private.guard_permission_overrides();
+
+create or replace function private.guard_profiles()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if private.is_system_op() then
+    return new;
+  end if;
+  if new.id <> old.id or new.email <> old.email then
+    raise exception 'Không được đổi mã hoặc email người dùng' using errcode = '42501';
+  end if;
+  if new.status is distinct from old.status then
+    if new.id = auth.uid() then
+      raise exception 'Không được tự đổi trạng thái tài khoản của chính mình' using errcode = '42501';
+    end if;
+    if not private.has_perm('users.update') then
+      raise exception 'Bạn không có quyền đổi trạng thái tài khoản' using errcode = '42501';
+    end if;
+    if private.is_super_admin(new.id) and not private.is_super_admin() then
+      raise exception 'Không được đổi trạng thái của Super Admin' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_profiles_guard before update on public.profiles
+for each row execute function private.guard_profiles();
+
+create or replace function private.guard_system_roles()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' and old.is_system then
+    raise exception 'Không được xóa vai trò hệ thống' using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE' and old.is_system and new.code <> old.code then
+    raise exception 'Không được đổi mã vai trò hệ thống' using errcode = '42501';
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+create trigger trg_roles_guard before update or delete on public.roles
+for each row execute function private.guard_system_roles();
+
+-- Chỉ Super Admin được sửa quyền của vai trò super_admin / admin
+create or replace function private.guard_role_permissions()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is not null
+     and (select code from public.roles where id = coalesce(new.role_id, old.role_id)) in ('super_admin', 'admin')
+     and not private.is_super_admin() then
+    raise exception 'Chỉ Super Admin được sửa quyền của vai trò Admin' using errcode = '42501';
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+create trigger trg_role_permissions_guard before insert or update or delete on public.role_permissions
+for each row execute function private.guard_role_permissions();
+
+-- -----------------------------------------------------------------------------
+-- Dữ liệu tham chiếu bắt buộc (vai trò & quyền) - cần có ở mọi môi trường
+-- -----------------------------------------------------------------------------
+insert into public.roles (code, name, description, is_system, sort_order) values
+  ('super_admin', 'Super Admin', 'Toàn quyền hệ thống, quản lý Admin', true, 1),
+  ('admin', 'Admin', 'Quản trị hệ thống và dữ liệu', true, 2),
+  ('director', 'Giám đốc', 'Xem toàn bộ, phê duyệt', true, 3),
+  ('dispatcher', 'Điều phối', 'Tạo đơn, phân công chuyến', true, 4),
+  ('accountant', 'Kế toán', 'Chi phí, ứng tiền, quyết toán, công nợ, thanh toán', true, 5),
+  ('ops_manager', 'Quản lý vận hành', 'Quản lý xe, tài xế, chuyến, duyệt vận hành', true, 6),
+  ('driver', 'Tài xế', 'Ứng dụng tài xế: chỉ chuyến được phân công', true, 7),
+  ('report_viewer', 'Người chỉ xem báo cáo', 'Chỉ xem dashboard và báo cáo', true, 8);
+
+with modules (module, module_name, actions, ord) as (
+  values
+    ('dashboard', 'Tổng quan', array['view'], 1),
+    ('dispatch', 'Điều phối', array['view', 'create', 'update', 'delete'], 2),
+    ('shipments', 'Chuyến xe', array['view', 'create', 'update', 'delete', 'export'], 3),
+    ('drivers', 'Tài xế', array['view', 'create', 'update', 'delete', 'export', 'view_sensitive'], 4),
+    ('vehicles', 'Phương tiện', array['view', 'create', 'update', 'delete', 'export', 'view_sensitive'], 5),
+    ('customers', 'Khách hàng', array['view', 'create', 'update', 'delete', 'export'], 6),
+    ('locations', 'Địa điểm', array['view', 'create', 'update', 'delete', 'export'], 7),
+    ('price_lists', 'Bảng giá', array['view', 'create', 'update', 'delete', 'export'], 8),
+    ('expenses', 'Chi phí chuyến', array['view', 'create', 'update', 'delete', 'approve', 'export'], 9),
+    ('advances', 'Ứng tiền', array['view', 'create', 'update', 'delete', 'approve', 'pay', 'export'], 10),
+    ('settlements', 'Quyết toán', array['view', 'update', 'approve', 'export'], 11),
+    ('receivables', 'Công nợ', array['view', 'create', 'update', 'delete', 'pay', 'export'], 12),
+    ('payments', 'Thanh toán', array['view', 'create', 'delete', 'export'], 13),
+    ('approvals', 'Phê duyệt', array['view', 'approve', 'configure'], 14),
+    ('reports', 'Báo cáo', array['view', 'export'], 15),
+    ('catalogs', 'Danh mục hệ thống', array['view', 'create', 'update', 'delete'], 16),
+    ('fields', 'Trường dữ liệu', array['view', 'configure'], 17),
+    ('forms', 'Biểu mẫu', array['view', 'configure'], 18),
+    ('workflows', 'Quy trình', array['view', 'configure'], 19),
+    ('users', 'Người dùng và phân quyền', array['view', 'create', 'update', 'configure'], 20),
+    ('audit_logs', 'Nhật ký hệ thống', array['view', 'export'], 21),
+    ('settings', 'Cấu hình', array['view', 'configure'], 22),
+    ('documents', 'Chứng từ', array['view', 'create', 'delete', 'view_sensitive'], 23),
+    ('driver_app', 'Ứng dụng tài xế', array['use'], 24)
+),
+action_names (action, action_name, ord) as (
+  values ('view', 'Xem', 1), ('create', 'Tạo', 2), ('update', 'Sửa', 3), ('delete', 'Xóa/Hủy', 4),
+         ('approve', 'Duyệt', 5), ('pay', 'Thanh toán', 6), ('export', 'Xuất dữ liệu', 7),
+         ('configure', 'Cấu hình', 8), ('view_sensitive', 'Xem trường nhạy cảm', 9), ('use', 'Sử dụng', 10)
+)
+insert into public.permissions (code, module, action, name, sort_order)
+select m.module || '.' || a.action, m.module, a.action, a.action_name || ' - ' || m.module_name, m.ord * 100 + a.ord
+from modules m
+cross join lateral unnest(m.actions) as act(action)
+join action_names a on a.action = act.action;
+
+-- Gán quyền mặc định cho vai trò (super_admin có toàn quyền ngầm định, không cần gán)
+insert into public.role_permissions (role_id, permission_code)
+select r.id, p.code
+from public.roles r
+join public.permissions p on (
+  (r.code = 'admin' and p.module <> 'driver_app')
+  or (r.code = 'director' and (
+        p.action in ('view', 'export', 'approve', 'view_sensitive')
+        and p.module not in ('driver_app')
+  ))
+  or (r.code = 'dispatcher' and p.code = any (array[
+        'dashboard.view', 'dispatch.view', 'dispatch.create', 'dispatch.update', 'dispatch.delete',
+        'shipments.view', 'shipments.create', 'shipments.update', 'shipments.delete', 'shipments.export',
+        'drivers.view', 'vehicles.view', 'customers.view', 'customers.create', 'customers.update',
+        'locations.view', 'locations.create', 'locations.update', 'price_lists.view',
+        'expenses.view', 'expenses.create', 'advances.view', 'approvals.view',
+        'documents.view', 'documents.create', 'catalogs.view', 'reports.view']))
+  or (r.code = 'accountant' and p.code = any (array[
+        'dashboard.view', 'shipments.view', 'shipments.update', 'shipments.export',
+        'drivers.view', 'drivers.view_sensitive', 'vehicles.view', 'vehicles.view_sensitive',
+        'customers.view', 'customers.create', 'customers.update', 'customers.export',
+        'locations.view', 'price_lists.view', 'price_lists.create', 'price_lists.update', 'price_lists.delete', 'price_lists.export',
+        'expenses.view', 'expenses.create', 'expenses.update', 'expenses.delete', 'expenses.approve', 'expenses.export',
+        'advances.view', 'advances.create', 'advances.update', 'advances.approve', 'advances.pay', 'advances.export',
+        'settlements.view', 'settlements.update', 'settlements.approve', 'settlements.export',
+        'receivables.view', 'receivables.create', 'receivables.update', 'receivables.delete', 'receivables.pay', 'receivables.export',
+        'payments.view', 'payments.create', 'payments.delete', 'payments.export',
+        'approvals.view', 'approvals.approve', 'reports.view', 'reports.export',
+        'documents.view', 'documents.create', 'documents.view_sensitive',
+        'catalogs.view', 'catalogs.create', 'catalogs.update']))
+  or (r.code = 'ops_manager' and p.code = any (array[
+        'dashboard.view', 'dispatch.view', 'dispatch.create', 'dispatch.update', 'dispatch.delete',
+        'shipments.view', 'shipments.create', 'shipments.update', 'shipments.delete', 'shipments.export',
+        'drivers.view', 'drivers.create', 'drivers.update', 'drivers.export',
+        'vehicles.view', 'vehicles.create', 'vehicles.update', 'vehicles.export',
+        'customers.view', 'locations.view', 'locations.create', 'locations.update', 'price_lists.view',
+        'expenses.view', 'expenses.create', 'expenses.approve', 'advances.view', 'advances.approve',
+        'approvals.view', 'approvals.approve', 'reports.view', 'reports.export',
+        'documents.view', 'documents.create', 'catalogs.view']))
+  or (r.code = 'driver' and p.code = any (array['driver_app.use', 'documents.create']))
+  or (r.code = 'report_viewer' and p.code = any (array['dashboard.view', 'reports.view', 'reports.export']))
+);
+
+-- >>> 20261016000003_master_data.sql
+-- =============================================================================
+-- GHA TMS - 0003: Danh mục quản lý
+-- (đơn vị nội bộ, danh mục chung, ngân hàng, phương tiện, tài xế, khách hàng,
+--  nhà cung cấp, địa điểm, tuyến, bảng giá, chi phí, hỗ trợ dầu, lương)
+-- =============================================================================
+
+-- Danh mục chung có thể cấu hình (tỉnh/thành, hãng xe, loại hợp đồng, nhóm chi phí...)
+create table public.catalogs (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique check (code ~ '^[a-z][a-z0-9_]*$'),
+  name text not null,
+  description text,
+  is_system boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+create table public.catalog_items (
+  id uuid primary key default gen_random_uuid(),
+  catalog_id uuid not null references public.catalogs (id) on delete restrict,
+  code text not null,
+  name text not null,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  unique (catalog_id, code)
+);
+
+-- Đơn vị nội bộ (pháp nhân của doanh nghiệp, dùng cho "Công ty áp dụng" bảng giá, tài khoản)
+create table public.company_entities (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  tax_code text,
+  address text,
+  phone text,
+  email text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+-- Ngân hàng, phương thức thanh toán
+create table public.banks (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  short_name text not null,
+  name text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+create table public.payment_methods (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  requires_bank_account boolean not null default false,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+-- Loại xe
+create table public.vehicle_types (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  payload_tons numeric(8,2),
+  description text,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+-- Quy tắc tính lương tài xế
+create table public.salary_rules (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  method text not null check (method in ('fixed', 'per_trip', 'per_km', 'revenue_percent', 'formula')),
+  rate numeric(18,4),
+  formula text,
+  effective_from date not null default current_date,
+  effective_to date,
+  is_active boolean not null default true,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (effective_to is null or effective_to >= effective_from),
+  check (method <> 'formula' or formula is not null)
+);
+
+-- Tài xế
+create table public.drivers (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  full_name text not null,
+  date_of_birth date,
+  phone text,
+  email text,
+  address text,
+  contract_signed_date date,
+  contract_type text,
+  start_date date,
+  contract_end_date date,
+  base_salary numeric(18,2) check (base_salary >= 0),
+  per_trip_salary numeric(18,2) check (per_trip_salary >= 0),
+  meal_allowance numeric(18,2) check (meal_allowance >= 0),
+  other_allowance numeric(18,2) check (other_allowance >= 0),
+  salary_rule_id uuid references public.salary_rules (id),
+  status text not null default 'active' check (status in ('active', 'on_leave', 'terminated')),
+  profile_id uuid unique references public.profiles (id) on delete set null,
+  notes text,
+  custom_fields jsonb not null default '{}'::jsonb,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+comment on column public.drivers.profile_id is 'Tài khoản đăng nhập (Google) của tài xế';
+
+-- Thông tin nhạy cảm của tài xế tách bảng riêng để RLS chặn theo quyền view_sensitive
+create table public.driver_sensitive (
+  driver_id uuid primary key references public.drivers (id) on delete cascade,
+  national_id text,
+  national_id_issued_date date,
+  national_id_issued_place text,
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+alter table public.user_invitations
+  add constraint user_invitations_driver_fk foreign key (driver_id) references public.drivers (id) on delete set null;
+
+-- Nhà cung cấp (sửa chữa, nhiên liệu, thuê ngoài...)
+create table public.suppliers (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  tax_code text,
+  address text,
+  contact_name text,
+  phone text,
+  email text,
+  payment_term_days integer check (payment_term_days >= 0),
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  notes text,
+  custom_fields jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+-- Khách hàng / đơn vị thuê vận chuyển / đơn vị thanh toán - xuất hóa đơn
+create table public.customers (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  tax_code text,
+  billing_address text,
+  contact_name text,
+  phone text,
+  invoice_email text,
+  payment_term_days integer check (payment_term_days >= 0),
+  credit_limit numeric(18,2) check (credit_limit >= 0),
+  is_shipper boolean not null default true,
+  is_payer boolean not null default true,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  notes text,
+  custom_fields jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create unique index customers_tax_code_uq on public.customers (tax_code) where tax_code is not null and tax_code <> '';
+
+-- Tài khoản ngân hàng (công ty, tài xế, nhà cung cấp, khách hàng). Không lưu mật khẩu/đăng nhập ngân hàng.
+create table public.bank_accounts (
+  id uuid primary key default gen_random_uuid(),
+  owner_type text not null check (owner_type in ('company', 'driver', 'supplier', 'customer')),
+  company_entity_id uuid references public.company_entities (id),
+  driver_id uuid references public.drivers (id),
+  supplier_id uuid references public.suppliers (id),
+  customer_id uuid references public.customers (id),
+  bank_id uuid not null references public.banks (id),
+  account_number text not null,
+  account_name text not null,
+  branch text,
+  is_default boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (
+    (owner_type = 'company' and company_entity_id is not null and driver_id is null and supplier_id is null and customer_id is null)
+    or (owner_type = 'driver' and driver_id is not null and company_entity_id is null and supplier_id is null and customer_id is null)
+    or (owner_type = 'supplier' and supplier_id is not null and company_entity_id is null and driver_id is null and customer_id is null)
+    or (owner_type = 'customer' and customer_id is not null and company_entity_id is null and driver_id is null and supplier_id is null)
+  ),
+  unique (bank_id, account_number)
+);
+
+-- Phương tiện
+create table public.vehicles (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  plate_number text not null,
+  vehicle_type_id uuid references public.vehicle_types (id),
+  brand text,
+  model_year integer check (model_year between 1950 and 2100),
+  ownership_type text not null default 'owned' check (ownership_type in ('owned', 'leased', 'lease_purchase')),
+  registration_expiry date,
+  insurance_expiry date,
+  fuel_norm_l_per_100km numeric(6,2) check (fuel_norm_l_per_100km >= 0),
+  status text not null default 'active' check (status in ('active', 'maintenance', 'inactive', 'sold')),
+  assigned_driver_id uuid references public.drivers (id) on delete set null,
+  notes text,
+  custom_fields jsonb not null default '{}'::jsonb,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+comment on column public.vehicles.assigned_driver_id is 'Nguồn duy nhất cho phân công xe-tài xế mặc định; biển số của tài xế lấy qua view driver_vehicle_view';
+create unique index vehicles_plate_uq on public.vehicles (upper(regexp_replace(plate_number, '[^A-Za-z0-9]', '', 'g')));
+create unique index vehicles_assigned_driver_uq on public.vehicles (assigned_driver_id) where assigned_driver_id is not null and archived_at is null;
+
+-- Thông tin tài chính của xe (giá mua, khấu hao, khoản vay) tách bảng để RLS chặn theo vehicles.view_sensitive
+create table public.vehicle_financials (
+  vehicle_id uuid primary key references public.vehicles (id) on delete cascade,
+  purchase_date date,
+  purchase_price numeric(18,2) check (purchase_price >= 0),
+  residual_value numeric(18,2) check (residual_value >= 0),
+  depreciation_method text not null default 'straight_line' check (depreciation_method in ('straight_line', 'none')),
+  depreciation_months integer check (depreciation_months > 0),
+  monthly_depreciation numeric(18,2) generated always as (
+    case
+      when depreciation_method = 'straight_line' and depreciation_months > 0 and purchase_price is not null
+        then round((purchase_price - coalesce(residual_value, 0)) / depreciation_months, 0)
+      else null
+    end
+  ) stored,
+  lender_bank_id uuid references public.banks (id),
+  loan_principal numeric(18,2) check (loan_principal >= 0),
+  loan_interest_rate numeric(7,4) check (loan_interest_rate >= 0),
+  loan_start_date date,
+  loan_end_date date,
+  monthly_installment numeric(18,2) check (monthly_installment >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (residual_value is null or purchase_price is null or residual_value <= purchase_price),
+  check (loan_end_date is null or loan_start_date is null or loan_end_date >= loan_start_date)
+);
+comment on column public.vehicle_financials.loan_interest_rate is 'Lãi suất năm (%)';
+
+-- Lịch trả nợ vay xe: dư nợ chỉ được tính từ lịch này, không suy đoán
+create table public.loan_schedules (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id uuid not null references public.vehicles (id) on delete restrict,
+  installment_no integer not null check (installment_no > 0),
+  due_date date not null,
+  principal_due numeric(18,2) not null check (principal_due >= 0),
+  interest_due numeric(18,2) not null default 0 check (interest_due >= 0),
+  paid_principal numeric(18,2) not null default 0 check (paid_principal >= 0),
+  paid_interest numeric(18,2) not null default 0 check (paid_interest >= 0),
+  paid_at date,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  unique (vehicle_id, installment_no)
+);
+
+-- Sửa chữa, bảo dưỡng, thay lốp, thay nhớt...
+create table public.maintenance_records (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id uuid not null references public.vehicles (id) on delete restrict,
+  record_type text not null check (record_type in ('repair', 'maintenance', 'tire', 'oil', 'inspection', 'other')),
+  performed_at date not null,
+  odometer_km integer check (odometer_km >= 0),
+  description text not null,
+  supplier_id uuid references public.suppliers (id),
+  amount numeric(18,2) not null default 0 check (amount >= 0),
+  next_due_date date,
+  next_due_km integer,
+  status text not null default 'recorded' check (status in ('recorded', 'cancelled')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index maintenance_records_vehicle_idx on public.maintenance_records (vehicle_id, performed_at desc);
+
+-- Địa điểm dùng chung cho nơi nhận / nơi giao
+create table public.locations (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  company_name text,
+  full_address text not null,
+  province text,
+  billing_address text,
+  tax_code text,
+  contact_name text,
+  phone text,
+  email text,
+  latitude numeric(9,6) check (latitude between -90 and 90),
+  longitude numeric(9,6) check (longitude between -180 and 180),
+  google_maps_url text,
+  operating_hours text,
+  gate_instructions text,
+  delivery_notes text,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  custom_fields jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index locations_search_idx on public.locations using gin (to_tsvector('simple', coalesce(code, '') || ' ' || name || ' ' || coalesce(company_name, '') || ' ' || full_address));
+
+-- Tuyến đường
+create table public.routes (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  pickup_location_id uuid not null references public.locations (id),
+  delivery_location_id uuid not null references public.locations (id),
+  distance_km numeric(10,2) check (distance_km >= 0),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  unique (pickup_location_id, delivery_location_id)
+);
+
+-- Bảng giá vận chuyển
+create table public.transport_price_lists (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  company_entity_id uuid references public.company_entities (id),
+  customer_id uuid references public.customers (id),
+  pickup_location_id uuid references public.locations (id),
+  delivery_location_id uuid references public.locations (id),
+  vehicle_type_id uuid references public.vehicle_types (id),
+  unit_price numeric(18,2) not null check (unit_price >= 0),
+  pricing_unit text not null default 'trip' check (pricing_unit in ('trip', 'km', 'ton', 'other')),
+  pricing_unit_label text,
+  fuel_support_rate numeric(6,3) check (fuel_support_rate between 0 and 100),
+  reference_distance_km numeric(10,2) check (reference_distance_km >= 0),
+  surcharge_amount numeric(18,2) not null default 0 check (surcharge_amount >= 0),
+  effective_from date not null,
+  effective_to date,
+  conditions text,
+  priority integer not null default 0,
+  status text not null default 'active' check (status in ('draft', 'active', 'inactive')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (effective_to is null or effective_to >= effective_from),
+  check (pricing_unit <> 'other' or pricing_unit_label is not null),
+  -- Không cho hai bảng giá đang hiệu lực có cùng phạm vi, cùng độ ưu tiên và chồng lấn thời gian
+  constraint price_list_no_overlap exclude using gist (
+    (coalesce(customer_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    (coalesce(pickup_location_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    (coalesce(delivery_location_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    (coalesce(vehicle_type_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    (coalesce(company_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    pricing_unit with =,
+    priority with =,
+    daterange(effective_from, coalesce(effective_to, 'infinity'::date), '[]') with &&
+  ) where (status = 'active')
+);
+create index price_lists_lookup_idx on public.transport_price_lists (customer_id, pickup_location_id, delivery_location_id, vehicle_type_id) where status = 'active';
+
+-- Danh mục chi phí dùng chung
+create table public.expense_categories (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  group_name text not null,
+  report_bucket text not null default 'other' check (report_bucket in (
+    'fuel', 'toll', 'loading_yard', 'repair', 'driver', 'outsourcing', 'allocated_overhead', 'depreciation', 'interest', 'other')),
+  cost_class text not null default 'direct' check (cost_class in ('direct', 'allocated')),
+  allowed_role_codes text[] not null default array['admin', 'accountant', 'dispatcher', 'driver'],
+  requires_amount boolean not null default true,
+  requires_invoice boolean not null default false,
+  requires_image boolean not null default false,
+  requires_approval boolean not null default true,
+  counts_to_trip_cost boolean not null default true,
+  formula text,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+-- Quy tắc hỗ trợ dầu (ưu tiên: chuyến > tuyến/khách hàng > loại xe > mặc định)
+create table public.fuel_support_rules (
+  id uuid primary key default gen_random_uuid(),
+  scope_type text not null check (scope_type in ('default', 'customer', 'route', 'customer_route', 'vehicle_type')),
+  customer_id uuid references public.customers (id),
+  route_id uuid references public.routes (id),
+  vehicle_type_id uuid references public.vehicle_types (id),
+  rate_percent numeric(6,3) check (rate_percent between 0 and 100),
+  calculation_base text not null default 'freight_revenue' check (calculation_base in ('freight_revenue', 'unit_price', 'total_revenue', 'fuel_norm', 'formula')),
+  fuel_norm_l_per_100km numeric(6,2) check (fuel_norm_l_per_100km >= 0),
+  reference_fuel_price numeric(18,2) check (reference_fuel_price >= 0),
+  formula text,
+  effective_from date not null,
+  effective_to date,
+  is_active boolean not null default true,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (effective_to is null or effective_to >= effective_from),
+  check (
+    (scope_type = 'default' and customer_id is null and route_id is null and vehicle_type_id is null)
+    or (scope_type = 'customer' and customer_id is not null and route_id is null and vehicle_type_id is null)
+    or (scope_type = 'route' and route_id is not null and customer_id is null and vehicle_type_id is null)
+    or (scope_type = 'customer_route' and customer_id is not null and route_id is not null and vehicle_type_id is null)
+    or (scope_type = 'vehicle_type' and vehicle_type_id is not null and customer_id is null and route_id is null)
+  ),
+  check (calculation_base <> 'formula' or formula is not null),
+  check (calculation_base = 'fuel_norm' or calculation_base = 'formula' or rate_percent is not null),
+  constraint fuel_rule_no_overlap exclude using gist (
+    scope_type with =,
+    (coalesce(customer_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    (coalesce(route_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    (coalesce(vehicle_type_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
+    daterange(effective_from, coalesce(effective_to, 'infinity'::date), '[]') with &&
+  ) where (is_active)
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'catalogs', 'catalog_items', 'company_entities', 'banks', 'payment_methods', 'vehicle_types', 'salary_rules',
+    'drivers', 'suppliers', 'customers', 'bank_accounts', 'vehicles', 'vehicle_financials', 'loan_schedules', 'maintenance_records',
+    'locations', 'routes', 'transport_price_lists', 'expense_categories', 'fuel_support_rules'
+  ] loop
+    perform private.attach_standard_triggers(('public.' || t)::regclass);
+  end loop;
+end $$;
+
+create trigger trg_driver_sensitive_updated_at before update on public.driver_sensitive
+for each row execute function private.set_updated_at();
+create trigger trg_driver_sensitive_actor before insert or update on public.driver_sensitive
+for each row execute function private.set_actor_columns();
+
+-- Dư nợ vay xe (chỉ từ lịch trả nợ đã nhập)
+create view public.vehicle_loan_summary with (security_invoker = true) as
+select
+  vf.vehicle_id,
+  vf.loan_principal,
+  count(ls.id) as installments,
+  sum(ls.principal_due) as scheduled_principal,
+  sum(ls.paid_principal) as paid_principal,
+  -- Chỉ tính dư nợ khi đã có lịch trả nợ; không suy đoán từ lãi suất/thời hạn
+  case when count(ls.id) = 0 then null
+       else coalesce(vf.loan_principal, sum(ls.principal_due)) - coalesce(sum(ls.paid_principal), 0)
+  end as outstanding_principal,
+  min(ls.due_date) filter (where ls.paid_principal < ls.principal_due) as next_due_date
+from public.vehicle_financials vf
+left join public.loan_schedules ls on ls.vehicle_id = vf.vehicle_id
+group by vf.vehicle_id, vf.loan_principal;
+
+-- Biển số xe được phân công cho tài xế (suy ra từ vehicles.assigned_driver_id)
+create view public.driver_vehicle_view with (security_invoker = true) as
+select d.id as driver_id, v.id as vehicle_id, v.plate_number
+from public.drivers d
+join public.vehicles v on v.assigned_driver_id = d.id and v.archived_at is null;
+
+-- Hàm tiện ích: id tài xế gắn với người dùng hiện tại
+create or replace function private.my_driver_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select d.id from public.drivers d where d.profile_id = auth.uid() and private.is_active_user();
+$$;
+grant execute on function private.my_driver_id() to authenticated, service_role;
+
+-- Tìm bảng giá phù hợp: trả về các ứng viên, xếp theo độ cụ thể rồi độ ưu tiên.
+-- Nếu hai dòng đầu bằng nhau cả hai tiêu chí, giao diện phải bắt người dùng chọn.
+create or replace function public.find_price_lists(
+  p_customer_id uuid,
+  p_pickup_location_id uuid,
+  p_delivery_location_id uuid,
+  p_vehicle_type_id uuid,
+  p_on_date date default (now() at time zone 'Asia/Ho_Chi_Minh')::date
+)
+returns table (
+  id uuid, code text, unit_price numeric, pricing_unit text, pricing_unit_label text,
+  fuel_support_rate numeric, surcharge_amount numeric, reference_distance_km numeric,
+  specificity integer, priority integer, effective_from date, effective_to date
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select pl.id, pl.code, pl.unit_price, pl.pricing_unit, pl.pricing_unit_label,
+         pl.fuel_support_rate, pl.surcharge_amount, pl.reference_distance_km,
+         ((pl.customer_id is not null)::int * 8 + (pl.pickup_location_id is not null)::int * 2
+          + (pl.delivery_location_id is not null)::int * 2 + (pl.vehicle_type_id is not null)::int * 4) as specificity,
+         pl.priority, pl.effective_from, pl.effective_to
+  from public.transport_price_lists pl
+  where pl.status = 'active'
+    and p_on_date between pl.effective_from and coalesce(pl.effective_to, 'infinity'::date)
+    and (pl.customer_id is null or pl.customer_id = p_customer_id)
+    and (pl.pickup_location_id is null or pl.pickup_location_id = p_pickup_location_id)
+    and (pl.delivery_location_id is null or pl.delivery_location_id = p_delivery_location_id)
+    and (pl.vehicle_type_id is null or pl.vehicle_type_id = p_vehicle_type_id)
+  order by specificity desc, pl.priority desc, pl.effective_from desc;
+$$;
+
+-- >>> 20261016000004_operations.sql
+-- =============================================================================
+-- GHA TMS - 0004: Điều phối, đơn hàng, Shipment, phân công, lịch sử trạng thái
+-- =============================================================================
+
+create table public.transport_orders (
+  id uuid primary key default gen_random_uuid(),
+  order_code text not null unique,
+  order_date date not null default (now() at time zone 'Asia/Ho_Chi_Minh')::date,
+  company_entity_id uuid references public.company_entities (id),
+  customer_id uuid not null references public.customers (id),
+  payer_customer_id uuid not null references public.customers (id),
+  dispatcher_id uuid references public.profiles (id),
+  status text not null default 'open' check (status in ('open', 'completed', 'cancelled')),
+  notes text,
+  custom_fields jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index transport_orders_customer_idx on public.transport_orders (customer_id, order_date desc);
+
+-- Trạng thái chính của Shipment (xem docs/06-trang-thai-shipment.md)
+--   draft -> assigned -> accepted -> in_transit -> driver_completed -> closed
+--   assigned -> rejected -> assigned (phân công lại)
+--   draft/assigned/accepted/rejected/in_transit -> cancelled
+create table public.shipments (
+  id uuid primary key default gen_random_uuid(),
+  shipment_code text not null unique,
+  order_id uuid not null references public.transport_orders (id) on delete restrict,
+  sequence_in_order integer not null default 1,
+  pickup_at timestamptz not null,
+  expected_delivery_at timestamptz,
+  pickup_location_id uuid not null references public.locations (id),
+  delivery_location_id uuid not null references public.locations (id),
+  route_id uuid references public.routes (id),
+  vehicle_type_id uuid references public.vehicle_types (id),
+  vehicle_id uuid references public.vehicles (id),
+  driver_id uuid references public.drivers (id),
+
+  -- Ảnh chụp giá tại thời điểm tạo chuyến: bảng giá đổi sau này không làm đổi chuyến cũ
+  price_list_id uuid references public.transport_price_lists (id),
+  unit_price numeric(18,2) not null default 0 check (unit_price >= 0),
+  pricing_unit text not null default 'trip' check (pricing_unit in ('trip', 'km', 'ton', 'other')),
+  quantity numeric(12,3) not null default 1 check (quantity > 0),
+  freight_amount numeric(18,2) generated always as (round(unit_price * quantity, 0)) stored,
+  surcharge_amount numeric(18,2) not null default 0 check (surcharge_amount >= 0),
+  fuel_support_rate numeric(6,3) check (fuel_support_rate between 0 and 100),
+  fuel_support_base text check (fuel_support_base in ('freight_revenue', 'unit_price', 'total_revenue', 'fuel_norm', 'formula')),
+  fuel_support_amount numeric(18,2) not null default 0 check (fuel_support_amount >= 0),
+  fuel_support_rule_id uuid references public.fuel_support_rules (id),
+  pricing_snapshot jsonb not null default '{}'::jsonb,
+
+  status text not null default 'draft' check (status in ('draft', 'assigned', 'accepted', 'rejected', 'in_transit', 'driver_completed', 'closed', 'cancelled')),
+  document_status text not null default 'missing' check (document_status in ('missing', 'submitted', 'verified', 'rejected')),
+  settlement_status text not null default 'unsettled' check (settlement_status in ('unsettled', 'pending_approval', 'settled', 'reopened')),
+
+  -- Hoàn thành chuyến (tài xế nhập)
+  arrived_pickup_at timestamptz,
+  departed_pickup_at timestamptz,
+  arrived_delivery_at timestamptz,
+  completed_at timestamptz,
+  odometer_start integer check (odometer_start >= 0),
+  odometer_end integer check (odometer_end >= 0),
+  actual_km numeric(10,2) check (actual_km >= 0),
+  delivery_result text check (delivery_result in ('full', 'partial', 'failed')),
+  completion_note text,
+
+  cancel_reason text,
+  cancelled_at timestamptz,
+  cancelled_by uuid references public.profiles (id),
+  notes text,
+  custom_fields jsonb not null default '{}'::jsonb,
+  version integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (pickup_location_id <> delivery_location_id),
+  check (odometer_end is null or odometer_start is null or odometer_end >= odometer_start),
+  check (expected_delivery_at is null or expected_delivery_at >= pickup_at),
+  check (status <> 'cancelled' or cancel_reason is not null),
+  unique (order_id, sequence_in_order)
+);
+create index shipments_pickup_idx on public.shipments (pickup_at desc);
+create index shipments_driver_idx on public.shipments (driver_id, pickup_at desc);
+create index shipments_vehicle_idx on public.shipments (vehicle_id, pickup_at desc);
+create index shipments_status_idx on public.shipments (status);
+create index shipments_order_idx on public.shipments (order_id);
+
+-- Phân công tài xế: tối đa một phân công còn hiệu lực (pending/accepted) cho mỗi chuyến
+create table public.shipment_assignments (
+  id uuid primary key default gen_random_uuid(),
+  shipment_id uuid not null references public.shipments (id) on delete restrict,
+  driver_id uuid not null references public.drivers (id),
+  vehicle_id uuid references public.vehicles (id),
+  assigned_by uuid references public.profiles (id),
+  assigned_at timestamptz not null default now(),
+  response text not null default 'pending' check (response in ('pending', 'accepted', 'rejected', 'superseded')),
+  responded_at timestamptz,
+  reject_reason text,
+  check (response <> 'rejected' or (reject_reason is not null and length(trim(reject_reason)) > 0))
+);
+create unique index shipment_assignments_active_uq on public.shipment_assignments (shipment_id)
+  where response in ('pending', 'accepted');
+create index shipment_assignments_driver_idx on public.shipment_assignments (driver_id, assigned_at desc);
+
+create table public.shipment_status_history (
+  id bigint generated always as identity primary key,
+  shipment_id uuid not null references public.shipments (id) on delete restrict,
+  status_field text not null default 'status' check (status_field in ('status', 'document_status', 'settlement_status')),
+  from_status text,
+  to_status text not null,
+  changed_by uuid,
+  changed_at timestamptz not null default now(),
+  note text
+);
+create index shipment_status_history_idx on public.shipment_status_history (shipment_id, changed_at);
+
+select private.attach_standard_triggers('public.transport_orders');
+select private.attach_standard_triggers('public.shipments');
+
+-- Sinh mã đơn hàng / Shipment khi tạo; không cho đổi sau đó
+create or replace function private.shipments_before_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.shipment_code is null or new.shipment_code = '' then
+    new.shipment_code := private.next_code('SHP', now());
+  end if;
+  new.status := coalesce(new.status, 'draft');
+  return new;
+end;
+$$;
+create trigger trg_shipments_code before insert on public.shipments
+for each row execute function private.shipments_before_insert();
+
+create or replace function private.orders_before_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.order_code is null or new.order_code = '' then
+    new.order_code := private.next_code('ORD', now());
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_orders_code before insert on public.transport_orders
+for each row execute function private.orders_before_insert();
+
+-- Ma trận chuyển trạng thái hợp lệ
+create or replace function private.shipment_transition_allowed(from_s text, to_s text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select from_s = to_s or (from_s, to_s) in (
+    ('draft', 'assigned'), ('draft', 'cancelled'),
+    ('assigned', 'accepted'), ('assigned', 'rejected'), ('assigned', 'draft'), ('assigned', 'cancelled'),
+    ('rejected', 'assigned'), ('rejected', 'draft'), ('rejected', 'cancelled'),
+    ('accepted', 'in_transit'), ('accepted', 'assigned'), ('accepted', 'cancelled'),
+    ('in_transit', 'driver_completed'), ('in_transit', 'cancelled'),
+    ('driver_completed', 'in_transit'), ('driver_completed', 'closed'),
+    ('closed', 'driver_completed')
+  );
+$$;
+
+create or replace function private.shipments_before_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.shipment_code <> old.shipment_code then
+    raise exception 'Mã Shipment không được thay đổi' using errcode = '42501';
+  end if;
+  if new.order_id <> old.order_id then
+    raise exception 'Không được chuyển Shipment sang đơn hàng khác' using errcode = '42501';
+  end if;
+  if not private.shipment_transition_allowed(old.status, new.status) then
+    raise exception 'Không thể chuyển trạng thái chuyến từ % sang %', old.status, new.status using errcode = '22023';
+  end if;
+  -- Chuyến đã đóng/hủy: khóa dữ liệu giá
+  if old.status in ('closed', 'cancelled') and (
+       new.unit_price, new.quantity, new.surcharge_amount, new.fuel_support_amount, new.price_list_id
+     ) is distinct from (
+       old.unit_price, old.quantity, old.surcharge_amount, old.fuel_support_amount, old.price_list_id
+     ) then
+    raise exception 'Chuyến đã đóng hoặc đã hủy, không được sửa giá' using errcode = '42501';
+  end if;
+  if new.status = 'cancelled' and old.status <> 'cancelled' then
+    new.cancelled_at := now();
+    new.cancelled_by := auth.uid();
+  end if;
+  new.version := old.version + 1;
+  return new;
+end;
+$$;
+create trigger trg_shipments_guard before update on public.shipments
+for each row execute function private.shipments_before_update();
+
+create or replace function private.shipments_status_history()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.shipment_status_history (shipment_id, status_field, from_status, to_status, changed_by)
+    values (new.id, 'status', null, new.status, auth.uid());
+    return new;
+  end if;
+  if new.status is distinct from old.status then
+    insert into public.shipment_status_history (shipment_id, status_field, from_status, to_status, changed_by, note)
+    values (new.id, 'status', old.status, new.status, auth.uid(), case when new.status = 'cancelled' then new.cancel_reason end);
+  end if;
+  if new.document_status is distinct from old.document_status then
+    insert into public.shipment_status_history (shipment_id, status_field, from_status, to_status, changed_by)
+    values (new.id, 'document_status', old.document_status, new.document_status, auth.uid());
+  end if;
+  if new.settlement_status is distinct from old.settlement_status then
+    insert into public.shipment_status_history (shipment_id, status_field, from_status, to_status, changed_by)
+    values (new.id, 'settlement_status', old.settlement_status, new.settlement_status, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_shipments_history after insert or update on public.shipments
+for each row execute function private.shipments_status_history();
+
+-- >>> 20261016000005_finance.sql
+-- =============================================================================
+-- GHA TMS - 0005: Chứng từ, phê duyệt, chi phí chuyến, ứng tiền, thanh toán, công nợ
+-- =============================================================================
+-- Nguyên tắc tài chính:
+--   * Tạm ứng là khoản trả trước cho tài xế, KHÔNG phải chi phí.
+--   * Chi phí chuyến chỉ được ghi nhận khi status = 'approved'.
+--   * Hỗ trợ dầu là một khoản doanh thu/thu từ khách hàng, KHÔNG phải chi phí dầu thực tế.
+--   * Một yêu cầu phê duyệt chỉ được ghi nhận thanh toán một lần (unique index).
+--   * Mọi thao tác tài chính đi qua hàm SQL trong transaction (Giai đoạn 6-7).
+-- =============================================================================
+
+-- Chứng từ / tệp đính kèm (metadata; tệp nằm trong Supabase Storage bucket riêng tư)
+create table public.documents (
+  id uuid primary key default gen_random_uuid(),
+  bucket text not null default 'documents',
+  storage_path text not null,
+  file_name text not null,
+  mime_type text not null check (mime_type in (
+    'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document')),
+  size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 10485760),
+  entity_type text not null check (entity_type in (
+    'shipment', 'shipment_expense', 'advance_request', 'payment', 'vehicle', 'driver',
+    'maintenance_record', 'approval_request', 'receivable', 'payable', 'transport_order', 'location', 'customer')),
+  entity_id uuid not null,
+  doc_type text not null default 'other' check (doc_type in (
+    'delivery_note', 'invoice', 'receipt', 'photo', 'contract', 'id_card', 'registration', 'insurance', 'bank', 'other')),
+  is_sensitive boolean not null default false,
+  uploaded_by uuid references public.profiles (id),
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (bucket, storage_path)
+);
+create index documents_entity_idx on public.documents (entity_type, entity_id) where archived_at is null;
+
+-- Hạng mục phê duyệt (cấu hình)
+create table public.approval_types (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  description text,
+  requires_document boolean not null default false,
+  requires_reject_reason boolean not null default true,
+  allow_self_approval boolean not null default false,
+  sla_hours integer check (sla_hours > 0),
+  max_amount numeric(18,2) check (max_amount >= 0),
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+-- Cấp duyệt theo hạng mục và hạn mức
+create table public.approval_rules (
+  id uuid primary key default gen_random_uuid(),
+  approval_type_id uuid not null references public.approval_types (id) on delete cascade,
+  level integer not null check (level between 1 and 5),
+  approver_role_id uuid references public.roles (id),
+  approver_user_id uuid references public.profiles (id),
+  min_amount numeric(18,2) not null default 0 check (min_amount >= 0),
+  max_amount numeric(18,2) check (max_amount is null or max_amount >= min_amount),
+  notify_role_ids uuid[] not null default '{}',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (approver_role_id is not null or approver_user_id is not null)
+);
+create index approval_rules_type_idx on public.approval_rules (approval_type_id, level);
+
+create table public.approval_requests (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  approval_type_id uuid not null references public.approval_types (id),
+  entity_type text not null,
+  entity_id uuid,
+  shipment_id uuid references public.shipments (id),
+  requested_by uuid not null references public.profiles (id),
+  requested_at timestamptz not null default now(),
+  amount numeric(18,2) check (amount >= 0),
+  content text not null,
+  status text not null default 'draft' check (status in ('draft', 'pending', 'approved', 'rejected', 'paid', 'cancelled', 'info_requested')),
+  current_level integer not null default 1,
+  required_levels integer not null default 1,
+  reject_reason text,
+  decided_at timestamptz,
+  due_at timestamptz,
+  workflow_version_id uuid,
+  version integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index approval_requests_status_idx on public.approval_requests (status, requested_at desc);
+create index approval_requests_shipment_idx on public.approval_requests (shipment_id);
+
+create table public.approval_steps (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.approval_requests (id) on delete restrict,
+  level integer not null,
+  action text not null check (action in ('submit', 'approve', 'reject', 'request_info', 'cancel', 'revoke', 'comment', 'mark_paid')),
+  actor_id uuid not null references public.profiles (id),
+  acted_at timestamptz not null default now(),
+  comment text
+);
+create unique index approval_steps_one_approve_per_level on public.approval_steps (request_id, level) where action = 'approve';
+create index approval_steps_request_idx on public.approval_steps (request_id, acted_at);
+
+-- Chi phí chuyến xe
+create table public.shipment_expenses (
+  id uuid primary key default gen_random_uuid(),
+  shipment_id uuid not null references public.shipments (id) on delete restrict,
+  category_id uuid not null references public.expense_categories (id),
+  amount numeric(18,2) not null check (amount >= 0),
+  incurred_at timestamptz not null default now(),
+  note text,
+  source text not null check (source in ('driver', 'admin', 'other')),
+  supplier_id uuid references public.suppliers (id),
+  status text not null default 'pending' check (status in ('draft', 'pending', 'approved', 'rejected', 'cancelled')),
+  approval_request_id uuid references public.approval_requests (id),
+  client_request_id uuid unique, -- chống gửi trùng khi mạng chập chờn
+  entered_by uuid references public.profiles (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index shipment_expenses_shipment_idx on public.shipment_expenses (shipment_id);
+
+-- Yêu cầu ứng tiền
+create table public.advance_requests (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  shipment_id uuid references public.shipments (id),
+  driver_id uuid not null references public.drivers (id),
+  amount_requested numeric(18,2) not null check (amount_requested > 0),
+  amount_approved numeric(18,2) check (amount_approved >= 0),
+  reason text not null,
+  payment_method_id uuid references public.payment_methods (id),
+  bank_account_id uuid references public.bank_accounts (id),
+  note text,
+  status text not null default 'pending' check (status in ('draft', 'pending', 'approved', 'rejected', 'paid', 'cancelled', 'info_requested')),
+  approval_request_id uuid unique references public.approval_requests (id),
+  client_request_id uuid unique,
+  requested_by uuid references public.profiles (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index advance_requests_driver_idx on public.advance_requests (driver_id, created_at desc);
+
+-- Thanh toán / thu tiền (mọi dòng tiền thực tế)
+create table public.payments (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  direction text not null check (direction in ('in', 'out')),
+  purpose text not null check (purpose in ('advance', 'advance_refund', 'expense_reimbursement', 'driver_settlement', 'receivable', 'payable', 'other')),
+  payment_method_id uuid references public.payment_methods (id),
+  company_bank_account_id uuid references public.bank_accounts (id),
+  amount numeric(18,2) not null check (amount > 0),
+  paid_at timestamptz not null default now(),
+  driver_id uuid references public.drivers (id),
+  customer_id uuid references public.customers (id),
+  supplier_id uuid references public.suppliers (id),
+  shipment_id uuid references public.shipments (id),
+  approval_request_id uuid references public.approval_requests (id),
+  advance_request_id uuid references public.advance_requests (id),
+  receivable_id uuid,
+  payable_id uuid,
+  reference_no text,
+  note text,
+  status text not null default 'posted' check (status in ('posted', 'voided')),
+  void_reason text,
+  idempotency_key uuid not null unique default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (status <> 'voided' or void_reason is not null)
+);
+-- Một yêu cầu phê duyệt / một yêu cầu ứng chỉ được chi một lần
+create unique index payments_one_per_approval on public.payments (approval_request_id) where status = 'posted' and approval_request_id is not null;
+create unique index payments_one_per_advance on public.payments (advance_request_id) where status = 'posted' and purpose = 'advance';
+
+-- Giao dịch tạm ứng (sổ phụ tạm ứng theo tài xế/chuyến)
+create table public.advance_transactions (
+  id uuid primary key default gen_random_uuid(),
+  driver_id uuid not null references public.drivers (id),
+  shipment_id uuid references public.shipments (id),
+  advance_request_id uuid references public.advance_requests (id),
+  payment_id uuid references public.payments (id),
+  txn_type text not null check (txn_type in ('disbursement', 'refund', 'settlement_offset', 'adjustment')),
+  amount numeric(18,2) not null check (amount <> 0),
+  occurred_at timestamptz not null default now(),
+  note text,
+  created_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+create index advance_transactions_driver_idx on public.advance_transactions (driver_id, occurred_at);
+
+-- Công nợ phải thu
+create table public.receivables (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  customer_id uuid not null references public.customers (id),
+  shipment_id uuid references public.shipments (id),
+  order_id uuid references public.transport_orders (id),
+  amount numeric(18,2) not null check (amount > 0),
+  issued_date date not null,
+  due_date date not null,
+  paid_amount numeric(18,2) not null default 0 check (paid_amount >= 0),
+  remaining_amount numeric(18,2) generated always as (amount - paid_amount) stored,
+  status text not null default 'open' check (status in ('open', 'partial', 'paid', 'cancelled')),
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (paid_amount <= amount),
+  check (due_date >= issued_date)
+);
+create index receivables_customer_idx on public.receivables (customer_id, due_date);
+
+-- Công nợ phải trả
+create table public.payables (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  supplier_id uuid references public.suppliers (id),
+  driver_id uuid references public.drivers (id),
+  shipment_id uuid references public.shipments (id),
+  maintenance_record_id uuid references public.maintenance_records (id),
+  amount numeric(18,2) not null check (amount > 0),
+  issued_date date not null,
+  due_date date not null,
+  paid_amount numeric(18,2) not null default 0 check (paid_amount >= 0),
+  remaining_amount numeric(18,2) generated always as (amount - paid_amount) stored,
+  status text not null default 'open' check (status in ('open', 'partial', 'paid', 'cancelled')),
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  check (paid_amount <= amount),
+  check (due_date >= issued_date),
+  check (supplier_id is not null or driver_id is not null)
+);
+create index payables_supplier_idx on public.payables (supplier_id, due_date);
+
+alter table public.payments
+  add constraint payments_receivable_fk foreign key (receivable_id) references public.receivables (id),
+  add constraint payments_payable_fk foreign key (payable_id) references public.payables (id);
+
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'approval_types', 'approval_rules', 'approval_requests', 'shipment_expenses', 'advance_requests',
+    'payments', 'receivables', 'payables'
+  ] loop
+    perform private.attach_standard_triggers(('public.' || t)::regclass);
+  end loop;
+end $$;
+
+-- Mã chứng từ tự sinh
+create or replace function private.fill_doc_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.code is null or new.code = '' then
+    new.code := private.next_code(tg_argv[0], now());
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_approval_requests_code before insert on public.approval_requests for each row execute function private.fill_doc_code('APR');
+create trigger trg_advance_requests_code before insert on public.advance_requests for each row execute function private.fill_doc_code('ADV');
+create trigger trg_payments_code before insert on public.payments for each row execute function private.fill_doc_code('PAY');
+create trigger trg_receivables_code before insert on public.receivables for each row execute function private.fill_doc_code('AR');
+create trigger trg_payables_code before insert on public.payables for each row execute function private.fill_doc_code('AP');
+
+-- Đã duyệt thì không sửa trực tiếp số tiền / nội dung
+create or replace function private.guard_approval_requests()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.status in ('approved', 'paid') and (new.amount, new.content, new.approval_type_id, new.entity_id)
+       is distinct from (old.amount, old.content, old.approval_type_id, old.entity_id) then
+    raise exception 'Yêu cầu đã duyệt: không được sửa số tiền hoặc nội dung. Hãy tạo yêu cầu điều chỉnh.' using errcode = '42501';
+  end if;
+  if old.status = 'paid' and new.status <> 'paid' then
+    raise exception 'Yêu cầu đã thanh toán không thể đổi trạng thái' using errcode = '42501';
+  end if;
+  new.version := old.version + 1;
+  return new;
+end;
+$$;
+create trigger trg_approval_requests_guard before update on public.approval_requests
+for each row execute function private.guard_approval_requests();
+
+create or replace function private.guard_approved_amount()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_table_name = 'shipment_expenses' and old.status = 'approved'
+     and (new.amount, new.category_id, new.shipment_id) is distinct from (old.amount, old.category_id, old.shipment_id) then
+    raise exception 'Chi phí đã duyệt: không được sửa trực tiếp số tiền/loại chi phí' using errcode = '42501';
+  end if;
+  if tg_table_name = 'advance_requests' and old.status in ('approved', 'paid')
+     and (new.amount_requested, new.amount_approved, new.driver_id) is distinct from (old.amount_requested, old.amount_approved, old.driver_id) then
+    raise exception 'Yêu cầu ứng đã duyệt: không được sửa trực tiếp số tiền' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_shipment_expenses_guard before update on public.shipment_expenses
+for each row execute function private.guard_approved_amount();
+create trigger trg_advance_requests_guard before update on public.advance_requests
+for each row execute function private.guard_approved_amount();
+
+-- Thanh toán đã ghi nhận chỉ được hủy (void) có lý do, không được sửa số tiền hay xóa
+create or replace function private.guard_payments()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'Không được xóa thanh toán; hãy hủy (void) có lý do' using errcode = '42501';
+  end if;
+  if old.status = 'voided' then
+    raise exception 'Thanh toán đã hủy không thể sửa' using errcode = '42501';
+  end if;
+  if (new.amount, new.direction, new.purpose, new.approval_request_id, new.advance_request_id, new.receivable_id, new.payable_id)
+     is distinct from (old.amount, old.direction, old.purpose, old.approval_request_id, old.advance_request_id, old.receivable_id, old.payable_id) then
+    raise exception 'Không được sửa số tiền/đối tượng thanh toán; hãy hủy và tạo lại' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_payments_guard before update or delete on public.payments
+for each row execute function private.guard_payments();
+
+-- Không xóa cứng chuyến đã phát sinh tài chính hoặc đã qua bước nháp
+create or replace function private.guard_shipment_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if old.status <> 'draft'
+     or exists (select 1 from public.shipment_expenses where shipment_id = old.id)
+     or exists (select 1 from public.advance_requests where shipment_id = old.id)
+     or exists (select 1 from public.payments where shipment_id = old.id)
+     or exists (select 1 from public.receivables where shipment_id = old.id)
+     or exists (select 1 from public.payables where shipment_id = old.id)
+     or exists (select 1 from public.approval_requests where shipment_id = old.id) then
+    raise exception 'Chuyến đã phát sinh nghiệp vụ, chỉ được hủy (không xóa)' using errcode = '42501';
+  end if;
+  delete from public.shipment_status_history where shipment_id = old.id;
+  delete from public.shipment_assignments where shipment_id = old.id;
+  return old;
+end;
+$$;
+create trigger trg_shipments_delete_guard before delete on public.shipments
+for each row execute function private.guard_shipment_delete();
+
+-- >>> 20261016000006_config_audit.sql
+-- =============================================================================
+-- GHA TMS - 0006: Cấu hình động (trường, biểu mẫu, quy trình, bảng), thông báo,
+--                 nhật ký hệ thống, cấu hình hệ thống
+-- =============================================================================
+
+-- Định nghĩa trường dữ liệu (trường hệ thống + trường động lưu trong custom_fields JSONB)
+create table public.field_definitions (
+  id uuid primary key default gen_random_uuid(),
+  module text not null check (module ~ '^[a-z][a-z0-9_]*$'),
+  field_key text not null check (field_key ~ '^[a-z][a-z0-9_]{1,62}$'),
+  label text not null,
+  description text,
+  field_kind text not null default 'business' check (field_kind in ('system', 'business', 'formula')),
+  data_type text not null check (data_type in (
+    'short_text', 'long_text', 'integer', 'decimal', 'currency', 'percent', 'date', 'datetime',
+    'single_select', 'multi_select', 'boolean', 'email', 'phone', 'url', 'reference', 'formula',
+    'file', 'image', 'gps')),
+  is_required boolean not null default false,
+  is_editable boolean not null default true,
+  is_visible boolean not null default true,
+  is_searchable boolean not null default false,
+  is_filterable boolean not null default false,
+  is_sortable boolean not null default false,
+  default_value jsonb,
+  display_format text,
+  sort_order integer not null default 0,
+  view_permission text references public.permissions (code),
+  edit_permission text references public.permissions (code),
+  validation jsonb not null default '{}'::jsonb,
+  formula text,
+  visibility_condition text,
+  options jsonb not null default '[]'::jsonb,
+  reference_target text,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  version integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid,
+  unique (module, field_key),
+  check (data_type <> 'formula' or formula is not null),
+  check (data_type <> 'reference' or reference_target is not null)
+);
+
+create table public.field_definition_versions (
+  id bigint generated always as identity primary key,
+  field_id uuid not null references public.field_definitions (id) on delete cascade,
+  version integer not null,
+  snapshot jsonb not null,
+  change_note text,
+  changed_by uuid,
+  changed_at timestamptz not null default now(),
+  unique (field_id, version)
+);
+
+create table public.form_definitions (
+  id uuid primary key default gen_random_uuid(),
+  module text not null,
+  code text not null unique,
+  name text not null,
+  description text,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  current_version integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+create table public.form_versions (
+  id uuid primary key default gen_random_uuid(),
+  form_id uuid not null references public.form_definitions (id) on delete cascade,
+  version integer not null,
+  layout jsonb not null,
+  change_note text,
+  published_by uuid,
+  published_at timestamptz not null default now(),
+  unique (form_id, version)
+);
+
+create table public.workflow_definitions (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  entity_type text not null,
+  approval_type_id uuid references public.approval_types (id),
+  description text,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  current_version integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid,
+  updated_by uuid
+);
+
+create table public.workflow_versions (
+  id uuid primary key default gen_random_uuid(),
+  workflow_id uuid not null references public.workflow_definitions (id) on delete cascade,
+  version integer not null,
+  definition jsonb not null,
+  change_note text,
+  published_by uuid,
+  published_at timestamptz not null default now(),
+  unique (workflow_id, version)
+);
+
+alter table public.approval_requests
+  add constraint approval_requests_workflow_version_fk foreign key (workflow_version_id) references public.workflow_versions (id);
+
+-- Cấu hình hiển thị bảng: hệ thống, theo vai trò, theo người dùng
+create table public.table_view_preferences (
+  id uuid primary key default gen_random_uuid(),
+  table_key text not null check (table_key ~ '^[a-z][a-z0-9_.]*$'),
+  scope text not null check (scope in ('system', 'role', 'user')),
+  role_id uuid references public.roles (id) on delete cascade,
+  user_id uuid references public.profiles (id) on delete cascade,
+  name text not null default 'Mặc định',
+  is_default boolean not null default true,
+  config jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (scope = 'system' and role_id is null and user_id is null)
+    or (scope = 'role' and role_id is not null and user_id is null)
+    or (scope = 'user' and user_id is not null and role_id is null)
+  ),
+  check (pg_column_size(config) < 65536)
+);
+create unique index table_view_pref_uq on public.table_view_preferences (
+  table_key, scope, coalesce(role_id, '00000000-0000-0000-0000-000000000000'::uuid),
+  coalesce(user_id, '00000000-0000-0000-0000-000000000000'::uuid), name);
+create trigger trg_table_view_preferences_updated_at before update on public.table_view_preferences
+for each row execute function private.set_updated_at();
+
+-- Thông báo trong ứng dụng
+create table public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid not null references public.profiles (id) on delete cascade,
+  type text not null,
+  title text not null,
+  body text,
+  entity_type text,
+  entity_id uuid,
+  link text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index notifications_recipient_idx on public.notifications (recipient_id, created_at desc);
+create index notifications_unread_idx on public.notifications (recipient_id) where read_at is null;
+
+-- Nhật ký hệ thống (chỉ ghi thêm)
+create table public.audit_logs (
+  id bigint generated always as identity primary key,
+  occurred_at timestamptz not null default now(),
+  actor_id uuid,
+  action text not null,
+  entity_type text not null,
+  entity_id text,
+  old_data jsonb,
+  new_data jsonb,
+  changed_fields text[],
+  reason text
+);
+create index audit_logs_entity_idx on public.audit_logs (entity_type, entity_id, occurred_at desc);
+create index audit_logs_time_idx on public.audit_logs (occurred_at desc);
+create index audit_logs_actor_idx on public.audit_logs (actor_id, occurred_at desc);
+
+-- Cấu hình hệ thống dạng key-value
+create table public.system_settings (
+  key text primary key check (key ~ '^[a-z][a-z0-9_.]*$'),
+  value jsonb not null,
+  description text,
+  is_public boolean not null default false,
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['field_definitions', 'form_definitions', 'workflow_definitions'] loop
+    perform private.attach_standard_triggers(('public.' || t)::regclass);
+  end loop;
+end $$;
+
+-- Trường dữ liệu: mã không đổi, trường hệ thống không xóa, lưu phiên bản mỗi lần sửa
+create or replace function private.guard_field_definitions()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.field_kind = 'system' then
+      raise exception 'Không được xóa trường hệ thống' using errcode = '42501';
+    end if;
+    return old;
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.field_key <> old.field_key or new.module <> old.module then
+      raise exception 'Mã trường và module không được thay đổi' using errcode = '42501';
+    end if;
+    if old.field_kind = 'system' and (new.field_kind <> old.field_kind or new.data_type <> old.data_type) then
+      raise exception 'Không được đổi loại của trường hệ thống' using errcode = '42501';
+    end if;
+    new.version := old.version + 1;
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_field_definitions_guard before update or delete on public.field_definitions
+for each row execute function private.guard_field_definitions();
+
+create or replace function private.version_field_definitions()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.field_definition_versions (field_id, version, snapshot, changed_by)
+  values (new.id, new.version, to_jsonb(new), auth.uid());
+  return new;
+end;
+$$;
+create trigger trg_field_definitions_version after insert or update on public.field_definitions
+for each row execute function private.version_field_definitions();
+
+-- -----------------------------------------------------------------------------
+-- Ghi nhật ký tự động cho bảng nghiệp vụ
+-- -----------------------------------------------------------------------------
+create or replace function private.audit_row_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  old_j jsonb;
+  new_j jsonb;
+  changed text[];
+  rid text;
+begin
+  if tg_op in ('UPDATE', 'DELETE') then old_j := to_jsonb(old); end if;
+  if tg_op in ('INSERT', 'UPDATE') then new_j := to_jsonb(new); end if;
+
+  if tg_op = 'UPDATE' then
+    select array_agg(k order by k) into changed
+    from jsonb_object_keys(new_j) k
+    where k not in ('updated_at', 'updated_by', 'version')
+      and (old_j -> k) is distinct from (new_j -> k);
+    if changed is null then
+      return new; -- không có thay đổi thực sự
+    end if;
+  end if;
+
+  -- Không ghi giá trị nhạy cảm vào nhật ký dạng rõ
+  if tg_table_name = 'driver_sensitive' then
+    old_j := case when old_j is null then null else jsonb_build_object('driver_id', old_j -> 'driver_id', 'redacted', true) end;
+    new_j := case when new_j is null then null else jsonb_build_object('driver_id', new_j -> 'driver_id', 'redacted', true) end;
+  end if;
+
+  rid := coalesce(new_j, old_j) ->> 'id';
+  if rid is null then
+    rid := coalesce(new_j, old_j) ->> coalesce(tg_argv[0], 'id');
+  end if;
+
+  insert into public.audit_logs (actor_id, action, entity_type, entity_id, old_data, new_data, changed_fields, reason)
+  values (auth.uid(), lower(tg_op), tg_table_name, rid, old_j, new_j, changed,
+          nullif(current_setting('gha.audit_reason', true), ''));
+  return coalesce(new, old);
+end;
+$$;
+
+do $$
+declare t text; key_col text;
+begin
+  foreach t in array array[
+    'profiles', 'roles', 'role_permissions', 'user_roles', 'user_permission_overrides', 'user_invitations',
+    'catalogs', 'catalog_items', 'company_entities', 'banks', 'payment_methods', 'vehicle_types', 'salary_rules',
+    'drivers', 'driver_sensitive', 'suppliers', 'customers', 'bank_accounts', 'vehicles', 'vehicle_financials', 'loan_schedules',
+    'maintenance_records', 'locations', 'routes', 'transport_price_lists', 'expense_categories', 'fuel_support_rules',
+    'transport_orders', 'shipments', 'shipment_assignments',
+    'documents', 'approval_types', 'approval_rules', 'approval_requests', 'approval_steps', 'shipment_expenses',
+    'advance_requests', 'advance_transactions', 'payments', 'receivables', 'payables',
+    'field_definitions', 'form_definitions', 'form_versions', 'workflow_definitions', 'workflow_versions', 'system_settings'
+  ] loop
+    key_col := case t
+      when 'role_permissions' then 'role_id'
+      when 'user_roles' then 'user_id'
+      when 'user_permission_overrides' then 'user_id'
+      when 'driver_sensitive' then 'driver_id'
+      when 'vehicle_financials' then 'vehicle_id'
+      when 'system_settings' then 'key'
+      else 'id' end;
+    execute format('create trigger trg_%s_audit after insert or update or delete on public.%I for each row execute function private.audit_row_change(%L)', t, t, key_col);
+  end loop;
+end $$;
+
+-- Nhật ký: không ai (kể cả Super Admin qua API) được sửa hoặc xóa
+create or replace function private.block_audit_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  raise exception 'Nhật ký hệ thống không được sửa hoặc xóa' using errcode = '42501';
+end;
+$$;
+create trigger trg_audit_logs_immutable before update or delete on public.audit_logs
+for each row execute function private.block_audit_mutation();
+revoke update, delete, truncate on public.audit_logs from anon, authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Thông báo: hàm tạo thông báo cho người dùng có quyền (dùng ở các giai đoạn sau)
+-- -----------------------------------------------------------------------------
+create or replace function private.notify_permission_holders(perm text, n_type text, n_title text, n_body text, n_entity_type text, n_entity_id uuid, n_link text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  insert into public.notifications (recipient_id, type, title, body, entity_type, entity_id, link)
+  select distinct p.id, n_type, n_title, n_body, n_entity_type, n_entity_id, n_link
+  from public.profiles p
+  where p.status = 'active' and (
+    exists (select 1 from public.user_roles ur join public.roles r on r.id = ur.role_id where ur.user_id = p.id and r.code = 'super_admin')
+    or exists (select 1 from public.user_roles ur join public.role_permissions rp on rp.role_id = ur.role_id where ur.user_id = p.id and rp.permission_code = perm)
+    or exists (select 1 from public.user_permission_overrides o where o.user_id = p.id and o.permission_code = perm and o.effect = 'grant')
+  )
+  and not exists (select 1 from public.user_permission_overrides o where o.user_id = p.id and o.permission_code = perm and o.effect = 'deny');
+$$;
+
+-- Thông báo cho người quản lý người dùng khi có tài khoản mới chờ cấp quyền
+create or replace function private.notify_pending_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.status = 'pending' then
+    perform private.notify_permission_holders('users.update', 'user.pending', 'Tài khoản mới chờ cấp quyền',
+      new.email || ' vừa đăng nhập và đang chờ cấp quyền.', 'profiles', new.id, '/nguoi-dung');
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_profiles_notify_pending after insert on public.profiles
+for each row execute function private.notify_pending_profile();
+
+-- Kích hoạt trigger tạo hồ sơ khi đăng nhập lần đầu
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users
+for each row execute function private.handle_new_auth_user();
+
+-- >>> 20261016000007_rls.sql
+-- =============================================================================
+-- GHA TMS - 0007: Row Level Security
+-- =============================================================================
+-- Mặc định TỪ CHỐI: bật RLS cho mọi bảng public; chỉ mở đúng quyền cần thiết.
+-- (Không dùng FORCE RLS để các hàm security definer do chủ sở hữu bảng chạy hoạt động đúng.)
+-- Các thao tác tài chính / tài xế (nhận chuyến, ứng tiền, nhập chi phí, duyệt, thanh toán)
+-- KHÔNG mở ghi trực tiếp; sẽ đi qua hàm SQL security definer ở Giai đoạn 5-7 để kiểm tra
+-- nghiệp vụ trong cùng transaction.
+-- =============================================================================
+
+do $$
+declare t record;
+begin
+  for t in select tablename from pg_tables where schemaname = 'public' loop
+    execute format('alter table public.%I enable row level security', t.tablename);
+  end loop;
+end $$;
+
+-- Không cho khách (anon) đọc/ghi bất kỳ bảng nào
+revoke all on all tables in schema public from anon;
+
+-- Sinh bộ policy chuẩn theo module: view / create / update / delete
+create or replace function private.apply_module_policies(
+  tbl text, module text,
+  select_expr text default null,
+  with_delete boolean default true
+)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  execute format('create policy %I on public.%I for select to authenticated using (%s)',
+    tbl || '_select', tbl, coalesce(select_expr, format('private.has_perm(%L)', module || '.view')));
+  execute format('create policy %I on public.%I for insert to authenticated with check (private.has_perm(%L))',
+    tbl || '_insert', tbl, module || '.create');
+  execute format('create policy %I on public.%I for update to authenticated using (private.has_perm(%L)) with check (private.has_perm(%L))',
+    tbl || '_update', tbl, module || '.update', module || '.update');
+  if with_delete then
+    execute format('create policy %I on public.%I for delete to authenticated using (private.has_perm(%L))',
+      tbl || '_delete', tbl, module || '.delete');
+  end if;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Người dùng & phân quyền
+-- -----------------------------------------------------------------------------
+create policy profiles_select on public.profiles for select to authenticated
+  using (id = auth.uid() or private.has_perm('users.view'));
+create policy profiles_update on public.profiles for update to authenticated
+  using (id = auth.uid() or private.has_perm('users.update'))
+  with check (id = auth.uid() or private.has_perm('users.update'));
+
+create policy roles_select on public.roles for select to authenticated using (private.is_active_user());
+create policy roles_insert on public.roles for insert to authenticated with check (private.has_perm('users.configure'));
+create policy roles_update on public.roles for update to authenticated using (private.has_perm('users.configure')) with check (private.has_perm('users.configure'));
+create policy roles_delete on public.roles for delete to authenticated using (private.has_perm('users.configure'));
+
+create policy permissions_select on public.permissions for select to authenticated using (private.is_active_user());
+
+create policy role_permissions_select on public.role_permissions for select to authenticated using (private.is_active_user());
+create policy role_permissions_insert on public.role_permissions for insert to authenticated with check (private.has_perm('users.configure'));
+create policy role_permissions_delete on public.role_permissions for delete to authenticated using (private.has_perm('users.configure'));
+
+create policy user_roles_select on public.user_roles for select to authenticated
+  using (user_id = auth.uid() or private.has_perm('users.view'));
+create policy user_roles_insert on public.user_roles for insert to authenticated with check (private.has_perm('users.configure'));
+create policy user_roles_delete on public.user_roles for delete to authenticated using (private.has_perm('users.configure'));
+
+create policy user_perm_overrides_select on public.user_permission_overrides for select to authenticated
+  using (user_id = auth.uid() or private.has_perm('users.view'));
+create policy user_perm_overrides_insert on public.user_permission_overrides for insert to authenticated with check (private.has_perm('users.configure'));
+create policy user_perm_overrides_update on public.user_permission_overrides for update to authenticated using (private.has_perm('users.configure')) with check (private.has_perm('users.configure'));
+create policy user_perm_overrides_delete on public.user_permission_overrides for delete to authenticated using (private.has_perm('users.configure'));
+
+create policy user_invitations_select on public.user_invitations for select to authenticated using (private.has_perm('users.view'));
+create policy user_invitations_update on public.user_invitations for update to authenticated
+  using (private.has_perm('users.update')) with check (private.has_perm('users.update') and status in ('pending', 'revoked'));
+
+-- -----------------------------------------------------------------------------
+-- Danh mục tham chiếu: mọi người dùng đang hoạt động được đọc; ghi theo quyền catalogs.*
+-- -----------------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['catalogs', 'catalog_items', 'company_entities', 'banks', 'payment_methods',
+                           'vehicle_types', 'expense_categories', 'approval_types'] loop
+    perform private.apply_module_policies(t, 'catalogs', 'private.is_active_user()');
+  end loop;
+end $$;
+
+select private.apply_module_policies('salary_rules', 'catalogs', 'private.has_perm(''catalogs.view'') or private.has_perm(''drivers.view'')');
+select private.apply_module_policies('approval_rules', 'approvals', 'private.has_perm(''approvals.view'')');
+-- approval_rules: ghi theo approvals.configure thay vì create/update/delete
+drop policy approval_rules_insert on public.approval_rules;
+drop policy approval_rules_update on public.approval_rules;
+drop policy approval_rules_delete on public.approval_rules;
+create policy approval_rules_write on public.approval_rules for all to authenticated
+  using (private.has_perm('approvals.configure')) with check (private.has_perm('approvals.configure'));
+
+-- -----------------------------------------------------------------------------
+-- Tài xế, phương tiện, khách hàng, địa điểm, bảng giá
+-- -----------------------------------------------------------------------------
+select private.apply_module_policies('drivers', 'drivers',
+  'private.has_perm(''drivers.view'') or (profile_id = auth.uid() and private.is_active_user())');
+
+create policy driver_sensitive_select on public.driver_sensitive for select to authenticated
+  using (private.has_perm('drivers.view_sensitive') or driver_id = private.my_driver_id());
+create policy driver_sensitive_write on public.driver_sensitive for all to authenticated
+  using (private.has_perm('drivers.view_sensitive') and private.has_perm('drivers.update'))
+  with check (private.has_perm('drivers.view_sensitive') and private.has_perm('drivers.update'));
+
+select private.apply_module_policies('vehicles', 'vehicles');
+create policy vehicle_financials_select on public.vehicle_financials for select to authenticated
+  using (private.has_perm('vehicles.view_sensitive'));
+create policy vehicle_financials_write on public.vehicle_financials for all to authenticated
+  using (private.has_perm('vehicles.view_sensitive') and private.has_perm('vehicles.update'))
+  with check (private.has_perm('vehicles.view_sensitive') and private.has_perm('vehicles.update'));
+create policy loan_schedules_select on public.loan_schedules for select to authenticated
+  using (private.has_perm('vehicles.view_sensitive'));
+create policy loan_schedules_write on public.loan_schedules for all to authenticated
+  using (private.has_perm('vehicles.view_sensitive') and private.has_perm('vehicles.update'))
+  with check (private.has_perm('vehicles.view_sensitive') and private.has_perm('vehicles.update'));
+select private.apply_module_policies('maintenance_records', 'vehicles', null, false);
+
+select private.apply_module_policies('customers', 'customers');
+select private.apply_module_policies('suppliers', 'customers');
+select private.apply_module_policies('locations', 'locations');
+select private.apply_module_policies('routes', 'locations');
+select private.apply_module_policies('transport_price_lists', 'price_lists');
+select private.apply_module_policies('fuel_support_rules', 'price_lists');
+
+-- Tài khoản ngân hàng: của tài xế thuộc dữ liệu nhạy cảm
+create policy bank_accounts_select on public.bank_accounts for select to authenticated using (
+  (owner_type = 'driver' and (private.has_perm('drivers.view_sensitive') or driver_id = private.my_driver_id()))
+  or (owner_type <> 'driver' and (private.has_perm('catalogs.view') or private.has_perm('payments.view')))
+);
+create policy bank_accounts_write on public.bank_accounts for all to authenticated using (
+  (owner_type = 'driver' and private.has_perm('drivers.view_sensitive') and private.has_perm('drivers.update'))
+  or (owner_type <> 'driver' and private.has_perm('catalogs.update'))
+) with check (
+  (owner_type = 'driver' and private.has_perm('drivers.view_sensitive') and private.has_perm('drivers.update'))
+  or (owner_type <> 'driver' and private.has_perm('catalogs.update'))
+);
+
+-- -----------------------------------------------------------------------------
+-- Điều phối & Shipment
+-- -----------------------------------------------------------------------------
+create policy transport_orders_select on public.transport_orders for select to authenticated
+  using (private.has_perm('dispatch.view') or private.has_perm('shipments.view'));
+create policy transport_orders_insert on public.transport_orders for insert to authenticated
+  with check (private.has_perm('dispatch.create'));
+create policy transport_orders_update on public.transport_orders for update to authenticated
+  using (private.has_perm('dispatch.update')) with check (private.has_perm('dispatch.update'));
+
+create policy shipments_select on public.shipments for select to authenticated using (
+  private.has_perm('shipments.view') or private.has_perm('dispatch.view')
+  or (driver_id is not null and driver_id = private.my_driver_id() and private.has_perm('driver_app.use'))
+);
+create policy shipments_insert on public.shipments for insert to authenticated
+  with check (private.has_perm('dispatch.create') or private.has_perm('shipments.create'));
+create policy shipments_update on public.shipments for update to authenticated
+  using (private.has_perm('dispatch.update') or private.has_perm('shipments.update'))
+  with check (private.has_perm('dispatch.update') or private.has_perm('shipments.update'));
+create policy shipments_delete on public.shipments for delete to authenticated
+  using ((private.has_perm('dispatch.delete') or private.has_perm('shipments.delete')) and status = 'draft');
+
+create policy shipment_assignments_select on public.shipment_assignments for select to authenticated using (
+  private.has_perm('shipments.view') or private.has_perm('dispatch.view')
+  or (driver_id = private.my_driver_id() and private.has_perm('driver_app.use'))
+);
+create policy shipment_assignments_insert on public.shipment_assignments for insert to authenticated
+  with check (private.has_perm('dispatch.update'));
+create policy shipment_assignments_update on public.shipment_assignments for update to authenticated
+  using (private.has_perm('dispatch.update')) with check (private.has_perm('dispatch.update'));
+
+create policy shipment_status_history_select on public.shipment_status_history for select to authenticated
+  using (exists (select 1 from public.shipments s where s.id = shipment_id));
+
+-- -----------------------------------------------------------------------------
+-- Chứng từ
+-- -----------------------------------------------------------------------------
+create policy documents_select on public.documents for select to authenticated using (
+  archived_at is null and (
+    uploaded_by = auth.uid()
+    or (private.has_perm('documents.view') and (not is_sensitive or private.has_perm('documents.view_sensitive')))
+    or (entity_type = 'shipment' and not is_sensitive
+        and exists (select 1 from public.shipments s where s.id = entity_id and s.driver_id = private.my_driver_id()))
+  )
+);
+create policy documents_insert on public.documents for insert to authenticated
+  with check (private.has_perm('documents.create') and uploaded_by = auth.uid());
+create policy documents_archive on public.documents for update to authenticated
+  using (private.has_perm('documents.delete')) with check (private.has_perm('documents.delete'));
+
+-- -----------------------------------------------------------------------------
+-- Tài chính: chỉ đọc qua RLS; ghi qua hàm nghiệp vụ (Giai đoạn 6-7)
+-- -----------------------------------------------------------------------------
+create policy approval_requests_select on public.approval_requests for select to authenticated
+  using (private.has_perm('approvals.view') or requested_by = auth.uid());
+create policy approval_steps_select on public.approval_steps for select to authenticated
+  using (exists (select 1 from public.approval_requests r where r.id = request_id));
+
+create policy shipment_expenses_select on public.shipment_expenses for select to authenticated using (
+  private.has_perm('expenses.view') or entered_by = auth.uid()
+);
+create policy advance_requests_select on public.advance_requests for select to authenticated using (
+  private.has_perm('advances.view') or requested_by = auth.uid() or driver_id = private.my_driver_id()
+);
+create policy advance_transactions_select on public.advance_transactions for select to authenticated using (
+  private.has_perm('advances.view') or driver_id = private.my_driver_id()
+);
+create policy payments_select on public.payments for select to authenticated using (private.has_perm('payments.view'));
+create policy receivables_select on public.receivables for select to authenticated using (private.has_perm('receivables.view'));
+create policy payables_select on public.payables for select to authenticated using (private.has_perm('receivables.view'));
+
+-- -----------------------------------------------------------------------------
+-- Cấu hình động
+-- -----------------------------------------------------------------------------
+create policy field_definitions_select on public.field_definitions for select to authenticated using (private.is_active_user());
+create policy field_definitions_write on public.field_definitions for all to authenticated
+  using (private.has_perm('fields.configure')) with check (private.has_perm('fields.configure'));
+create policy field_definition_versions_select on public.field_definition_versions for select to authenticated
+  using (private.has_perm('fields.view') or private.has_perm('fields.configure'));
+
+create policy form_definitions_select on public.form_definitions for select to authenticated using (private.is_active_user());
+create policy form_definitions_write on public.form_definitions for all to authenticated
+  using (private.has_perm('forms.configure')) with check (private.has_perm('forms.configure'));
+create policy form_versions_select on public.form_versions for select to authenticated using (private.is_active_user());
+create policy form_versions_insert on public.form_versions for insert to authenticated with check (private.has_perm('forms.configure'));
+
+create policy workflow_definitions_select on public.workflow_definitions for select to authenticated
+  using (private.has_perm('workflows.view') or private.has_perm('approvals.view'));
+create policy workflow_definitions_write on public.workflow_definitions for all to authenticated
+  using (private.has_perm('workflows.configure')) with check (private.has_perm('workflows.configure'));
+create policy workflow_versions_select on public.workflow_versions for select to authenticated
+  using (private.has_perm('workflows.view') or private.has_perm('approvals.view'));
+create policy workflow_versions_insert on public.workflow_versions for insert to authenticated with check (private.has_perm('workflows.configure'));
+
+create policy table_view_prefs_select on public.table_view_preferences for select to authenticated using (
+  private.is_active_user() and (
+    scope = 'system'
+    or user_id = auth.uid()
+    or (scope = 'role' and exists (select 1 from public.user_roles ur where ur.user_id = auth.uid() and ur.role_id = table_view_preferences.role_id))
+    or private.has_perm('settings.configure')
+  )
+);
+create policy table_view_prefs_write on public.table_view_preferences for all to authenticated using (
+  private.is_active_user() and (
+    (scope = 'user' and user_id = auth.uid())
+    or (scope in ('system', 'role') and private.has_perm('settings.configure'))
+  )
+) with check (
+  private.is_active_user() and (
+    (scope = 'user' and user_id = auth.uid())
+    or (scope in ('system', 'role') and private.has_perm('settings.configure'))
+  )
+);
+
+create policy notifications_select on public.notifications for select to authenticated using (recipient_id = auth.uid());
+create policy notifications_update on public.notifications for update to authenticated
+  using (recipient_id = auth.uid()) with check (recipient_id = auth.uid());
+
+create or replace function private.guard_notifications()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if (new.recipient_id, new.type, new.title, new.body, new.entity_type, new.entity_id, new.link, new.created_at)
+     is distinct from (old.recipient_id, old.type, old.title, old.body, old.entity_type, old.entity_id, old.link, old.created_at) then
+    raise exception 'Chỉ được đánh dấu đã đọc' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_notifications_guard before update on public.notifications
+for each row execute function private.guard_notifications();
+
+create policy audit_logs_select on public.audit_logs for select to authenticated using (private.has_perm('audit_logs.view'));
+
+create policy system_settings_select on public.system_settings for select to authenticated using (private.is_active_user());
+create policy system_settings_write on public.system_settings for all to authenticated
+  using (private.has_perm('settings.configure')) with check (private.has_perm('settings.configure'));
+
+create or replace function private.system_settings_actor()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_by := auth.uid();
+  new.updated_at := now();
+  return new;
+end;
+$$;
+create trigger trg_system_settings_actor before insert or update on public.system_settings
+for each row execute function private.system_settings_actor();
+
+-- >>> 20261016000008_storage.sql
+-- =============================================================================
+-- GHA TMS - 0008: Supabase Storage cho chứng từ (bucket riêng tư, truy cập bằng signed URL)
+-- =============================================================================
+-- Quy ước đường dẫn tệp: {entity_type}/{entity_id}/{uuid}-{tên tệp}
+-- Tải lên: qua server action (kiểm tra quyền + loại tệp + dung lượng) rồi ghi metadata vào public.documents.
+-- Xem/tải: server tạo signed URL ngắn hạn sau khi kiểm tra quyền đọc bản ghi documents (RLS).
+-- =============================================================================
+do $outer$
+begin
+  if not exists (select 1 from pg_namespace where nspname = 'storage') then
+    raise notice 'Bỏ qua cấu hình Storage: không có schema storage (môi trường kiểm thử cục bộ).';
+    return;
+  end if;
+
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('documents', 'documents', false, 10485760, array[
+    'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+  on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+  execute $p$
+    create policy documents_bucket_insert on storage.objects for insert to authenticated
+    with check (bucket_id = 'documents' and private.has_perm('documents.create'))
+  $p$;
+  execute $p$
+    create policy documents_bucket_select on storage.objects for select to authenticated
+    using (bucket_id = 'documents' and exists (
+      select 1 from public.documents d where d.bucket = 'documents' and d.storage_path = storage.objects.name
+    ))
+  $p$;
+end
+$outer$;
+
+-- >>> 20261016000009_reference_data.sql
+-- =============================================================================
+-- GHA TMS - 0009: Dữ liệu tham chiếu mặc định (cần có ở mọi môi trường)
+-- Đây là cấu hình mặc định theo đặc tả, KHÔNG phải dữ liệu mẫu nghiệp vụ.
+-- Quản trị viên có thể sửa/ẩn sau khi triển khai.
+-- =============================================================================
+
+insert into public.payment_methods (code, name, requires_bank_account, sort_order) values
+  ('cash', 'Tiền mặt', false, 1),
+  ('bank_transfer', 'Chuyển khoản', true, 2),
+  ('offset', 'Cấn trừ', false, 3),
+  ('other', 'Khác', false, 4);
+
+insert into public.banks (code, short_name, name) values
+  ('VCB', 'Vietcombank', 'Ngân hàng TMCP Ngoại thương Việt Nam'),
+  ('CTG', 'VietinBank', 'Ngân hàng TMCP Công Thương Việt Nam'),
+  ('BIDV', 'BIDV', 'Ngân hàng TMCP Đầu tư và Phát triển Việt Nam'),
+  ('AGRIBANK', 'Agribank', 'Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam'),
+  ('TCB', 'Techcombank', 'Ngân hàng TMCP Kỹ Thương Việt Nam'),
+  ('MB', 'MB', 'Ngân hàng TMCP Quân đội'),
+  ('ACB', 'ACB', 'Ngân hàng TMCP Á Châu'),
+  ('VPB', 'VPBank', 'Ngân hàng TMCP Việt Nam Thịnh Vượng'),
+  ('STB', 'Sacombank', 'Ngân hàng TMCP Sài Gòn Thương Tín'),
+  ('TPB', 'TPBank', 'Ngân hàng TMCP Tiên Phong');
+
+insert into public.catalogs (code, name, description, is_system) values
+  ('province', 'Tỉnh/thành phố', 'Danh sách tỉnh/thành dùng cho địa điểm. Quản trị viên tự nhập theo danh mục hành chính hiện hành.', true),
+  ('vehicle_brand', 'Hãng xe', null, true),
+  ('contract_type', 'Loại hợp đồng lao động', null, true),
+  ('reject_reason', 'Lý do từ chối chuyến', 'Danh sách lý do tài xế chọn khi từ chối chuyến', true),
+  ('expense_group', 'Nhóm chi phí', null, true);
+
+insert into public.catalog_items (catalog_id, code, name, sort_order)
+select c.id, v.code, v.name, v.ord
+from public.catalogs c
+join (values
+  ('contract_type', 'indefinite', 'Không xác định thời hạn', 1),
+  ('contract_type', 'definite', 'Xác định thời hạn', 2),
+  ('contract_type', 'probation', 'Thử việc', 3),
+  ('contract_type', 'service', 'Hợp đồng dịch vụ / khoán', 4),
+  ('reject_reason', 'busy', 'Đang chạy chuyến khác', 1),
+  ('reject_reason', 'vehicle_issue', 'Xe gặp sự cố', 2),
+  ('reject_reason', 'health', 'Lý do sức khỏe', 3),
+  ('reject_reason', 'personal', 'Việc cá nhân', 4),
+  ('reject_reason', 'other', 'Lý do khác', 99),
+  ('expense_group', 'fuel', 'Nhiên liệu', 1),
+  ('expense_group', 'road', 'Cầu đường, bến bãi', 2),
+  ('expense_group', 'loading', 'Bốc xếp, nâng hạ', 3),
+  ('expense_group', 'vehicle', 'Sửa chữa, bảo dưỡng xe', 4),
+  ('expense_group', 'driver', 'Chi phí tài xế', 5),
+  ('expense_group', 'other', 'Khác', 99)
+) as v(catalog_code, code, name, ord) on v.catalog_code = c.code;
+
+insert into public.expense_categories
+  (code, name, group_name, report_bucket, requires_invoice, requires_image, requires_approval, sort_order) values
+  ('DIESEL', 'Dầu diesel', 'Nhiên liệu', 'fuel', true, true, true, 1),
+  ('GASOLINE', 'Xăng', 'Nhiên liệu', 'fuel', true, true, true, 2),
+  ('TOLL', 'Cầu đường', 'Cầu đường, bến bãi', 'toll', false, true, true, 3),
+  ('YARD', 'Phí bến bãi', 'Cầu đường, bến bãi', 'loading_yard', false, true, true, 4),
+  ('GATE', 'Phí vào cổng', 'Cầu đường, bến bãi', 'loading_yard', false, true, true, 5),
+  ('LOADING', 'Bốc xếp', 'Bốc xếp, nâng hạ', 'loading_yard', false, true, true, 6),
+  ('LIFTING', 'Nâng hạ', 'Bốc xếp, nâng hạ', 'loading_yard', false, true, true, 7),
+  ('TIRE_PATCH', 'Vá lốp', 'Sửa chữa, bảo dưỡng xe', 'repair', false, true, true, 8),
+  ('TIRE_REPLACE', 'Thay lốp', 'Sửa chữa, bảo dưỡng xe', 'repair', true, true, true, 9),
+  ('REPAIR', 'Sửa chữa', 'Sửa chữa, bảo dưỡng xe', 'repair', true, true, true, 10),
+  ('MAINTENANCE', 'Bảo dưỡng', 'Sửa chữa, bảo dưỡng xe', 'repair', true, true, true, 11),
+  ('WASH', 'Rửa xe', 'Sửa chữa, bảo dưỡng xe', 'repair', false, false, true, 12),
+  ('MEAL', 'Ăn uống', 'Chi phí tài xế', 'driver', false, false, true, 13),
+  ('OVERNIGHT', 'Lưu đêm', 'Chi phí tài xế', 'driver', false, false, true, 14),
+  ('OTHER', 'Chi phí phát sinh khác', 'Khác', 'other', false, true, true, 99);
+
+insert into public.approval_types (code, name, requires_document, sla_hours, sort_order) values
+  ('advance', 'Ứng tiền', false, 24, 1),
+  ('expense', 'Duyệt chi phí', true, 48, 2),
+  ('invoice_payment', 'Thanh toán hóa đơn', true, 72, 3),
+  ('supplier_payment', 'Thanh toán nhà cung cấp', true, 72, 4),
+  ('revenue_adjustment', 'Điều chỉnh doanh thu', false, 48, 5),
+  ('expense_adjustment', 'Điều chỉnh chi phí', false, 48, 6),
+  ('trip_settlement', 'Duyệt quyết toán chuyến', false, 72, 7),
+  ('vehicle_repair', 'Duyệt sửa chữa xe', true, 48, 8),
+  ('purchase', 'Duyệt mua sắm', true, 72, 9),
+  ('other', 'Yêu cầu khác', false, 72, 99);
+
+-- Cấp duyệt mặc định: cấp 1 Kế toán; cấp 2 Giám đốc khi số tiền từ 5.000.000đ (cần xác nhận với Khánh Hà)
+insert into public.approval_rules (approval_type_id, level, approver_role_id, min_amount, max_amount)
+select t.id, 1, (select id from public.roles where code = 'accountant'), 0, null from public.approval_types t;
+insert into public.approval_rules (approval_type_id, level, approver_role_id, min_amount, max_amount)
+select t.id, 2, (select id from public.roles where code = 'director'), 5000000, null from public.approval_types t;
+
+-- Hỗ trợ dầu mặc định 39% trên doanh thu cước vận chuyển (cơ sở tính cần xác nhận)
+insert into public.fuel_support_rules (scope_type, rate_percent, calculation_base, effective_from, notes)
+values ('default', 39, 'freight_revenue', date '2026-01-01',
+        'Mặc định theo yêu cầu ban đầu. Cơ sở tính (doanh thu cước / đơn giá / khác) cần Khánh Hà xác nhận.');
+
+insert into public.system_settings (key, value, description, is_public) values
+  ('company.name', '"Công ty Vận tải Khánh Hà"', 'Tên doanh nghiệp hiển thị', true),
+  ('app.timezone', '"Asia/Ho_Chi_Minh"', 'Múi giờ hệ thống', true),
+  ('app.currency', '"VND"', 'Tiền tệ', true),
+  ('documents.max_file_mb', '10', 'Dung lượng tối đa mỗi tệp (MB)', true),
+  ('approval.allow_self_approval', 'false', 'Cho phép người tạo tự duyệt (mặc định không)', false),
+  ('shipment.require_delivery_photo', 'true', 'Bắt buộc ảnh giao hàng khi hoàn thành chuyến', false),
+  ('alerts.vehicle_document_days_before', '30', 'Số ngày cảnh báo trước khi giấy tờ xe hết hạn', false);
+
+-- >>> 20261016000010_driver_read.sql
+-- =============================================================================
+-- GHA TMS - 0010: Hàm đọc dữ liệu cho ứng dụng tài xế
+-- Tài xế không có quyền đọc bảng địa điểm/xe/khách hàng; hàm này chỉ trả về
+-- thông tin cần thiết của các chuyến được phân công cho chính tài xế đang đăng nhập.
+-- =============================================================================
+create or replace function public.driver_list_my_shipments(p_include_finished boolean default false)
+returns table (
+  shipment_id uuid,
+  shipment_code text,
+  status text,
+  pickup_at timestamptz,
+  expected_delivery_at timestamptz,
+  plate_number text,
+  notes text,
+  pickup_name text,
+  pickup_address text,
+  pickup_contact text,
+  pickup_phone text,
+  pickup_maps_url text,
+  pickup_gate_instructions text,
+  delivery_name text,
+  delivery_address text,
+  delivery_contact text,
+  delivery_phone text,
+  delivery_maps_url text,
+  delivery_gate_instructions text,
+  assignment_id uuid,
+  assignment_response text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.id, s.shipment_code, s.status, s.pickup_at, s.expected_delivery_at,
+         v.plate_number, s.notes,
+         pl.name, pl.full_address, pl.contact_name, pl.phone,
+         coalesce(pl.google_maps_url, case when pl.latitude is not null then
+           'https://www.google.com/maps/search/?api=1&query=' || pl.latitude || ',' || pl.longitude end),
+         pl.gate_instructions,
+         dl.name, dl.full_address, dl.contact_name, dl.phone,
+         coalesce(dl.google_maps_url, case when dl.latitude is not null then
+           'https://www.google.com/maps/search/?api=1&query=' || dl.latitude || ',' || dl.longitude end),
+         dl.gate_instructions,
+         a.id, a.response
+  from public.shipments s
+  join public.locations pl on pl.id = s.pickup_location_id
+  join public.locations dl on dl.id = s.delivery_location_id
+  left join public.vehicles v on v.id = s.vehicle_id
+  left join public.shipment_assignments a
+    on a.shipment_id = s.id and a.driver_id = s.driver_id and a.response in ('pending', 'accepted')
+  where private.has_perm('driver_app.use')
+    and s.driver_id = private.my_driver_id()
+    and s.status not in ('draft', 'cancelled')
+    and (p_include_finished or s.status not in ('closed'))
+  order by s.pickup_at desc
+  limit 200;
+$$;
+revoke all on function public.driver_list_my_shipments(boolean) from public, anon;
+grant execute on function public.driver_list_my_shipments(boolean) to authenticated;
+
+-- >>> 20261018000011_phase3_master_data.sql
+-- =============================================================================
+-- GHA TMS - 0011: Giai đoạn 3 - danh mục, trường dữ liệu động, cấu hình bảng
+--   * Tự sinh mã danh mục khi để trống (TX001, XE001, KH001...)
+--   * Lưu cấu hình bảng theo người dùng (RPC save_table_view)
+--   * Trường dữ liệu động: lịch sử phiên bản, khóa thuộc tính không được đổi,
+--     phân tích ảnh hưởng trước khi sửa/xóa
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 1. Mã danh mục tự sinh: PREFIX + số thứ tự 3 chữ số, bỏ qua mã đã nhập tay
+-- -----------------------------------------------------------------------------
+create or replace function private.fill_master_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  prefix text := tg_argv[0];
+  v integer;
+  candidate text;
+  taken boolean;
+begin
+  if new.code is not null and btrim(new.code) <> '' then
+    new.code := upper(btrim(new.code));
+    return new;
+  end if;
+  loop
+    insert into public.code_sequences as cs (scope, period, last_value)
+    values ('master:' || tg_table_name, 'all', 1)
+    on conflict (scope, period) do update set last_value = cs.last_value + 1
+    returning last_value into v;
+    candidate := prefix || lpad(v::text, greatest(3, length(v::text)), '0');
+    execute format('select exists (select 1 from %I.%I where code = $1)', tg_table_schema, tg_table_name)
+      into taken using candidate;
+    exit when not taken;
+  end loop;
+  new.code := candidate;
+  return new;
+end;
+$$;
+
+do $$
+declare
+  r record;
+begin
+  for r in select * from (values
+    ('vehicles', 'XE'), ('drivers', 'TX'), ('customers', 'KH'), ('suppliers', 'NCC'),
+    ('locations', 'DD'), ('routes', 'TD'), ('transport_price_lists', 'BG'),
+    ('expense_categories', 'CP'), ('vehicle_types', 'LX'), ('company_entities', 'DV')
+  ) as t(tbl, prefix) loop
+    execute format('alter table public.%I alter column code set default %L', r.tbl, '');
+    execute format(
+      'create trigger trg_%s_code before insert on public.%I for each row execute function private.fill_master_code(%L)',
+      r.tbl, r.tbl, r.prefix);
+  end loop;
+end $$;
+
+-- custom_fields luôn là object JSON
+do $$
+declare t text;
+begin
+  foreach t in array array['vehicles', 'drivers', 'customers', 'suppliers', 'locations', 'transport_orders', 'shipments'] loop
+    execute format('alter table public.%I add constraint %I check (jsonb_typeof(custom_fields) = ''object'')', t, t || '_custom_fields_object');
+  end loop;
+end $$;
+
+-- -----------------------------------------------------------------------------
+-- 2. Cấu hình bảng theo người dùng
+-- -----------------------------------------------------------------------------
+create or replace function public.save_table_view(p_table_key text, p_config jsonb)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not private.is_active_user() then
+    raise exception 'Tài khoản chưa được cấp quyền' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_config) <> 'object' then
+    raise exception 'Cấu hình bảng không hợp lệ' using errcode = '22023';
+  end if;
+  update public.table_view_preferences
+     set config = p_config
+   where table_key = p_table_key and scope = 'user' and user_id = auth.uid() and name = 'Mặc định';
+  if not found then
+    insert into public.table_view_preferences (table_key, scope, user_id, name, is_default, config)
+    values (p_table_key, 'user', auth.uid(), 'Mặc định', true, p_config);
+  end if;
+end;
+$$;
+revoke all on function public.save_table_view(text, jsonb) from public, anon;
+grant execute on function public.save_table_view(text, jsonb) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- 3. Trường dữ liệu động
+-- -----------------------------------------------------------------------------
+-- Các module được phép thêm trường động và bảng tương ứng
+create or replace function private.custom_field_table(p_module text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case p_module
+    when 'vehicles' then 'vehicles'
+    when 'drivers' then 'drivers'
+    when 'customers' then 'customers'
+    when 'suppliers' then 'suppliers'
+    when 'locations' then 'locations'
+    when 'shipments' then 'shipments'
+    when 'transport_orders' then 'transport_orders'
+  end;
+$$;
+
+-- Số bản ghi đang có giá trị cho một trường động
+create or replace function private.custom_field_usage(p_module text, p_field_key text)
+returns bigint
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  tbl text := private.custom_field_table(p_module);
+  n bigint;
+begin
+  if tbl is null then return 0; end if;
+  execute format(
+    'select count(*) from public.%I where custom_fields ? $1 and custom_fields -> $1 not in (''null''::jsonb, ''""''::jsonb, ''[]''::jsonb)',
+    tbl) into n using p_field_key;
+  return n;
+end;
+$$;
+
+alter table public.field_definitions
+  add constraint field_definitions_module_allowed check (private.custom_field_table(module) is not null);
+
+create or replace function private.guard_field_definitions()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  used bigint;
+begin
+  if tg_op = 'DELETE' then
+    if old.field_kind = 'system' then
+      raise exception 'Không được xóa trường hệ thống' using errcode = '42501';
+    end if;
+    used := private.custom_field_usage(old.module, old.field_key);
+    if used > 0 then
+      raise exception 'Trường "%" đang có dữ liệu ở % bản ghi. Hãy chuyển sang Ngừng sử dụng thay vì xóa.', old.label, used
+        using errcode = '42501';
+    end if;
+    if exists (select 1 from public.field_definitions f
+               where f.module = old.module and f.id <> old.id and f.status = 'active'
+                 and f.formula ~ ('\m' || old.field_key || '\M')) then
+      raise exception 'Trường "%" đang được dùng trong công thức của trường khác.', old.label using errcode = '42501';
+    end if;
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if new.module <> old.module or new.field_key <> old.field_key then
+      raise exception 'Không được đổi module hoặc mã trường sau khi tạo' using errcode = '42501';
+    end if;
+    if new.field_kind = 'system' or old.field_kind = 'system' then
+      if new.data_type <> old.data_type or new.field_kind <> old.field_kind then
+        raise exception 'Không được đổi kiểu của trường hệ thống' using errcode = '42501';
+      end if;
+    end if;
+    if new.data_type <> old.data_type then
+      used := private.custom_field_usage(old.module, old.field_key);
+      if used > 0 then
+        raise exception 'Không thể đổi kiểu dữ liệu: trường "%" đang có dữ liệu ở % bản ghi.', old.label, used
+          using errcode = '42501';
+      end if;
+    end if;
+    if (to_jsonb(new) - array['updated_at', 'updated_by', 'version']) is distinct from (to_jsonb(old) - array['updated_at', 'updated_by', 'version']) then
+      new.version := old.version + 1;
+    else
+      new.version := old.version;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+-- Thay thế trigger của 0006 (thêm kiểm tra dữ liệu đang dùng, chỉ tăng phiên bản khi nội dung đổi)
+drop trigger if exists trg_field_definitions_guard on public.field_definitions;
+drop trigger if exists trg_field_definitions_version on public.field_definitions;
+drop function if exists private.version_field_definitions();
+create trigger trg_field_definitions_guard before update or delete on public.field_definitions
+for each row execute function private.guard_field_definitions();
+
+-- Lưu ảnh chụp mỗi phiên bản (bảng phiên bản không mở ghi cho người dùng)
+create or replace function private.snapshot_field_definition()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' or new.version <> old.version then
+    insert into public.field_definition_versions (field_id, version, snapshot, change_note, changed_by)
+    values (new.id, new.version, to_jsonb(new) - array['created_at', 'updated_at', 'created_by', 'updated_by'],
+            nullif(current_setting('gha.change_note', true), ''), auth.uid());
+  end if;
+  return null;
+end;
+$$;
+create trigger trg_field_definitions_snapshot after insert or update on public.field_definitions
+for each row execute function private.snapshot_field_definition();
+
+-- Ghi chú thay đổi cho phiên bản (đặt trong cùng transaction với câu lệnh sửa)
+create or replace function public.save_field_definition(p_id uuid, p_values jsonb, p_change_note text default null)
+returns uuid
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+begin
+  if not private.has_perm('fields.configure') then
+    raise exception 'Bạn không có quyền cấu hình trường dữ liệu' using errcode = '42501';
+  end if;
+  perform set_config('gha.change_note', coalesce(p_change_note, ''), true);
+  if p_id is null then
+    insert into public.field_definitions (
+      module, field_key, label, description, field_kind, data_type, is_required, is_editable, is_visible,
+      is_searchable, is_filterable, is_sortable, default_value, display_format, sort_order,
+      view_permission, edit_permission, validation, formula, options, reference_target, status)
+    select r.module, r.field_key, r.label, r.description, coalesce(r.field_kind, 'business'), r.data_type,
+           coalesce(r.is_required, false), coalesce(r.is_editable, true), coalesce(r.is_visible, true),
+           coalesce(r.is_searchable, false), coalesce(r.is_filterable, false), coalesce(r.is_sortable, false),
+           r.default_value, r.display_format, coalesce(r.sort_order, 0), r.view_permission, r.edit_permission,
+           coalesce(r.validation, '{}'::jsonb), r.formula, coalesce(r.options, '[]'::jsonb), r.reference_target,
+           coalesce(r.status, 'active')
+    from jsonb_populate_record(null::public.field_definitions, p_values) r
+    returning id into v_id;
+  else
+    update public.field_definitions f set
+      label = r.label, description = r.description, data_type = r.data_type,
+      is_required = coalesce(r.is_required, false), is_editable = coalesce(r.is_editable, true),
+      is_visible = coalesce(r.is_visible, true), is_searchable = coalesce(r.is_searchable, false),
+      is_filterable = coalesce(r.is_filterable, false), is_sortable = coalesce(r.is_sortable, false),
+      default_value = r.default_value, display_format = r.display_format, sort_order = coalesce(r.sort_order, 0),
+      view_permission = r.view_permission, edit_permission = r.edit_permission,
+      validation = coalesce(r.validation, '{}'::jsonb), formula = r.formula, options = coalesce(r.options, '[]'::jsonb),
+      reference_target = r.reference_target, status = coalesce(r.status, 'active')
+    from jsonb_populate_record(null::public.field_definitions, p_values) r
+    where f.id = p_id
+    returning f.id into v_id;
+    if v_id is null then
+      raise exception 'Không tìm thấy trường dữ liệu' using errcode = 'P0002';
+    end if;
+  end if;
+  return v_id;
+end;
+$$;
+revoke all on function public.save_field_definition(uuid, jsonb, text) from public, anon;
+grant execute on function public.save_field_definition(uuid, jsonb, text) to authenticated;
+
+-- Phân tích ảnh hưởng trước khi sửa/ngừng/xóa trường
+create or replace function public.field_impact(p_field_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  f public.field_definitions;
+begin
+  if not (private.has_perm('fields.view') or private.has_perm('fields.configure')) then
+    raise exception 'Bạn không có quyền xem trường dữ liệu' using errcode = '42501';
+  end if;
+  select * into f from public.field_definitions where id = p_field_id;
+  if not found then
+    raise exception 'Không tìm thấy trường dữ liệu' using errcode = 'P0002';
+  end if;
+  return jsonb_build_object(
+    'records_with_value', private.custom_field_usage(f.module, f.field_key),
+    'used_in_formulas', coalesce((
+      select jsonb_agg(jsonb_build_object('id', o.id, 'label', o.label, 'field_key', o.field_key) order by o.label)
+      from public.field_definitions o
+      where o.module = f.module and o.id <> f.id and o.formula ~ ('\m' || f.field_key || '\M')
+    ), '[]'::jsonb),
+    'used_in_visibility', coalesce((
+      select jsonb_agg(jsonb_build_object('id', o.id, 'label', o.label) order by o.label)
+      from public.field_definitions o
+      where o.module = f.module and o.id <> f.id and o.visibility_condition ~ ('\m' || f.field_key || '\M')
+    ), '[]'::jsonb),
+    -- Báo cáo và quy trình dùng trường động sẽ được kiểm tra khi các module đó hoàn thiện (GĐ6-7)
+    'versions', (select count(*) from public.field_definition_versions v where v.field_id = f.id)
+  );
+end;
+$$;
+revoke all on function public.field_impact(uuid) from public, anon;
+grant execute on function public.field_impact(uuid) to authenticated;
+
+-- Khôi phục một phiên bản cũ (tạo phiên bản mới với nội dung cũ)
+create or replace function public.restore_field_version(p_field_id uuid, p_version integer)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  snap jsonb;
+begin
+  if not private.has_perm('fields.configure') then
+    raise exception 'Bạn không có quyền cấu hình trường dữ liệu' using errcode = '42501';
+  end if;
+  select snapshot into snap from public.field_definition_versions where field_id = p_field_id and version = p_version;
+  if snap is null then
+    raise exception 'Không tìm thấy phiên bản' using errcode = 'P0002';
+  end if;
+  perform public.save_field_definition(p_field_id, snap, 'Khôi phục phiên bản ' || p_version);
+end;
+$$;
+revoke all on function public.restore_field_version(uuid, integer) from public, anon;
+grant execute on function public.restore_field_version(uuid, integer) to authenticated;
+
+-- >>> 20261021000012_dashboard_stats.sql
+-- =============================================================================
+-- Số liệu biểu đồ trang Tổng quan, tính trực tiếp từ bảng chuyến (không lưu bảng tổng hợp).
+-- security invoker: RLS của shipments / transport_orders / customers vẫn áp dụng cho người gọi.
+-- =============================================================================
+
+create or replace function public.dashboard_shipment_stats(p_today date default (now() at time zone 'Asia/Ho_Chi_Minh')::date)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with s as (
+    select sh.status,
+           (sh.pickup_at at time zone 'Asia/Ho_Chi_Minh')::date as d,
+           o.customer_id
+    from public.shipments sh
+    join public.transport_orders o on o.id = sh.order_id
+    where sh.pickup_at >= ((date_trunc('month', p_today) - interval '5 months')::date)::timestamp at time zone 'Asia/Ho_Chi_Minh'
+      and sh.pickup_at < ((p_today + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh')
+  ),
+  live as (select * from s where status <> 'cancelled'),
+  month_start as (select date_trunc('month', p_today)::date as m),
+  prev as (
+    -- cùng kỳ tháng trước: từ ngày 1 đến cùng ngày (hoặc ngày cuối tháng nếu tháng trước ngắn hơn)
+    select (date_trunc('month', p_today) - interval '1 month')::date as m0,
+           least((date_trunc('month', p_today) - interval '1 month')::date + (extract(day from p_today)::int - 1),
+                 (date_trunc('month', p_today) - interval '1 day')::date) as m1
+  )
+  select jsonb_build_object(
+    'today', (select count(*) from live where d = p_today),
+    'yesterday', (select count(*) from live where d = p_today - 1),
+    'month_to_date', (select count(*) from live, month_start where d >= m),
+    'prev_month_to_date', (select count(*) from live, prev where d between m0 and m1),
+    'completed_mtd', (select count(*) from live, month_start where d >= m and status in ('driver_completed', 'closed')),
+    'completed_prev_mtd', (select count(*) from live, prev where d between m0 and m1 and status in ('driver_completed', 'closed')),
+    'daily', (
+      select jsonb_agg(jsonb_build_object('date', g.ts::date, 'total', coalesce(c.n, 0)) order by g.ts)
+      from generate_series((p_today - 13)::timestamp, p_today::timestamp, interval '1 day') as g(ts)
+      left join (select d, count(*) as n from live group by d) c on c.d = g.ts::date
+    ),
+    'monthly', (
+      select jsonb_agg(jsonb_build_object('month', to_char(g.m, 'YYYY-MM'), 'total', coalesce(c.n, 0), 'completed', coalesce(c.done, 0)) order by g.m)
+      from generate_series(date_trunc('month', p_today::timestamp) - interval '5 months', date_trunc('month', p_today::timestamp), interval '1 month') as g(m)
+      left join (
+        select date_trunc('month', d::timestamp) as m, count(*) as n, count(*) filter (where status in ('driver_completed', 'closed')) as done
+        from live group by 1
+      ) c on c.m = g.m
+    ),
+    'by_status', (
+      select coalesce(jsonb_object_agg(status, n), '{}'::jsonb)
+      from (select status, count(*) as n from s, month_start where d >= m group by status) x
+    ),
+    'top_customers', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x.customer_id, 'name', coalesce(c.name, 'Khách hàng'), 'total', x.n) order by x.n desc, c.name), '[]'::jsonb)
+      from (
+        select customer_id, count(*) as n from live, month_start where d >= m group by customer_id order by n desc limit 5
+      ) x
+      left join public.customers c on c.id = x.customer_id
+    )
+  );
+$$;
+
+revoke all on function public.dashboard_shipment_stats(date) from public, anon;
+grant execute on function public.dashboard_shipment_stats(date) to authenticated;
+
+commit;
