@@ -48,16 +48,22 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   check(hAfter > hBefore + 30, `Kéo mép dòng tăng chiều cao dòng (${Math.round(hBefore)} → ${Math.round(hAfter)})`);
   await shot(page, "s-02-keo-cot-dong");
 
-  // 4. Biểu mẫu có liên kết thêm trường
+  // 4. Thêm trường ngay trong biểu mẫu, không rời trang
+  await page.goto(`${BASE}/danh-muc?tab=vehicle_types`);
   await page.getByRole("button", { name: "Thêm mới" }).click();
-  check(await visible(dialog(page).getByRole("link", { name: "+ Thêm trường cho biểu mẫu này" })), "Biểu mẫu danh mục có liên kết thêm trường");
+  await dialog(page).getByRole("button", { name: "Thêm trường cho biểu mẫu này" }).click();
+  await page.locator("#fd-label").fill("Số trục");
+  await page.locator("#fd-type").selectOption("integer");
+  await dialog(page).getByRole("button", { name: /^Lưu/ }).click();
+  check(await visible(page.getByRole("dialog").filter({ hasText: "Thêm loại xe" }).getByLabel("Số trục")), "Thêm trường ngay trong biểu mẫu, trường mới hiện luôn");
+  await shot(page, "s-02b-them-truong-trong-form");
   await page.keyboard.press("Escape");
 
   // 5. Tạo đơn có trường bổ sung của chuyến
   await page.goto(`${BASE}/dieu-phoi/tao-don`);
   const s1 = page.locator("[data-slot=card]").filter({ hasText: "Chuyến 1" });
   check(await visible(s1.getByLabel("Số container")), "Màn hình tạo đơn hiện trường bổ sung của chuyến");
-  check(await visible(s1.getByRole("link", { name: "+ Thêm trường cho chuyến" })), "Tạo đơn có liên kết thêm trường cho chuyến");
+  check(await visible(s1.getByRole("button", { name: "Thêm trường cho chuyến" })), "Tạo đơn có nút thêm trường cho chuyến");
   await page.locator("#order-customer").click();
   await page.getByPlaceholder("Gõ để tìm…").fill("Mẫu A");
   await page.getByRole("option", { name: /Công ty Mẫu A/ }).first().click();
@@ -85,7 +91,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   // 6. Bảng chuyến: cột bổ sung, ẩn cột, tìm kiếm nâng cao theo trường bổ sung
   await page.goto(`${BASE}/chuyen-xe`);
   check(await visible(page.getByRole("columnheader", { name: "Số container" })), "Bảng chuyến có cột trường bổ sung");
-  await page.getByRole("button", { name: "Cột" }).click();
+  await page.getByRole("button", { name: "Cột", exact: true }).click();
   await page.getByRole("checkbox", { name: "Đơn hàng" }).uncheck();
   await page.keyboard.press("Escape");
   check(await hidden(page.getByRole("columnheader", { name: "Đơn hàng" })), "Ẩn được cột trên bảng chuyến");

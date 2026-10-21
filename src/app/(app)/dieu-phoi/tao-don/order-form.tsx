@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReferenceSelect } from "@/components/entities/reference-select";
 import { EntityFormDialog } from "@/components/entities/entity-form-dialog";
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
+import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { FieldDef } from "@/lib/entities/types";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
@@ -146,9 +147,9 @@ export function OrderForm({
             </div>
             <CustomFieldsEditor fields={orderFields} idPrefix="order-cf-" onChange={setOrderCustom} className="sm:col-span-2 lg:col-span-4" />
             {canAddField ? (
-              <a href="/truong-du-lieu?module=transport_orders&them=1" target="_blank" rel="noopener" className="text-sm font-medium text-primary hover:underline sm:col-span-2 lg:col-span-4">
-                + Thêm trường cho đơn hàng
-              </a>
+              <div className="sm:col-span-2 lg:col-span-4">
+                <AddFieldButton module="transport_orders" customRows={[]} label="Thêm trường cho đơn hàng" />
+              </div>
             ) : null}
           </CardContent>
         </Card>
@@ -432,9 +433,7 @@ function ShipmentEditor({
           <div className="mt-4 space-y-2 border-t pt-4">
             <CustomFieldsEditor fields={shipmentFields} idPrefix={`s${row.key}-cf-`} initial={row.custom} onChange={(custom) => onChange({ custom })} />
             {canAddField ? (
-              <a href="/truong-du-lieu?module=shipments&them=1" target="_blank" rel="noopener" className="inline-block text-sm font-medium text-primary hover:underline">
-                + Thêm trường cho chuyến
-              </a>
+              <AddFieldButton module="shipments" customRows={[]} label="Thêm trường cho chuyến" />
             ) : null}
           </div>
         ) : null}

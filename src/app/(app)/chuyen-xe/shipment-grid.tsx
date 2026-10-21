@@ -18,6 +18,7 @@ import { Loader2, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdvancedFilter } from "@/components/advanced-filter";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
+import { AddFieldButton } from "@/components/entities/add-field-button";
 import { encodeCondition, parseConditions, type AdvField } from "@/lib/advanced-filter";
 import { formatValue } from "@/lib/entities/record";
 import { computeFormula } from "@/lib/formula";
@@ -111,6 +112,7 @@ export function ShipmentGrid({
   advLabels,
   customDefs,
   customAdv,
+  canAddField = false,
 }: {
   rows: ShipmentListRow[];
   canEdit: boolean;
@@ -120,6 +122,7 @@ export function ShipmentGrid({
   /** Trường bổ sung của chuyến (người dùng tự thêm): hiện thành cột */
   customDefs: FieldDef[];
   customAdv: AdvField[];
+  canAddField?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -242,6 +245,7 @@ export function ShipmentGrid({
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
         <AdvancedFilter fields={advFields} value={advConds} valueLabels={advLabels} onApply={(conds) => setAdv(conds.map(encodeCondition))} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canAddField ? <AddFieldButton module="shipments" customRows={[]} label="Thêm cột (trường)" /> : null}
           <ColumnsMenu columns={table.getAllLeafColumns()} label={label} note={(c) => ((c.columnDef.meta as { col: Col }).col.custom ? "bổ sung" : null)} onMove={moveColumn} />
           <Button
             variant="outline"

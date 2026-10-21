@@ -100,7 +100,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
             <TabLink key={s.value} href={href({ tt: s.value, trang: 1 })} active={f.tt === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
           ))}
         </div>
-        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} />
+        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
           <span>
             {total === 0 ? "Không có chuyến phù hợp" : `Dòng ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total} chuyến`}

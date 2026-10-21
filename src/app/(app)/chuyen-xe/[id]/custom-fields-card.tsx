@@ -6,6 +6,7 @@ import { Loader2, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
+import { AddFieldButton } from "@/components/entities/add-field-button";
 import { formatValue } from "@/lib/entities/record";
 import { computeFormula } from "@/lib/formula";
 import type { FieldDef } from "@/lib/entities/types";
@@ -38,11 +39,7 @@ export function CustomFieldsCard({
         <CardTitle className="text-base">Trường bổ sung</CardTitle>
         <div className="flex gap-2">
           {canAddField ? (
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/truong-du-lieu?module=shipments&them=1" target="_blank" rel="noopener">
-                + Thêm trường
-              </a>
-            </Button>
+            <AddFieldButton module="shipments" customRows={[]} />
           ) : null}
           {canEdit && fields.length && !editing ? (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>

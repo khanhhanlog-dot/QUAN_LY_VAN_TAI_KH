@@ -256,7 +256,7 @@ export function FieldManager({
   );
 }
 
-function FieldEditor({
+export function FieldEditor({
   open,
   onOpenChange,
   module,
@@ -339,7 +339,14 @@ function FieldEditor({
             </AlertDescription>
           </Alert>
         ) : null}
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <form
+          onSubmit={(e) => {
+            e.stopPropagation(); // mở từ trong biểu mẫu khác: không gửi biểu mẫu cha
+            form.handleSubmit(onSubmit)(e);
+          }}
+          className="space-y-4"
+          noValidate
+        >
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="fd-label">Tên hiển thị *</Label>

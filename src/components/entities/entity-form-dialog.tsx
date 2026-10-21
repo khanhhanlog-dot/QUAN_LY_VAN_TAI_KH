@@ -14,6 +14,7 @@ import { saveRecord } from "@/lib/entities/actions";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
 import type { RefLabels } from "@/lib/entities/server";
 import { FieldInput } from "./field-input";
+import { AddFieldButton } from "./add-field-button";
 
 type Values = Record<string, unknown>;
 
@@ -123,15 +124,13 @@ export function EntityFormDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {quick ? "Chỉ cần các thông tin chính; bổ sung chi tiết sau trong danh mục." : "Trường có dấu * là bắt buộc."}
-            {canAddField && entity.customModule ? (
-              <>
-                {" "}
-                <a href={`/truong-du-lieu?module=${entity.customModule}&them=1`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
-                  + Thêm trường cho biểu mẫu này
-                </a>
-              </>
-            ) : null}
           </DialogDescription>
+          {canAddField && entity.customModule && !quick && !readOnly ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <AddFieldButton module={entity.customModule} entityKey={entityKey} customRows={customRows} label="Thêm trường cho biểu mẫu này" />
+              <span className="text-xs text-muted-foreground">Ví dụ: số trục, màu xe, số hợp đồng… Có thể là chữ, số, ngày, danh sách chọn hoặc công thức tự tính.</span>
+            </div>
+          ) : null}
         </DialogHeader>
         <form
           onSubmit={(e) => {

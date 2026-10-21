@@ -50,6 +50,7 @@ import { EntityFormDialog } from "./entity-form-dialog";
 import { ConfirmDialog } from "./confirm-dialog";
 import { ExportButton, ImportDialog } from "./excel-buttons";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
+import { AddFieldButton } from "./add-field-button";
 
 type Row = Record<string, unknown>;
 
@@ -391,6 +392,7 @@ export function EntityTable(props: EntityTableProps) {
         ))}
         <AdvancedFilter fields={advFields} value={advConds} valueLabels={props.advLabels} onApply={(conds) => setAdv(conds.map(encodeCondition))} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {access.configureFields && entity.customModule ? <AddFieldButton module={entity.customModule} entityKey={entityKey} customRows={customRows} /> : null}
           <ColumnsMenu
             columns={leafColumns}
             label={(c) => (c.columnDef.meta as { field: FieldDef } | undefined)?.field?.label ?? c.id}
