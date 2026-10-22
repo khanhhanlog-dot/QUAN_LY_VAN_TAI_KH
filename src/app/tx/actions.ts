@@ -42,3 +42,102 @@ export async function changeVehicle(): Promise<void> {
   (await cookies()).delete({ name: DRIVER_LINK_COOKIE, path: "/tx" });
   revalidatePath("/tx");
 }
+
+const NET_ERROR = "Không kết nối được máy chủ, vui lòng thử lại.";
+const optUuid = z.uuid().nullable().optional();
+
+async function callRpc(fn: string, args: Record<string, unknown>, fallback: string): Promise<RpcResult & { ticket?: string; code?: string }> {
+  const token = await driverLinkToken();
+  if (!token) return { ok: false, error: "Phiên đã hết hạn. Vui lòng nhập lại số xe.", expired: true };
+  const { data, error } = await anonClient().rpc(fn, { p_token: token, ...args });
+  if (error) return { ok: false, error: NET_ERROR };
+  const r = data as RpcResult & { ticket?: string; code?: string };
+  return r.ok ? r : { ...r, error: r.error ?? fallback };
+}
+
+/** Vé tải ảnh (hết hạn sau 2 giờ, tối đa 10 tệp) */
+export async function requestUploadTicket(shipmentId: string | null, purpose: "delivery" | "expense"): Promise<{ ok: true; ticket: string } | { ok: false; error: string }> {
+  if (!optUuid.safeParse(shipmentId).success || !["delivery", "expense"].includes(purpose)) return { ok: false, error: "Dữ liệu không hợp lệ." };
+  const r = await callRpc("driver_link_upload_ticket", { p_shipment_id: shipmentId, p_purpose: purpose }, "Không gửi được ảnh.");
+  return r.ok && r.ticket ? { ok: true, ticket: r.ticket } : { ok: false, error: r.error ?? "Không gửi được ảnh." };
+}
+
+export async function startTrip(shipmentId: string): Promise<Result> {
+  if (!z.uuid().safeParse(shipmentId).success) return { ok: false, error: "Chuyến không hợp lệ." };
+  const r = await callRpc("driver_link_start", { p_shipment_id: shipmentId }, "Không bắt đầu được chuyến.");
+  revalidatePath("/tx");
+  return r.ok ? { ok: true } : { ok: false, error: r.error! };
+}
+
+const completeSchema = z.object({
+  shipmentId: z.uuid(),
+  ticket: z.uuid().nullable(),
+  result: z.enum(["full", "partial", "failed"]),
+  note: z.string().max(500).optional(),
+});
+
+export async function completeTrip(input: z.input<typeof completeSchema>): Promise<Result> {
+  const p = completeSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: "Dữ liệu không hợp lệ." };
+  const r = await callRpc(
+    "driver_link_complete",
+    { p_shipment_id: p.data.shipmentId, p_ticket: p.data.ticket, p_result: p.data.result, p_note: p.data.note ?? null },
+    "Không hoàn thành được chuyến.",
+  );
+  revalidatePath("/tx");
+  return r.ok ? { ok: true } : { ok: false, error: r.error! };
+}
+
+const advanceSchema = z.object({
+  amount: z.number().positive().max(1_000_000_000),
+  reason: z.string().trim().min(1, "Nhập lý do ứng tiền.").max(500),
+  shipmentId: z.uuid().nullable(),
+  clientRequestId: z.uuid(),
+});
+
+export async function requestAdvance(input: z.input<typeof advanceSchema>): Promise<Result> {
+  const p = advanceSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ." };
+  const r = await callRpc(
+    "driver_link_request_advance",
+    { p_amount: p.data.amount, p_reason: p.data.reason, p_shipment_id: p.data.shipmentId, p_client_request_id: p.data.clientRequestId },
+    "Không gửi được yêu cầu ứng tiền.",
+  );
+  revalidatePath("/tx/tien");
+  return r.ok ? { ok: true } : { ok: false, error: r.error! };
+}
+
+const expenseSchema = z.object({
+  shipmentId: z.uuid("Chọn chuyến."),
+  categoryId: z.uuid("Chọn loại chi phí."),
+  amount: z.number().positive("Nhập số tiền.").max(1_000_000_000),
+  note: z.string().max(500).optional(),
+  ticket: z.uuid().nullable(),
+  clientRequestId: z.uuid(),
+});
+
+export async function addExpense(input: z.input<typeof expenseSchema>): Promise<Result & { needsApproval?: boolean }> {
+  const p = expenseSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ." };
+  const r = await callRpc(
+    "driver_link_add_expense",
+    {
+      p_shipment_id: p.data.shipmentId,
+      p_category_id: p.data.categoryId,
+      p_amount: p.data.amount,
+      p_note: p.data.note ?? null,
+      p_ticket: p.data.ticket,
+      p_client_request_id: p.data.clientRequestId,
+    },
+    "Không lưu được chi phí.",
+  );
+  revalidatePath("/tx/tien");
+  return r.ok ? { ok: true, needsApproval: (r as { needs_approval?: boolean }).needs_approval } : { ok: false, error: r.error! };
+}
+
+export async function cancelRequest(kind: "advance" | "expense", id: string): Promise<Result> {
+  if (!["advance", "expense"].includes(kind) || !z.uuid().safeParse(id).success) return { ok: false, error: "Dữ liệu không hợp lệ." };
+  const r = await callRpc("driver_link_cancel", { p_kind: kind, p_id: id }, "Không hủy được.");
+  revalidatePath("/tx/tien");
+  return r.ok ? { ok: true } : { ok: false, error: r.error! };
+}

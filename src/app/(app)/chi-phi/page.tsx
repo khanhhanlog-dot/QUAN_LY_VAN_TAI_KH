@@ -1,16 +1,26 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth/session";
-import { ComingSoon } from "@/components/layout/coming-soon";
+import { PageHeader } from "@/components/layout/page-header";
+import { EntityListSection, resolveEntityTabs } from "@/components/entities/entity-list-section";
 
-export const metadata: Metadata = { title: "Chi phí và quyết toán" };
+export const metadata: Metadata = { title: "Ứng tiền và chi phí" };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePagePermission("expenses.view", "advances.view", "settlements.view");
+  const sp = await searchParams;
+  const { active, nav } = await resolveEntityTabs({
+    basePath: "/chi-phi",
+    searchParams: sp,
+    tabs: [{ key: "advances", label: "Ứng tiền" }, { key: "expenses", label: "Chi phí chuyến" }],
+  });
   return (
-    <ComingSoon
-      title="Chi phí và quyết toán"
-      phase={6}
-      items={["Chi phí chuyến theo danh mục dùng chung, trạng thái duyệt", "Yêu cầu ứng tiền và giao dịch tạm ứng (tạm ứng không phải chi phí)", "Bảng đối soát tài xế: đã ứng, chi phí được duyệt, đã thanh toán, phải hoàn lại, phải trả thêm", "Quyết toán chuyến theo điều kiện cấu hình (Giai đoạn 7)"]}
-    />
+    <>
+      <PageHeader
+        title="Ứng tiền và chi phí"
+        description="Tài xế gửi yêu cầu trên điện thoại, Giám đốc duyệt, Kế toán chuyển tiền. Chi phí tài xế tự trả và tiền đã ứng được đối soát vào lương cuối tháng."
+      />
+      {nav}
+      {active ? <EntityListSection entityKey={active} searchParams={sp} revalidate="/chi-phi" /> : null}
+    </>
   );
 }

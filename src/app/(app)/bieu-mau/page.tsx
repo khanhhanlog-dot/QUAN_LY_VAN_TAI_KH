@@ -9,7 +9,7 @@ export default async function Page() {
   return (
     <ComingSoon
       title="Quản lý biểu mẫu"
-      phase={6}
+      phase={8}
       items={[
         "Hiện tại: thứ tự, bắt buộc, hiện/ẩn và quyền của từng trường được cấu hình ở “Quản lý trường dữ liệu”, biểu mẫu tự dựng theo cấu hình đó",
         "Giai đoạn 6: chia nhóm/tab trên biểu mẫu, điều kiện hiện trường, biểu mẫu riêng cho ứng tiền, chi phí, phê duyệt",

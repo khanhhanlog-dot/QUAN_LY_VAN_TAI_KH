@@ -39,22 +39,35 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Quản lý chuyến xe (GĐ4): bảng kiểu Excel cố định cột mã chuyến, lọc theo ngày/khách hàng/trạng thái/từ khóa, tổng tiền theo bộ lọc, sửa nhanh số lượng/đơn giá/phụ phí/% hỗ trợ dầu/ghi chú (chống hai người sửa cùng lúc), xuất Excel; chi tiết chuyến với nguồn giá, lịch sử trạng thái, lịch sử phân công, lịch sử thay đổi giá | ✅ | CSDL + E2E |
 | Trường dữ liệu động: 19 kiểu, bắt buộc, giá trị mặc định, hiện theo điều kiện, quyền xem/sửa riêng, công thức an toàn (không dùng eval), phiên bản + khôi phục, phân tích ảnh hưởng trước khi sửa, không xóa/đổi kiểu khi đã có dữ liệu | ✅ | 29 kiểm thử CSDL + kiểm thử đơn vị + E2E |
 
+## Đã hoạt động (Giai đoạn 5 hoàn thiện và Giai đoạn 6, 22/10/2026)
+
+| Chức năng | Trạng thái | Kiểm thử |
+|---|---|---|
+| Tài xế bấm Bắt đầu chạy, Hoàn thành chuyến; bắt buộc ít nhất 1 ảnh (ảnh hàng hoặc phiếu ký nhận); giao thiếu/không giao phải ghi lý do; điều phối nhận thông báo | ✅ | CSDL + E2E |
+| Gửi ảnh từ điện thoại không cần tài khoản: ảnh thu nhỏ trên máy, tải thẳng lên Storage riêng tư bằng "vé" 2 giờ do CSDL cấp (tối đa 10 tệp/vé), không dùng khóa bí mật | ✅ | CSDL (vé bịa, tên tệp lạ, vé đã dùng bị chặn) + E2E với Storage thật cục bộ |
+| Xem ảnh, chứng từ qua đường dẫn tạm 10 phút; nhân viên tải thêm chứng từ trên chi tiết chuyến | ✅ | E2E |
+| Tài xế xin ứng tiền, nhập chi phí kèm ảnh hóa đơn, xem trạng thái, hủy yêu cầu đang chờ; gửi trùng do mạng chập chờn chỉ ghi 1 lần | ✅ | CSDL + E2E |
+| Quy trình khách chốt: tài xế gửi → Giám đốc duyệt (được duyệt ít hơn số xin) → Kế toán ghi nhận chuyển tiền (phiếu chi, sổ tạm ứng). Không tự duyệt khoản của mình, không duyệt/chuyển tiền hai lần, từ chối bắt buộc lý do | ✅ | 40+ kiểm thử CSDL + E2E |
+| Tắt duyệt cho từng loại chi phí (Danh mục → Hạng mục chi phí → Cần phê duyệt) | ✅ | CSDL |
+| Cấu hình cấp duyệt (Phê duyệt → Cấu hình cấp duyệt): vai trò duyệt, cấp, khoảng số tiền | ✅ | E2E |
+| Màn hình Ứng tiền và chi phí, Phê duyệt: đủ quy chuẩn (tìm kiếm, tìm kiếm nâng cao, chọn/kéo/giãn cột, xuất Excel, thêm trường cho biểu mẫu) | ✅ | E2E |
+| Chi tiết chuyến: kết quả giao hàng, ảnh, chi phí chuyến, chi phí đã duyệt và lợi nhuận gộp | ✅ | E2E |
+| Chưa làm: hủy duyệt sau khi đã duyệt, hủy phiếu chi, yêu cầu bổ sung thông tin | ⏳ | Làm khi có nhu cầu |
+
 ## Có sẵn trong CSDL, chờ giao diện
 
 | Chức năng | Trạng thái | Giai đoạn giao diện |
 |---|---|---|
-| Chứng từ, phê duyệt nhiều cấp, ứng tiền, chi phí chuyến, thanh toán, công nợ | 🟡 (chỉ đọc qua RLS; ghi qua RPC sẽ viết ở GĐ6–7) | GĐ6–7 |
-| Biểu mẫu, quy trình cấu hình được | 🟡 | GĐ6 |
+| Công nợ phải thu/phải trả, thanh toán nhiều lần | 🟡 (chỉ đọc qua RLS) | GĐ7 |
+| Biểu mẫu, quy trình cấu hình được | 🟡 | GĐ8 |
 
 ## Chưa triển khai
 
 | Chức năng | Giai đoạn |
 |---|---|
-| Tải chứng từ, ảnh, tệp đính kèm (kể cả trường động kiểu tệp, đang ghi "GĐ5"); xem qua signed URL | GĐ5 |
-| Trình thiết kế biểu mẫu (trang "Biểu mẫu" đang ghi "Giai đoạn 6") | GĐ6 |
-| Tài xế bắt đầu chạy, hoàn thành chuyến kèm ảnh | GĐ5 |
-| Gửi ứng tiền/chi phí, duyệt, hủy duyệt có kiểm soát; cột tạm ứng, chi phí, lợi nhuận dự kiến trên bảng chuyến | GĐ6 |
-| Trường dữ liệu động của đơn hàng và chuyến hiển thị trên màn hình tạo đơn/chi tiết chuyến (đã định nghĩa được, chưa hiện) | GĐ5 |
+| Trường động kiểu tệp | GĐ8 |
+| Trình thiết kế biểu mẫu, quy trình (trang đang ghi "Giai đoạn 8") | GĐ8 |
+| Đối soát cuối tháng: tiền ứng trừ chi phí được duyệt, cộng/trừ vào lương | GĐ7 |
 | Quyết toán, công nợ, 15 báo cáo, chỉ tiêu tài chính trên Tổng quan (đang ghi "Chưa triển khai – Giai đoạn 7") | GĐ7 |
 | Kiểm thử E2E đầy đủ, kiểm thử tải, triển khai production | GĐ8 |
 

@@ -11,6 +11,21 @@ export function entityAccess(entity: EntityDef, perms: Set<string>): EntityAcces
   const update = sensitiveOk && has("update");
   const del = !entity.noDelete && sensitiveOk && (entity.writeAsUpdate ? has("update") : has("delete"));
   const exp = view && (entity.hasExport ? has("export") : true);
+  if (entity.writePerm) {
+    const w = sensitiveOk && perms.has(entity.writePerm);
+    return { view, create: w, update: w, delete: w && !entity.noDelete, export: exp, import: false, configureFields: Boolean(entity.customModule) && perms.has("fields.configure") };
+  }
+  if (entity.readOnlyRows) {
+    return {
+      view,
+      create: Boolean(entity.createAction) && sensitiveOk && has("create"),
+      update: false,
+      delete: false,
+      export: exp,
+      import: false,
+      configureFields: Boolean(entity.customModule) && perms.has("fields.configure"),
+    };
+  }
   return {
     view,
     create,

@@ -104,7 +104,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   await shot(page, "08-cau-hinh");
 
   await page.goto(`${BASE}/bieu-mau`);
-  check(await visible(page.getByText("Chưa triển khai – sẽ hoàn thiện ở Giai đoạn 6")), "Màn hình chưa làm ghi rõ giai đoạn");
+  check(await visible(page.getByText("Chưa triển khai – sẽ hoàn thiện ở Giai đoạn 8")), "Màn hình chưa làm ghi rõ giai đoạn");
   await shot(page, "09-chua-trien-khai");
 
   await page.goto(`${BASE}/thong-bao`);

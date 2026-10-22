@@ -12,6 +12,7 @@ const emails = [
   "admin@khanhha.test",
   "dieuphoi@khanhha.test",
   "ketoan@khanhha.test",
+  "giamdoc@khanhha.test",
   "taixe.a@khanhha.test",
   "taixe.b@khanhha.test",
   "stranger@khanhha.test",

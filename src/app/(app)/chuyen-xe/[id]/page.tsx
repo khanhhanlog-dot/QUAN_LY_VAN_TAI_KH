@@ -17,6 +17,11 @@ import { AssignDialog } from "@/components/dispatch/assign-dialog";
 import { CancelDialog } from "@/components/dispatch/cancel-dialog";
 import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
+import { ShipmentExpenseButton } from "./expense-button";
+import { DocumentsButton } from "@/components/finance/documents-button";
+import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
+import { TONE_BADGE } from "@/lib/tones";
+import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
 
@@ -44,6 +49,8 @@ type Assignment = {
   driver: { full_name: string; code: string } | null;
   vehicle: { plate_number: string } | null;
 };
+type Expense = { id: string; code: string; category_name: string; amount: number; status: string; paid_by: string; incurred_at: string; file_count: number; note: string | null };
+const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
 type Change = { occurred_at: string; actor_name: string | null; field: string; old_value: string | null; new_value: string | null };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -103,7 +110,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
-  const [custom, rowRes, extraRes, histRes, asgRes, changeRes] = await Promise.all([
+  const canExpenses = me.permissions.has("expenses.view");
+  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields] = await Promise.all([
     shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -120,6 +128,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       .eq("shipment_id", id)
       .order("assigned_at", { ascending: false }),
     supabase.rpc("shipment_change_history", { p_shipment_id: id }),
+    canExpenses
+      ? supabase.from("expense_list").select("id, code, category_name, amount, status, paid_by, incurred_at, file_count, note").eq("shipment_id", id).order("incurred_at")
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from("documents").select("id", { count: "exact", head: true }).eq("entity_type", "shipment").eq("entity_id", id).is("archived_at", null),
+    loadCustomFields(supabase, "expenses"),
   ]);
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
@@ -128,6 +141,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const history = (histRes.data ?? []) as History[];
   const assignments = (asgRes.data ?? []) as unknown as Assignment[];
   const changes = (changeRes.data ?? []) as Change[];
+  const expenses = (expRes.data ?? []) as Expense[];
+  const docCount = docRes.count ?? 0;
+  const approvedCost = expenses.filter((e) => e.status === "approved").reduce((a, e) => a + Number(e.amount), 0);
+  const pendingCost = expenses.filter((e) => e.status === "pending").reduce((a, e) => a + Number(e.amount), 0);
 
   const actorIds = [...new Set([x.created_by, ...history.map((h) => h.changed_by), ...assignments.map((a) => a.assigned_by)].filter((v): v is string => Boolean(v)))];
   const { data: nameRows } = actorIds.length ? await supabase.rpc("user_display_names", { p_ids: actorIds }) : { data: [] };
@@ -247,7 +264,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               ) : null}
               {snap.quoted_at ? <p>Chụp giá lúc {formatDateTime(String(snap.quoted_at))}; bảng giá đổi sau này không làm đổi chuyến.</p> : null}
             </div>
-            <p className="text-xs text-muted-foreground">Chi phí, tạm ứng và lợi nhuận chuyến sẽ hiển thị ở Giai đoạn 6.</p>
+            {canExpenses ? (
+              <div className="space-y-2 border-t pt-2">
+                <Line label="Chi phí đã duyệt" value={formatVND(approvedCost)} />
+                {pendingCost ? <Line label="Chi phí chờ duyệt (chưa tính)" value={formatVND(pendingCost)} /> : null}
+                <Line label="Lợi nhuận gộp" value={<b>{formatVND(Number(s.total_revenue) - approvedCost)}</b>} />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -358,14 +381,89 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Chứng từ, chi phí, ứng tiền</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-base">Giao hàng và chứng từ</CardTitle>
+            <DocumentsButton
+              entityType="shipment"
+              entityId={s.id}
+              count={docCount}
+              title={`Chứng từ chuyến ${s.shipment_code}`}
+              canUpload={me.permissions.has("documents.create")}
+              variant="outline"
+            />
           </CardHeader>
-          <CardContent className="space-y-1 text-sm text-muted-foreground">
-            <p>Tài xế tải ảnh và chứng từ giao hàng: Giai đoạn 5.</p>
-            <p>Chi phí chuyến, ứng tiền, phê duyệt và quyết toán: Giai đoạn 6.</p>
+          <CardContent className="space-y-2 text-sm">
+            {x.completed_at ? (
+              <>
+                <Line label="Hoàn thành lúc" value={formatDateTime(x.completed_at)} />
+                {x.delivery_result ? <Line label="Kết quả" value={RESULT_LABEL[x.delivery_result] ?? x.delivery_result} /> : null}
+                {x.completion_note ? <p className="rounded-md bg-muted/50 p-2">Ghi chú tài xế: {x.completion_note}</p> : null}
+              </>
+            ) : x.departed_pickup_at ? (
+              <Line label="Bắt đầu chạy lúc" value={formatDateTime(x.departed_pickup_at)} />
+            ) : (
+              <p className="text-muted-foreground">Tài xế chưa bắt đầu chạy.</p>
+            )}
+            <Line label="Ảnh, chứng từ đã nộp" value={`${docCount} tệp`} />
           </CardContent>
         </Card>
+
+        {canExpenses ? (
+          <Card className="lg:col-span-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-base">Chi phí chuyến</CardTitle>
+              {me.permissions.has("expenses.create") ? (
+                <ShipmentExpenseButton
+                  shipment={{ id: s.id, label: s.shipment_code, driverId: s.driver_id, driverLabel: s.driver_name }}
+                  customRows={visibleCustomRows(expenseFields, me.permissions)}
+                  canAddField={me.permissions.has("fields.configure")}
+                />
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {expenses.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chưa có chi phí.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-xs text-muted-foreground">
+                      <tr>
+                        <th className="py-1 pr-3">Mã</th>
+                        <th className="py-1 pr-3">Loại</th>
+                        <th className="py-1 pr-3 text-right">Số tiền</th>
+                        <th className="py-1 pr-3">Người trả</th>
+                        <th className="py-1 pr-3">Trạng thái</th>
+                        <th className="py-1 pr-3">Ngày</th>
+                        <th className="py-1" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenses.map((e) => {
+                        const st = MONEY_STATUS.find((o) => o.value === e.status);
+                        return (
+                          <tr key={e.id} className="border-t">
+                            <td className="py-1.5 pr-3 font-mono text-xs">{e.code}</td>
+                            <td className="py-1.5 pr-3">
+                              {e.category_name}
+                              {e.note ? <span className="block text-xs text-muted-foreground">{e.note}</span> : null}
+                            </td>
+                            <td className="py-1.5 pr-3 text-right tabular-nums">{formatVND(e.amount)}</td>
+                            <td className="py-1.5 pr-3">{PAID_BY.find((o) => o.value === e.paid_by)?.label}</td>
+                            <td className="py-1.5 pr-3">{st ? <Badge variant={TONE_BADGE[st.tone!]}>{st.label}</Badge> : e.status}</td>
+                            <td className="py-1.5 pr-3">{formatDateTime(e.incurred_at)}</td>
+                            <td className="py-1.5 text-right">
+                              <DocumentsButton entityType="shipment_expense" entityId={e.id} count={Number(e.file_count)} title={`Chứng từ ${e.code}`} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </>
   );

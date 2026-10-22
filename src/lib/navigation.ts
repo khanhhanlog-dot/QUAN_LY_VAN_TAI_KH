@@ -26,9 +26,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Tài chính",
     items: [
-      { href: "/chi-phi", label: "Chi phí và quyết toán", icon: "Receipt", anyOf: ["expenses.view", "advances.view", "settlements.view"], phase: 6 },
+      { href: "/chi-phi", label: "Ứng tiền và chi phí", icon: "Receipt", anyOf: ["expenses.view", "advances.view", "settlements.view"] },
       { href: "/cong-no", label: "Công nợ", icon: "Wallet", anyOf: ["receivables.view"], phase: 7 },
-      { href: "/phe-duyet", label: "Phê duyệt", icon: "BadgeCheck", anyOf: ["approvals.view"], phase: 6 },
+      { href: "/phe-duyet", label: "Phê duyệt", icon: "BadgeCheck", anyOf: ["approvals.view"] },
       { href: "/bao-cao", label: "Báo cáo", icon: "BarChart3", anyOf: ["reports.view"], phase: 7 },
     ],
   },
@@ -37,8 +37,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/danh-muc", label: "Danh mục hệ thống", icon: "ListTree", anyOf: ["catalogs.view"] },
       { href: "/truong-du-lieu", label: "Quản lý trường dữ liệu", icon: "Columns3", anyOf: ["fields.view"] },
-      { href: "/bieu-mau", label: "Quản lý biểu mẫu", icon: "FileInput", anyOf: ["forms.view"], phase: 6 },
-      { href: "/quy-trinh", label: "Quản lý quy trình", icon: "Workflow", anyOf: ["workflows.view"], phase: 6 },
+      { href: "/bieu-mau", label: "Quản lý biểu mẫu", icon: "FileInput", anyOf: ["forms.view"], phase: 8 },
+      { href: "/quy-trinh", label: "Quản lý quy trình", icon: "Workflow", anyOf: ["workflows.view"], phase: 8 },
       { href: "/nguoi-dung", label: "Người dùng và phân quyền", icon: "Users", anyOf: ["users.view"] },
       { href: "/nhat-ky", label: "Nhật ký hệ thống", icon: "ScrollText", anyOf: ["audit_logs.view"] },
       { href: "/cau-hinh", label: "Cấu hình", icon: "Settings", anyOf: ["settings.view"] },

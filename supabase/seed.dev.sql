@@ -16,7 +16,8 @@ insert into public.user_invitations (email, role_codes, note) values
   ('owner@khanhha.test', '{super_admin}', 'Dữ liệu mẫu'),
   ('admin@khanhha.test', '{admin}', 'Dữ liệu mẫu'),
   ('dieuphoi@khanhha.test', '{dispatcher}', 'Dữ liệu mẫu'),
-  ('ketoan@khanhha.test', '{accountant}', 'Dữ liệu mẫu');
+  ('ketoan@khanhha.test', '{accountant}', 'Dữ liệu mẫu'),
+  ('giamdoc@khanhha.test', '{director}', 'Dữ liệu mẫu');
 
 insert into public.company_entities (code, name, tax_code, address) values
   ('KH', 'Công ty Vận tải Khánh Hà (mẫu)', '0000000000', 'Địa chỉ mẫu');

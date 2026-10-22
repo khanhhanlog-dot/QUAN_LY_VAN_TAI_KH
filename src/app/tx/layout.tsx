@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Truck } from "lucide-react";
+import { DriverNav } from "./driver-nav";
 
 export const metadata: Metadata = { title: "Tài xế nhận chuyến" };
 export const viewport: Viewport = { themeColor: "#0f2a5c" };
@@ -15,7 +16,8 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
         </Link>
         <span className="flex-1 text-right text-sm text-sidebar-muted">Tài xế</span>
       </header>
-      <main className="flex-1 p-4">{children}</main>
+      <main className="flex-1 p-4 pb-24">{children}</main>
+      <DriverNav />
     </div>
   );
 }

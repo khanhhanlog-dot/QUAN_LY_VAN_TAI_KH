@@ -58,3 +58,6 @@ upgrade nang-cap-giai-doan-5a.sql "Giai đoạn 5a (tài xế nhận chuyến qu
 
 upgrade nang-cap-giai-doan-5b.sql "Giai đoạn 5b (trường bổ sung cho mọi biểu mẫu)" "private.custom_field_table('vehicle_types') is not null" \
   supabase/migrations/20261021000015_custom_fields_everywhere.sql
+
+upgrade nang-cap-giai-doan-6.sql "Giai đoạn 6 (hoàn thành chuyến kèm ảnh, ứng tiền, chi phí, phê duyệt)" "to_regprocedure('public.approval_decide(uuid,text,text,numeric)') is not null" \
+  supabase/migrations/20261022000016_driver_progress_finance.sql

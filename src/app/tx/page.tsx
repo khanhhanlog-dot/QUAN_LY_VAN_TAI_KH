@@ -3,7 +3,7 @@ import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { PlateForm } from "./plate-form";
-import { AcceptButton, ChangeVehicleButton } from "./trip-actions";
+import { AcceptButton, ChangeVehicleButton, CompleteButton, StartButton } from "./trip-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,13 @@ type Trip = {
   delivery_gate_instructions: string | null;
   driver_name: string;
   accepted_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  delivery_result: string | null;
+  photo_count: number;
 };
+
+const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
 
 export default async function DriverHome() {
   const token = await driverLinkToken();
@@ -102,15 +108,27 @@ export default async function DriverHome() {
 
                 {t.status === "assigned" ? (
                   <AcceptButton shipmentId={t.shipment_id} code={t.shipment_code} />
-                ) : t.accepted_at ? (
-                  <p className="mt-3 text-center text-sm text-success">Đã nhận lúc {formatDateTime(t.accepted_at)}</p>
+                ) : t.status === "accepted" ? (
+                  <>
+                    {t.accepted_at ? <p className="mt-3 text-center text-sm text-success">Đã nhận lúc {formatDateTime(t.accepted_at)}</p> : null}
+                    <StartButton shipmentId={t.shipment_id} code={t.shipment_code} />
+                  </>
+                ) : t.status === "in_transit" ? (
+                  <>
+                    {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
+                    <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} />
+                  </>
+                ) : t.completed_at ? (
+                  <p className="mt-3 text-center text-sm text-success">
+                    Hoàn thành lúc {formatDateTime(t.completed_at)}
+                    {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
+                  </p>
                 ) : null}
               </li>
             );
           })}
         </ul>
       )}
-      <p className="text-center text-xs text-muted-foreground">Bắt đầu chạy, hoàn thành chuyến, ứng tiền và nhập chi phí sẽ có ở các bước sau.</p>
     </div>
   );
 }

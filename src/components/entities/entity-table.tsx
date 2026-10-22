@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns3,
+  Eye,
   Pencil,
   Pin,
   PinOff,
@@ -51,6 +52,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { ExportButton, ImportDialog } from "./excel-buttons";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
 import { AddFieldButton } from "./add-field-button";
+import { CREATE_ACTIONS, ROW_ACTIONS, ROW_ACTION_WIDTH } from "@/components/finance/registry";
 
 type Row = Record<string, unknown>;
 
@@ -119,6 +121,9 @@ export function EntityTable(props: EntityTableProps) {
   const [deleting, setDeleting] = useState<Row | null>(null);
   const [delPending, startDelete] = useTransition();
   const [q, setQ] = useState(props.q ?? "");
+  const [createOpen, setCreateOpen] = useState(false);
+  const CreateAction = entity.createAction ? CREATE_ACTIONS[entity.createAction] : undefined;
+  const RowAction = entity.rowActions ? ROW_ACTIONS[entity.rowActions] : undefined;
 
   function setParams(patch: Record<string, string | null>) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -231,12 +236,28 @@ export function EntityTable(props: EntityTableProps) {
     cols.push({
       id: ACTIONS_COL,
       header: "",
-      size: 92,
+      size: entity.rowActions ? (ROW_ACTION_WIDTH[entity.rowActions] ?? 200) : 92,
       enableResizing: false,
       enableSorting: false,
       enableHiding: false,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
+          {RowAction ? <RowAction row={row.original} onDone={() => router.refresh()} /> : null}
+          {entity.readOnlyRows ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              aria-label="Xem chi tiết"
+              title="Xem chi tiết"
+              onClick={() => {
+                setEditing(row.original);
+                setFormOpen(true);
+              }}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+          ) : null}
           {access.update ? (
             <Button
               size="icon"
@@ -455,11 +476,15 @@ export function EntityTable(props: EntityTableProps) {
             <Button
               size="sm"
               onClick={() => {
+                if (CreateAction) {
+                  setCreateOpen(true);
+                  return;
+                }
                 setEditing(null);
                 setFormOpen(true);
               }}
             >
-              <Plus /> Thêm mới
+              <Plus /> {entity.createAction ? `Tạo ${entity.singular}` : "Thêm mới"}
             </Button>
           ) : null}
         </div>
@@ -605,6 +630,18 @@ export function EntityTable(props: EntityTableProps) {
           revalidate={props.revalidate}
           onSaved={() => router.refresh()}
           canAddField={access.configureFields}
+        />
+      ) : null}
+      {CreateAction && createOpen ? (
+        <CreateAction
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          customRows={customRows}
+          canAddField={access.configureFields}
+          onDone={() => {
+            setCreateOpen(false);
+            router.refresh();
+          }}
         />
       ) : null}
       <ConfirmDialog

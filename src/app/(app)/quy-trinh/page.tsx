@@ -9,7 +9,7 @@ export default async function Page() {
   return (
     <ComingSoon
       title="Quản lý quy trình"
-      phase={6}
+      phase={8}
       items={["Cấu hình người gửi, người duyệt cấp 1/2, hạn mức, điều kiện chuyển cấp", "Bắt buộc chứng từ, bắt buộc lý do từ chối, cho phép tự duyệt (mặc định không)", "Người nhận thông báo, thời hạn xử lý; mỗi lần lưu tạo phiên bản mới"]}
     />
   );
