@@ -93,6 +93,9 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Ứng tiền lúc nào cũng được, không cần chuyến; gắn chuyến là không bắt buộc (chỉ chuyến phân cho chính tài xế) | ✅ | CSDL + E2E |
 | Sửa/hủy chi phí, xem bảng lương theo tài khoản đăng nhập; link biển số không còn xem được lương, tiền ứng | ✅ | CSDL + E2E |
 | Link biển số chỉ dùng cho chuyến: nhận, chạy, hoàn thành, nhập/bổ sung chi phí của chuyến | ✅ | E2E |
+| Ảnh biên lai không bắt buộc mặc định (bốc xếp, vá lốp dọc đường không có biên lai); quản lý bật "Bắt buộc ảnh chứng từ" cho từng mục nếu cần | ✅ | CSDL + E2E |
+| Quản lý chọn mục chi phí tài xế được thấy: Hạng mục chi phí → "Vai trò được nhập" có "Tài xế" (cột hiện trên danh sách); mục mới mặc định không cho tài xế | ✅ | CSDL |
+| Xe thuê ngoài 3PL (Hình thức sở hữu = "Thuê ngoài 3PL"): chuyến không ứng tiền, không nhập chi phí tài xế, hoàn thành không cần khai chi phí | ✅ | CSDL |
 | Google OAuth đang ở chế độ Testing: tài xế phải được thêm vào Test users, hoặc chuyển ứng dụng sang Production | ⏳ | Việc cấu hình của chủ tài khoản Google Cloud |
 
 ## Chưa triển khai

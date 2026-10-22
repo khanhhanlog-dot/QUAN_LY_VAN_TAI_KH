@@ -149,6 +149,9 @@ select tests.assert((select status from public.advance_requests where amount_req
 -- Chi phí do tài xế nhập
 -- ---------------------------------------------------------------------------
 update public.expense_categories set requires_approval = false where code = 'WASH';
+select tests.assert(not exists (select 1 from public.expense_categories where requires_image), 'Mặc định mọi loại chi phí không bắt buộc ảnh biên lai');
+-- Quản lý bật "Bắt buộc ảnh chứng từ" cho cầu đường
+update public.expense_categories set requires_image = true where code = 'TOLL';
 insert into t_fin select 'cat_' || code, id::text from public.expense_categories where code in ('TOLL', 'MEAL', 'WASH');
 set role anon;
 select tests.assert((public.driver_link_add_expense((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'),

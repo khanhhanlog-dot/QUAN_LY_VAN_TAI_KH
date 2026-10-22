@@ -101,7 +101,7 @@ const RESULTS = [
   { value: "failed", label: "Không giao được" },
 ] as const;
 
-export function CompleteButton({ shipmentId, code, categories }: { shipmentId: string; code: string; categories: ExpenseCategory[] }) {
+export function CompleteButton({ shipmentId, code, categories, outsourced = false }: { shipmentId: string; code: string; categories: ExpenseCategory[]; outsourced?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<PickedFile[]>([]);
@@ -122,7 +122,7 @@ export function CompleteButton({ shipmentId, code, categories }: { shipmentId: s
         if (!files.length) return setError("Chụp ít nhất 1 ảnh hàng đã giao hoặc phiếu ký nhận.");
         if (result !== "full" && !note.trim()) return setError("Ghi lý do giao thiếu / không giao được.");
       }
-      if (!expenseMode) return setError('Chọn "Có chi phí" và nhập chi phí, hoặc chọn "Không phát sinh chi phí".');
+      if (!expenseMode && !outsourced) return setError('Chọn "Có chi phí" và nhập chi phí, hoặc chọn "Không phát sinh chi phí".');
       if (expenseMode === "has") {
         const bad = lines.map((l, i) => lineError(l, categories, lines.length > 1 ? i + 1 : null)).find(Boolean);
         if (bad) return setError(bad);
@@ -138,7 +138,7 @@ export function CompleteButton({ shipmentId, code, categories }: { shipmentId: s
           return setError((e as Error).message);
         }
         setProgress("Đang lưu…");
-        const r = await completeTrip({ shipmentId, ticket: t.ticket, result, note: note.trim() || undefined, noExpense: expenseMode === "none" });
+        const r = await completeTrip({ shipmentId, ticket: t.ticket, result, note: note.trim() || undefined, noExpense: outsourced || expenseMode === "none" });
         if (!r.ok) {
           setProgress(null);
           return setError(r.error);
@@ -220,7 +220,7 @@ export function CompleteButton({ shipmentId, code, categories }: { shipmentId: s
               </div>
             </>
           )}
-          <div hidden={completed}>
+          <div hidden={completed || outsourced}>
             <div className="mb-1 text-sm font-medium">Chi phí chuyến (bắt buộc chọn)</div>
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Chi phí chuyến">
               {(
@@ -245,7 +245,7 @@ export function CompleteButton({ shipmentId, code, categories }: { shipmentId: s
               Chi phí tài xế tự trả (dầu, cầu đường, bốc xếp…). Nhập sót thì bấm &quot;Bổ sung chi phí&quot; trên thẻ chuyến trước khi văn phòng đóng chuyến.
             </p>
           </div>
-          {expenseMode === "has" ? <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} /> : null}
+          {expenseMode === "has" && !outsourced ? <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} /> : null}
           <ErrorText error={error} />
           <button
             type="button"

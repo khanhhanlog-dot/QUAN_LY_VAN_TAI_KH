@@ -254,7 +254,7 @@ begin
       from public.shipments s
       join public.locations pl on pl.id = s.pickup_location_id
       join public.locations dl on dl.id = s.delivery_location_id
-      where s.driver_id = d.id and s.status in ('assigned', 'accepted', 'in_transit', 'driver_completed')
+      where s.driver_id = d.id and s.status in ('assigned', 'accepted', 'in_transit', 'driver_completed') and not private.shipment_is_3pl(s)
         and s.pickup_at > now() - interval '30 days'), '[]'::jsonb),
     'advances', coalesce((
       select jsonb_agg(jsonb_build_object('id', a.id, 'code', a.code, 'amount', a.amount_requested, 'approved', a.amount_approved,
@@ -338,6 +338,9 @@ begin
   end if;
   if p_shipment_id is not null and not exists (select 1 from public.shipments where id = p_shipment_id and driver_id = d.id) then
     return jsonb_build_object('ok', false, 'error', 'Chuyến này không phân cho bạn.');
+  end if;
+  if p_shipment_id is not null and private.shipment_is_3pl((select s from public.shipments s where s.id = p_shipment_id)) then
+    return jsonb_build_object('ok', false, 'error', 'Chuyến chạy xe thuê ngoài 3PL không ứng tiền.');
   end if;
   if coalesce(p_amount, 0) <= 0 or p_amount > 1000000000 then
     return jsonb_build_object('ok', false, 'error', 'Nhập số tiền cần ứng.');
@@ -454,6 +457,238 @@ exception when sqlstate '22023' then
   return jsonb_build_object('ok', false, 'error', sqlerrm);
 end;
 $$;
+
+-- -----------------------------------------------------------------------------
+-- 3b. Ảnh biên lai không bắt buộc (khách hàng chốt 22/10/2026: bốc xếp, vá lốp dọc đường không có biên lai).
+--     Quản lý tự bật lại "Bắt buộc ảnh chứng từ" cho mục nào cần trong Danh mục hệ thống → Hạng mục chi phí.
+-- -----------------------------------------------------------------------------
+update public.expense_categories set requires_image = false where requires_image;
+alter table public.expense_categories alter column allowed_role_codes set default '{admin,accountant,dispatcher}';
+
+-- -----------------------------------------------------------------------------
+-- 3c. Xe thuê ngoài 3PL (khách hàng chốt 22/10/2026): chuyến chạy xe 3PL không ứng tiền, không nhập chi phí tài xế,
+--     hoàn thành chuyến không cần khai chi phí. Xe 3PL đánh dấu "Hình thức sở hữu = Thuê ngoài 3PL" trong danh mục Xe.
+-- -----------------------------------------------------------------------------
+alter table public.vehicles drop constraint vehicles_ownership_type_check;
+alter table public.vehicles add constraint vehicles_ownership_type_check
+  check (ownership_type in ('owned', 'leased', 'lease_purchase', 'outsourced'));
+
+create or replace function private.shipment_is_3pl(s public.shipments)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select v.ownership_type = 'outsourced' from public.vehicles v where v.id = s.vehicle_id), false);
+$$;
+revoke all on function private.shipment_is_3pl(public.shipments) from public, anon, authenticated;
+
+create or replace function public.driver_link_complete(
+  p_token text, p_shipment_id uuid, p_ticket uuid, p_result text default 'full', p_note text default null, p_no_expense boolean default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_me record;
+  v_s public.shipments;
+  v_name text;
+  v_counts jsonb;
+  v_photos int;
+  v_3pl boolean;
+begin
+  select * into v_me from private.driver_link_session(p_token);
+  if v_me.vehicle_id is null then
+    return jsonb_build_object('ok', false, 'error', 'Phiên đã hết hạn. Vui lòng nhập lại số xe.', 'expired', true);
+  end if;
+  select * into v_s from public.shipments where id = p_shipment_id for update;
+  if v_s.id is null or not private.driver_link_visible(v_me.vehicle_id, v_s) then
+    return jsonb_build_object('ok', false, 'error', 'Chuyến này không còn được phân công cho xe của bạn. Tải lại trang để xem.');
+  end if;
+  if v_s.status = 'driver_completed' then
+    return jsonb_build_object('ok', true);
+  end if;
+  if v_s.status <> 'in_transit' then
+    return jsonb_build_object('ok', false, 'error', 'Bấm "Bắt đầu chạy" trước khi hoàn thành chuyến.');
+  end if;
+  if coalesce(p_result, '') not in ('full', 'partial', 'failed') then
+    return jsonb_build_object('ok', false, 'error', 'Chọn kết quả giao hàng.');
+  end if;
+  if p_result <> 'full' and length(trim(coalesce(p_note, ''))) = 0 then
+    return jsonb_build_object('ok', false, 'error', 'Giao thiếu hoặc không giao được: vui lòng ghi lý do.');
+  end if;
+  v_3pl := private.shipment_is_3pl(v_s);
+  if p_no_expense is null and not v_3pl then
+    return jsonb_build_object('ok', false, 'error', 'Chọn "Có chi phí" và nhập chi phí, hoặc chọn "Không phát sinh chi phí".');
+  end if;
+
+  begin
+    v_counts := private.driver_attach_uploads(p_ticket, v_me.vehicle_id, 'shipment', v_s.id, array['photo', 'delivery_note']);
+  exception when sqlstate '22023' then
+    return jsonb_build_object('ok', false, 'error', sqlerrm);
+  end;
+  v_photos := coalesce((v_counts ->> 'photo')::int, 0) + coalesce((v_counts ->> 'delivery_note')::int, 0);
+  if v_photos = 0 then
+    raise exception 'Cần ít nhất 1 ảnh giao hàng hoặc phiếu ký nhận' using errcode = '22023';
+  end if;
+
+  update public.shipments
+     set status = 'driver_completed',
+         completed_at = now(),
+         arrived_delivery_at = coalesce(arrived_delivery_at, now()),
+         delivery_result = p_result,
+         completion_note = nullif(trim(coalesce(p_note, '')), ''),
+         document_status = case when document_status in ('missing', 'rejected') then 'submitted' else document_status end,
+         expense_declaration = case when v_3pl then null when p_no_expense then 'none' else 'has' end,
+         expense_declared_at = case when v_3pl then null else now() end
+   where id = v_s.id;
+  select full_name into v_name from public.drivers where id = v_s.driver_id;
+  perform private.driver_link_note(v_s.id, 'driver_completed', v_name || ' hoàn thành chuyến trên điện thoại (' || v_photos || ' ảnh'
+    || case when v_3pl then '' when p_no_expense then ', không phát sinh chi phí' else '' end || ')');
+  perform private.notify_dispatcher(v_s.id, 'shipment_completed', 'Tài xế ' || v_name || ' đã hoàn thành chuyến ' || v_s.shipment_code);
+  return jsonb_build_object('ok', true, 'photos', v_photos);
+exception when sqlstate '22023' then
+  return jsonb_build_object('ok', false, 'error', sqlerrm);
+end;
+$$;
+
+create or replace function public.driver_link_add_expense(
+  p_token text, p_shipment_id uuid, p_category_id uuid, p_amount numeric, p_note text default null,
+  p_ticket uuid default null, p_client_request_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_me record;
+  v_s public.shipments;
+  c public.expense_categories;
+  v_id uuid;
+  v_counts jsonb;
+  v_files int;
+begin
+  select * into v_me from private.driver_link_session(p_token);
+  if v_me.vehicle_id is null then
+    return jsonb_build_object('ok', false, 'error', 'Phiên đã hết hạn. Vui lòng nhập lại số xe.', 'expired', true);
+  end if;
+  if p_client_request_id is not null and exists (select 1 from public.shipment_expenses where client_request_id = p_client_request_id) then
+    return jsonb_build_object('ok', true);
+  end if;
+  select * into v_s from public.shipments where id = p_shipment_id;
+  if v_s.id is null or not private.driver_link_visible(v_me.vehicle_id, v_s) then
+    return jsonb_build_object('ok', false, 'error', 'Chọn chuyến của xe bạn.');
+  end if;
+  if v_s.status = 'closed' then
+    return jsonb_build_object('ok', false, 'error', 'Chuyến đã được văn phòng đóng, không bổ sung chi phí được. Vui lòng gọi kế toán.');
+  end if;
+  if private.shipment_is_3pl(v_s) then
+    return jsonb_build_object('ok', false, 'error', 'Chuyến chạy xe thuê ngoài 3PL không nhập chi phí tài xế.');
+  end if;
+  if v_s.status <> 'driver_completed' then
+    return jsonb_build_object('ok', false, 'error', 'Chi phí được nhập khi bấm Hoàn thành chuyến.');
+  end if;
+  select * into c from public.expense_categories
+   where id = p_category_id and is_active and 'driver' = any (allowed_role_codes);
+  if c.id is null then
+    return jsonb_build_object('ok', false, 'error', 'Chọn loại chi phí.');
+  end if;
+  if coalesce(p_amount, 0) <= 0 or p_amount > 1000000000 then
+    return jsonb_build_object('ok', false, 'error', 'Nhập số tiền.');
+  end if;
+
+  v_id := private.insert_expense(v_s, c, round(p_amount), now(), left(p_note, 500), 'driver', 'driver', v_s.driver_id, null,
+    '{}'::jsonb, p_client_request_id, (select full_name from public.drivers where id = v_s.driver_id) || ' (điện thoại)');
+  v_counts := private.driver_attach_uploads(p_ticket, v_me.vehicle_id, 'shipment_expense', v_id, array['receipt', 'invoice', 'photo']);
+  v_files := coalesce((select sum(value::int) from jsonb_each_text(v_counts)), 0);
+  if c.requires_image and v_files = 0 then
+    raise exception 'Loại chi phí "%" cần ảnh hóa đơn/biên lai', c.name using errcode = '22023';
+  end if;
+  update public.shipments set expense_declaration = 'has', expense_declared_at = coalesce(expense_declared_at, now())
+   where id = v_s.id and expense_declaration is distinct from 'has';
+  return jsonb_build_object('ok', true, 'code', (select code from public.shipment_expenses where id = v_id),
+                            'needs_approval', c.requires_approval);
+exception when sqlstate '22023' then
+  return jsonb_build_object('ok', false, 'error', sqlerrm);
+end;
+$$;
+
+drop function public.driver_link_trips(text);
+create function public.driver_link_trips(p_token text)
+returns table (
+  shipment_id uuid,
+  shipment_code text,
+  status text,
+  pickup_at timestamptz,
+  expected_delivery_at timestamptz,
+  plate_number text,
+  vehicle_type_name text,
+  quantity numeric,
+  notes text,
+  pickup_name text,
+  pickup_address text,
+  pickup_contact text,
+  pickup_phone text,
+  pickup_maps_url text,
+  pickup_gate_instructions text,
+  delivery_name text,
+  delivery_address text,
+  delivery_contact text,
+  delivery_phone text,
+  delivery_maps_url text,
+  delivery_gate_instructions text,
+  driver_name text,
+  accepted_at timestamptz,
+  started_at timestamptz,
+  completed_at timestamptz,
+  delivery_result text,
+  photo_count bigint,
+  expense_declaration text,
+  expense_count bigint,
+  expense_total numeric,
+  outsourced boolean
+)
+language sql
+security definer
+set search_path = ''
+as $$
+  select s.id, s.shipment_code, s.status, s.pickup_at, s.expected_delivery_at,
+         v.plate_number, vt.name, s.quantity, s.notes,
+         pl.name, pl.full_address, pl.contact_name, pl.phone,
+         coalesce(pl.google_maps_url, case when pl.latitude is not null then
+           'https://www.google.com/maps/search/?api=1&query=' || pl.latitude || ',' || pl.longitude end),
+         pl.gate_instructions,
+         dl.name, dl.full_address, dl.contact_name, dl.phone,
+         coalesce(dl.google_maps_url, case when dl.latitude is not null then
+           'https://www.google.com/maps/search/?api=1&query=' || dl.latitude || ',' || dl.longitude end),
+         dl.gate_instructions,
+         d.full_name, a.responded_at, s.departed_pickup_at, s.completed_at, s.delivery_result,
+         (select count(*) from public.documents doc
+           where doc.entity_type = 'shipment' and doc.entity_id = s.id and doc.archived_at is null),
+         s.expense_declaration,
+         (select count(*) from public.shipment_expenses e where e.shipment_id = s.id and e.source = 'driver' and e.status in ('pending', 'approved')),
+         (select coalesce(sum(e.amount), 0) from public.shipment_expenses e where e.shipment_id = s.id and e.source = 'driver' and e.status in ('pending', 'approved')),
+         coalesce(v.ownership_type = 'outsourced', false)
+  from private.driver_link_session(p_token) me
+  join public.shipments s on private.driver_link_visible(me.vehicle_id, s)
+  join public.drivers d on d.id = s.driver_id
+  join public.locations pl on pl.id = s.pickup_location_id
+  join public.locations dl on dl.id = s.delivery_location_id
+  left join public.vehicles v on v.id = s.vehicle_id
+  left join public.vehicle_types vt on vt.id = s.vehicle_type_id
+  left join public.shipment_assignments a
+    on a.shipment_id = s.id and a.driver_id = s.driver_id and a.response = 'accepted'
+  where (s.status in ('assigned', 'accepted', 'in_transit')
+     or (s.status in ('driver_completed', 'closed') and s.pickup_at > now() - interval '3 days'))
+  order by (s.status = 'assigned') desc, (s.status = 'in_transit') desc, s.pickup_at
+  limit 100;
+$$;
+revoke all on function public.driver_link_trips(text) from public;
+grant execute on function public.driver_link_trips(text) to anon, authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 4. Link biển số: chỉ còn chuyến. Loại chi phí cho bước hoàn thành chuyến.

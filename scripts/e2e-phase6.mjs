@@ -79,7 +79,7 @@ await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await dialog(page).getByRole("radio", { name: "Có chi phí" }).click();
   const line1 = dialog(page).locator("[data-expense-line='1']");
   await line1.getByLabel("Loại chi phí").selectOption({ label: "Cầu đường" });
-  check(await visible(line1.getByText("Bắt buộc chụp hóa đơn")), "Loại chi phí báo cần ảnh hóa đơn");
+  check(await visible(line1.getByText("Ảnh hóa đơn không bắt buộc")), "Ảnh hóa đơn không bắt buộc (bốc xếp, vá lốp dọc đường không có biên lai)");
   await line1.getByLabel("Số tiền").fill("120000");
   await dialog(page).getByRole("button", { name: "Thêm khoản chi phí" }).click();
   const line2 = dialog(page).locator("[data-expense-line='2']");
@@ -87,8 +87,6 @@ await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await line2.getByLabel("Số tiền").fill("50000");
   await line2.getByLabel("Ghi chú").fill("Cơm trưa");
   check(await visible(dialog(page).getByText("170.000 đ")), "Hiện tổng chi phí các khoản");
-  await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();
-  check(await visible(dialog(page).getByText(/cần chụp hóa đơn.*khoản 1/)), "Khoản bắt buộc ảnh chưa có ảnh thì không gửi được");
   await line1.getByLabel("Chọn ảnh có sẵn").setInputFiles([photo("bienlai.png")]);
   await shot(page, "p6-01-hoan-thanh");
   await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();

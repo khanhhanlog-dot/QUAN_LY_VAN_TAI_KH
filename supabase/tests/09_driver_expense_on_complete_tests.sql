@@ -163,5 +163,43 @@ set role authenticated;
 select tests.assert((public.driver_me() ->> 'ok')::boolean = false, 'Tài khoản bị khóa không vào được trang tiền');
 reset role;
 
+-- Xe thuê ngoài 3PL: không ứng tiền, không nhập chi phí
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+insert into t_ex select 's1', id::text from public.shipments
+ where vehicle_id = '50000000-0000-0000-0000-000000000001' and status = 'driver_completed' order by completed_at desc limit 1;
+update public.vehicles set ownership_type = 'outsourced' where id = '50000000-0000-0000-0000-000000000001';
+set role anon;
+insert into t_ex select 'tok3', public.driver_link_login('51C12345') ->> 'token';
+select tests.assert((select outsourced from public.driver_link_trips((select v from t_ex where k = 'tok3')) where shipment_id = (select v::uuid from t_ex where k = 's1')),
+  'Thẻ chuyến biết chuyến chạy xe 3PL');
+select tests.assert((public.driver_link_add_expense((select v from t_ex where k = 'tok3'), (select v::uuid from t_ex where k = 's1'),
+  (select v::uuid from t_ex where k = 'cat_MEAL'), 30000) ->> 'error') like '%3PL%', 'Chuyến xe 3PL không nhập chi phí');
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((public.driver_me_request_advance(100000, 'Ứng cho chuyến 3PL', (select v::uuid from t_ex where k = 's1')) ->> 'error') like '%3PL%',
+  'Chuyến xe 3PL không ứng tiền');
+select tests.assert(not exists (select 1 from jsonb_array_elements(public.driver_me_finance() -> 'trips') x where x ->> 'id' = (select v from t_ex where k = 's1')),
+  'Danh sách chuyến để ứng tiền bỏ chuyến xe 3PL');
+reset role;
+-- Hoàn thành chuyến xe 3PL không cần khai chi phí
+insert into public.shipments (id, order_id, sequence_in_order, pickup_at, pickup_location_id, delivery_location_id, vehicle_type_id, unit_price, driver_id, vehicle_id)
+values ('70000000-0000-0000-0000-000000000039', '60000000-0000-0000-0000-000000000001', 39, now(), '20000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+        '30000000-0000-0000-0000-000000000001', 3500000, '40000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001');
+update public.shipments set status = 'assigned' where id = '70000000-0000-0000-0000-000000000039';
+update public.shipments set status = 'accepted' where id = '70000000-0000-0000-0000-000000000039';
+update public.shipments set status = 'in_transit' where id = '70000000-0000-0000-0000-000000000039';
+set role anon;
+insert into t_ex select 'ticket3', public.driver_link_upload_ticket((select v from t_ex where k = 'tok3'), '70000000-0000-0000-0000-000000000039', 'delivery') ->> 'ticket';
+insert into storage.objects (bucket_id, name, metadata)
+values ('documents', 'tx/' || (select v from t_ex where k = 'ticket3') || '/photo-' || gen_random_uuid() || '.jpg', '{"mimetype":"image/jpeg","size":120000}');
+select tests.assert((public.driver_link_complete((select v from t_ex where k = 'tok3'), '70000000-0000-0000-0000-000000000039',
+  (select v::uuid from t_ex where k = 'ticket3'), 'full', null) ->> 'ok')::boolean, 'Hoàn thành chuyến xe 3PL không cần khai chi phí');
+reset role;
+select tests.assert((select status = 'driver_completed' and expense_declaration is null from public.shipments where id = '70000000-0000-0000-0000-000000000039'),
+  'Chuyến xe 3PL không ghi khai báo chi phí');
+update public.vehicles set ownership_type = 'owned' where id = '50000000-0000-0000-0000-000000000001';
+
 \o
 \echo 'TẤT CẢ KIỂM THỬ CHI PHÍ KHI HOÀN THÀNH CHUYẾN ĐỀU ĐẠT'

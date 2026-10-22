@@ -104,7 +104,7 @@ export function ExpenseLineFields({
         </NativeSelect>
         {c ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            {c.requires_image ? "Bắt buộc chụp hóa đơn / biên lai. " : ""}
+            {c.requires_image ? "Bắt buộc chụp hóa đơn / biên lai. " : "Ảnh hóa đơn không bắt buộc. "}
             {c.requires_approval ? "Cần Giám đốc duyệt." : "Không cần duyệt."}
           </p>
         ) : null}

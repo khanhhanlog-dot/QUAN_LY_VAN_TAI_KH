@@ -47,6 +47,7 @@ type Trip = {
   expense_declaration: "none" | "has" | null;
   expense_count: number;
   expense_total: number;
+  outsourced: boolean;
 };
 
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
@@ -124,7 +125,7 @@ export default async function DriverHome() {
                 ) : t.status === "in_transit" ? (
                   <>
                     {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
-                    <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} />
+                    <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} outsourced={t.outsourced} />
                   </>
                 ) : t.completed_at ? (
                   <>
@@ -132,15 +133,19 @@ export default async function DriverHome() {
                       Hoàn thành lúc {formatDateTime(t.completed_at)}
                       {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
                     </p>
-                    <p data-expense-summary className="mt-2 flex items-center justify-center gap-1.5 text-sm">
-                      <Receipt className="size-4 text-muted-foreground" />
-                      {Number(t.expense_count) > 0
-                        ? `Chi phí: ${t.expense_count} khoản · ${formatVND(Number(t.expense_total))}`
-                        : t.expense_declaration === "none"
-                          ? "Đã xác nhận không phát sinh chi phí"
-                          : "Chưa có chi phí"}
-                    </p>
-                    {t.status === "driver_completed" ? <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} /> : null}
+                    {t.outsourced ? (
+                      <p className="mt-2 text-center text-sm text-muted-foreground">Xe thuê ngoài 3PL: không nhập chi phí tài xế</p>
+                    ) : (
+                      <p data-expense-summary className="mt-2 flex items-center justify-center gap-1.5 text-sm">
+                        <Receipt className="size-4 text-muted-foreground" />
+                        {Number(t.expense_count) > 0
+                          ? `Chi phí: ${t.expense_count} khoản · ${formatVND(Number(t.expense_total))}`
+                          : t.expense_declaration === "none"
+                            ? "Đã xác nhận không phát sinh chi phí"
+                            : "Chưa có chi phí"}
+                      </p>
+                    )}
+                    {t.status === "driver_completed" && !t.outsourced ? <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} /> : null}
                   </>
                 ) : null}
               </li>
