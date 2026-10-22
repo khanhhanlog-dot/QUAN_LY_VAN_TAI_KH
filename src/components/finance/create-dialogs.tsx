@@ -21,9 +21,11 @@ export type CreateActionProps = {
   onDone: () => void;
   /** Điền sẵn chuyến (khi mở từ trang chi tiết chuyến) */
   shipment?: { id: string; label: string; driverId?: string | null; driverLabel?: string | null };
+  /** Giá trị điền sẵn từ tham số đường dẫn (?new=1&customer=…&shipment=…) */
+  prefill?: Record<string, string>;
 };
 
-function MoneyField({ id, value, onChange }: { id: string; value: number | null; onChange: (v: number | null) => void }) {
+export function MoneyField({ id, value, onChange }: { id: string; value: number | null; onChange: (v: number | null) => void }) {
   return (
     <Input
       id={id}
@@ -39,7 +41,7 @@ function MoneyField({ id, value, onChange }: { id: string; value: number | null;
   );
 }
 
-function Field({ label, htmlFor, help, children, wide }: { label: string; htmlFor: string; help?: string; children: React.ReactNode; wide?: boolean }) {
+export function Field({ label, htmlFor, help, children, wide }: { label: string; htmlFor: string; help?: string; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className={wide ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
       <Label htmlFor={htmlFor}>{label}</Label>

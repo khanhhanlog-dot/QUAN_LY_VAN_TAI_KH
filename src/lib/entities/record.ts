@@ -303,6 +303,7 @@ export function formatValue(f: FieldDef, v: unknown, refLabel?: string | null): 
       if (f.displayFormat === "percent") return `${formatNumber(v as number)}%`;
       return formatNumber(v as number);
     case "date":
+      if (f.displayFormat === "MM/yyyy" && typeof v === "string") return `${v.slice(5, 7)}/${v.slice(0, 4)}`;
       return formatDate(v as string);
     case "datetime":
       return formatDateTime(v as string);

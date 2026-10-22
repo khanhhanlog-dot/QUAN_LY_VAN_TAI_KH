@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/bar-chart";
 import { LineChart } from "@/components/charts/line-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
-import { addDaysYMD, formatDate, formatDateTime, todayVN } from "@/lib/format";
+import { addDaysYMD, formatDate, formatDateTime, formatVND, todayVN } from "@/lib/format";
 import { SHIPMENT_STATUS, shipmentStatus } from "@/lib/status";
 import { TONE_BADGE, toneVar, type Tone } from "@/lib/tones";
 import { cn } from "@/lib/utils";
@@ -106,6 +106,32 @@ export default async function DashboardPage() {
       .limit(6);
     if (error) throw error;
     expiring = data ?? [];
+  }
+
+  // Chỉ tiêu tài chính (người có quyền xem báo cáo); khoản nào không có quyền thì ghi rõ
+  let finance: { label: string; value: number | null }[] | null = null;
+  if (perms.has("reports.view")) {
+    const sum = async (q: PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>, col: string) => {
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).reduce((a, r) => a + Number(r[col] ?? 0), 0);
+    };
+    const month = `${today.slice(0, 7)}-01`;
+    const [m, ar, ap, adv] = await Promise.all([
+      supabase.from("report_monthly").select("revenue, cost, profit").eq("report_month", month).maybeSingle(),
+      perms.has("receivables.view") ? sum(supabase.from("receivable_list").select("remaining_amount").in("status", ["open", "partial"]), "remaining_amount") : null,
+      perms.has("receivables.view") ? sum(supabase.from("payable_list").select("remaining_amount").in("status", ["open", "partial"]), "remaining_amount") : null,
+      sum(supabase.from("report_advance_balance").select("balance"), "balance"),
+    ]);
+    if (m.error) throw m.error;
+    finance = [
+      { label: "Doanh thu", value: Number(m.data?.revenue ?? 0) },
+      { label: "Chi phí chuyến", value: Number(m.data?.cost ?? 0) },
+      { label: "Lợi nhuận gộp", value: Number(m.data?.profit ?? 0) },
+      { label: "Công nợ phải thu", value: ar },
+      { label: "Công nợ phải trả", value: ap },
+      { label: "Tạm ứng tài xế đang giữ", value: adv },
+    ];
   }
 
   const todos: { icon: LucideIcon; tone: Tone; label: string; value: number; href?: string }[] = [];
@@ -313,27 +339,31 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ) : null}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Wallet className="size-4 text-tone-green" /> Tổng quan tài chính
-            </CardTitle>
-            <CardDescription>Chưa triển khai – Giai đoạn 7</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2">
-              {["Doanh thu", "Chi phí", "Lợi nhuận", "Công nợ phải thu", "Công nợ phải trả", "Tạm ứng chưa quyết toán"].map((k) => (
-                <div key={k} className="rounded-lg border border-dashed px-3 py-2">
-                  <div className="text-xs text-muted-foreground">{k}</div>
-                  <div className="text-sm text-muted-foreground">Chưa có dữ liệu</div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Các chỉ tiêu này sẽ tính trực tiếp từ dữ liệu chuyến, chi phí và thanh toán khi các module tương ứng hoàn thành. Hệ thống không hiển thị số liệu ước đoán.
-            </p>
-          </CardContent>
-        </Card>
+        {finance ? (
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Wallet className="size-4 text-tone-green" /> Tổng quan tài chính
+                </CardTitle>
+                <CardDescription>Tháng này, tính từ chuyến, chi phí đã duyệt và phiếu thu chi</CardDescription>
+              </div>
+              <Link href="/bao-cao" className="text-xs text-primary hover:underline">
+                Báo cáo
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                {finance.map((k) => (
+                  <div key={k.label} className="rounded-lg border px-3 py-2">
+                    <div className="text-xs text-muted-foreground">{k.label}</div>
+                    <div className="text-sm font-semibold tabular-nums">{k.value === null ? "Không có quyền xem" : formatVND(k.value)}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </>
   );

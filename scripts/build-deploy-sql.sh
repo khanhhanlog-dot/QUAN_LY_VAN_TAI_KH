@@ -61,3 +61,6 @@ upgrade nang-cap-giai-doan-5b.sql "Giai đoạn 5b (trường bổ sung cho mọ
 
 upgrade nang-cap-giai-doan-6.sql "Giai đoạn 6 (hoàn thành chuyến kèm ảnh, ứng tiền, chi phí, phê duyệt)" "to_regprocedure('public.approval_decide(uuid,text,text,numeric)') is not null" \
   supabase/migrations/20261022000016_driver_progress_finance.sql
+
+upgrade nang-cap-giai-doan-7.sql "Giai đoạn 7 (đối soát lương tài xế, công nợ, báo cáo)" "to_regclass('public.driver_payrolls') is not null" \
+  supabase/migrations/20261022000017_payroll_debts_reports.sql

@@ -12,10 +12,12 @@ const money = (label: string) => z.number({ error: `Nhập ${label}` }).positive
 function refreshFinance() {
   revalidatePath("/chi-phi");
   revalidatePath("/phe-duyet");
+  revalidatePath("/cong-no");
+  revalidatePath("/bao-cao");
 }
 
 /** Kiểm tra và tách giá trị trường bổ sung của module (ứng tiền / chi phí) */
-async function customValues(module: "advances" | "expenses", raw: Record<string, unknown> | undefined, perms: Set<string>) {
+async function customValues(module: "advances" | "expenses" | "payrolls" | "receivables" | "payables", raw: Record<string, unknown> | undefined, perms: Set<string>) {
   const supabase = await createClient();
   const rows = visibleCustomRows(await loadCustomFields(supabase, module), perms);
   const fields = moduleCustomFields(module, rows, perms).filter((f) => !f.readOnly && f.type !== "formula");
@@ -212,4 +214,315 @@ export async function registerDocuments(input: z.input<typeof registerSchema>): 
     }
     refreshFinance();
   }, "Đã tải chứng từ lên");
+}
+
+// ---------------------------------------------------------------- Lương tài xế (Giai đoạn 7)
+const month = z
+  .string()
+  .regex(/^\d{4}-\d{2}(-\d{2})?$/, "Chọn tháng")
+  .transform((v) => `${v.slice(0, 7)}-01`);
+const optMoney = z.number().min(0, "Không được âm").max(1_000_000_000_000).optional();
+
+export type PayrollPreview = {
+  driver_name: string;
+  period_from: string;
+  period_to: string;
+  trip_count: number;
+  base_salary: number;
+  per_trip_salary: number;
+  trip_salary: number;
+  meal_allowance: number;
+  other_allowance: number;
+  bonus: number;
+  deduction: number;
+  expense_count: number;
+  expense_reimbursement: number;
+  advance_balance: number;
+  advance_offset: number;
+  advance_carry: number;
+  gross_amount: number;
+  net_amount: number;
+  existing: string | null;
+};
+
+const previewSchema = z.object({ driverId: uuid, month, bonus: optMoney, deduction: optMoney });
+
+export async function previewPayroll(input: z.input<typeof previewSchema>): Promise<ActionResult<PayrollPreview>> {
+  return runAction(async () => {
+    await requirePermission("settlements.update");
+    const d = previewSchema.parse(input);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("driver_payroll_preview", {
+      p_driver_id: d.driverId,
+      p_month: d.month,
+      p_bonus: d.bonus ?? 0,
+      p_deduction: d.deduction ?? 0,
+    });
+    if (error) throw error;
+    return data as PayrollPreview;
+  });
+}
+
+const payrollSchema = previewSchema.extend({ note: z.string().max(1000).optional(), custom: z.record(z.string(), z.unknown()).optional() });
+
+export async function createPayroll(input: z.input<typeof payrollSchema>): Promise<ActionResult<string>> {
+  return runAction(async () => {
+    const me = await requirePermission("settlements.update");
+    const d = payrollSchema.parse(input);
+    const custom = await customValues("payrolls", d.custom, me.permissions);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("create_driver_payroll", {
+      p_driver_id: d.driverId,
+      p_month: d.month,
+      p_bonus: d.bonus ?? 0,
+      p_deduction: d.deduction ?? 0,
+      p_note: d.note ?? null,
+      p_custom_fields: custom,
+    });
+    if (error) throw error;
+    refreshFinance();
+    return data as string;
+  }, "Đã lập bảng lương và gửi Giám đốc duyệt");
+}
+
+export async function createPayrollsForMonth(input: { month: string }): Promise<ActionResult<{ created: number; skipped: number }>> {
+  return runAction(async () => {
+    await requirePermission("settlements.update");
+    const m = month.parse(input.month);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("create_driver_payrolls_for_month", { p_month: m });
+    if (error) throw error;
+    refreshFinance();
+    return data as { created: number; skipped: number };
+  });
+}
+
+const reasonSchema = z.object({ id: uuid, reason: z.string().trim().min(1, "Nhập lý do").max(500) });
+
+export async function cancelPayroll(input: z.input<typeof reasonSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("settlements.update");
+    const d = reasonSchema.parse(input);
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("cancel_driver_payroll", { p_payroll_id: d.id, p_reason: d.reason });
+    if (error) throw error;
+    refreshFinance();
+  }, "Đã hủy bảng lương");
+}
+
+const payOutSchema = z.object({
+  id: uuid,
+  paymentMethodId: uuid.optional(),
+  bankAccountId: uuid.optional(),
+  referenceNo: z.string().max(100).optional(),
+  paidAt: z.string().optional(),
+  note: z.string().max(1000).optional(),
+});
+
+export async function payPayroll(input: z.input<typeof payOutSchema>): Promise<ActionResult<string>> {
+  return runAction(async () => {
+    await requirePermission("settlements.update");
+    const d = payOutSchema.parse(input);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("pay_driver_payroll", {
+      p_payroll_id: d.id,
+      p_payment_method_id: d.paymentMethodId ?? null,
+      p_company_bank_account_id: d.bankAccountId ?? null,
+      p_reference_no: d.referenceNo ?? null,
+      p_paid_at: d.paidAt ? new Date(d.paidAt).toISOString() : null,
+      p_note: d.note ?? null,
+    });
+    if (error) throw error;
+    refreshFinance();
+    return data as string;
+  }, "Đã ghi nhận trả lương");
+}
+
+// ---------------------------------------------------------------- Công nợ (Giai đoạn 7)
+export type BillingShipment = {
+  id: string;
+  shipment_code: string;
+  completed_at: string | null;
+  pickup_name: string | null;
+  delivery_name: string | null;
+  total_revenue: number;
+};
+
+/** Các chuyến đã hoàn thành chưa lập công nợ của một khách hàng thanh toán */
+export async function listBillingShipments(customerId: string): Promise<ActionResult<BillingShipment[]>> {
+  return runAction(async () => {
+    await requirePermission("receivables.create");
+    if (!uuid.safeParse(customerId).success) throw new ActionError("Chọn khách hàng");
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("billing_shipment_list")
+      .select("id, shipment_code, completed_at, pickup_name, delivery_name, total_revenue")
+      .eq("customer_id", customerId)
+      .order("completed_at")
+      .limit(500);
+    if (error) throw error;
+    return (data ?? []) as BillingShipment[];
+  });
+}
+
+const dateStr = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .optional();
+const receivableSchema = z.object({
+  mode: z.enum(["shipments", "other"]),
+  customerId: uuid,
+  shipmentIds: z.array(uuid).max(500).optional(),
+  amount: optMoney,
+  issuedDate: dateStr,
+  dueDate: dateStr,
+  invoiceNo: z.string().max(100).optional(),
+  note: z.string().max(1000).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
+});
+
+export async function createReceivable(input: z.input<typeof receivableSchema>): Promise<ActionResult<string>> {
+  return runAction(async () => {
+    const me = await requirePermission("receivables.create");
+    const d = receivableSchema.parse(input);
+    const custom = await customValues("receivables", d.custom, me.permissions);
+    const supabase = await createClient();
+    const common = {
+      p_issued_date: d.issuedDate ?? null,
+      p_due_date: d.dueDate ?? null,
+      p_invoice_no: d.invoiceNo ?? null,
+      p_note: d.note ?? null,
+      p_custom_fields: custom,
+    };
+    const { data, error } =
+      d.mode === "shipments"
+        ? await (async () => {
+            if (!d.shipmentIds?.length) throw new ActionError("Chọn ít nhất một chuyến");
+            return supabase.rpc("create_receivable_from_shipments", { p_shipment_ids: d.shipmentIds, ...common });
+          })()
+        : await (async () => {
+            if (!d.amount) throw new ActionError("Nhập số tiền");
+            return supabase.rpc("create_receivable", { p_customer_id: d.customerId, p_amount: d.amount, ...common });
+          })();
+    if (error) throw error;
+    refreshFinance();
+    return data as string;
+  }, "Đã lập công nợ phải thu");
+}
+
+const payableSchema = z.object({
+  supplierId: uuid.optional(),
+  driverId: uuid.optional(),
+  amount: money("số tiền"),
+  content: z.string().trim().min(1, "Nhập nội dung").max(500),
+  shipmentId: uuid.optional(),
+  issuedDate: dateStr,
+  dueDate: dateStr,
+  invoiceNo: z.string().max(100).optional(),
+  note: z.string().max(1000).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
+});
+
+export async function createPayable(input: z.input<typeof payableSchema>): Promise<ActionResult<string>> {
+  return runAction(async () => {
+    const me = await requirePermission("receivables.create");
+    const d = payableSchema.parse(input);
+    if (!d.supplierId && !d.driverId) throw new ActionError("Chọn nhà cung cấp hoặc tài xế");
+    const custom = await customValues("payables", d.custom, me.permissions);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("create_payable", {
+      p_supplier_id: d.supplierId ?? null,
+      p_driver_id: d.driverId ?? null,
+      p_amount: d.amount,
+      p_content: d.content,
+      p_issued_date: d.issuedDate ?? null,
+      p_due_date: d.dueDate ?? null,
+      p_shipment_id: d.shipmentId ?? null,
+      p_invoice_no: d.invoiceNo ?? null,
+      p_note: d.note ?? null,
+      p_custom_fields: custom,
+    });
+    if (error) throw error;
+    refreshFinance();
+    return data as string;
+  }, "Đã lập công nợ phải trả");
+}
+
+const debtPaySchema = payOutSchema.extend({
+  kind: z.enum(["receivable", "payable"]),
+  amount: money("số tiền"),
+});
+
+export async function recordDebtPayment(input: z.input<typeof debtPaySchema>): Promise<ActionResult<string>> {
+  return runAction(
+    async () => {
+      await requirePermission("receivables.pay");
+      const d = debtPaySchema.parse(input);
+      const supabase = await createClient();
+      const { data, error } = await supabase.rpc("record_debt_payment", {
+        p_kind: d.kind,
+        p_debt_id: d.id,
+        p_amount: d.amount,
+        p_payment_method_id: d.paymentMethodId ?? null,
+        p_company_bank_account_id: d.bankAccountId ?? null,
+        p_reference_no: d.referenceNo ?? null,
+        p_paid_at: d.paidAt ? new Date(d.paidAt).toISOString() : null,
+        p_note: d.note ?? null,
+      });
+      if (error) throw error;
+      refreshFinance();
+      return data as string;
+    },
+    input.kind === "receivable" ? "Đã ghi nhận thu tiền" : "Đã ghi nhận trả tiền",
+  );
+}
+
+export async function cancelDebt(input: z.input<typeof reasonSchema> & { kind: "receivable" | "payable" }): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("receivables.delete");
+    const d = reasonSchema.parse(input);
+    const kind = z.enum(["receivable", "payable"]).parse(input.kind);
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("cancel_debt", { p_kind: kind, p_debt_id: d.id, p_reason: d.reason });
+    if (error) throw error;
+    refreshFinance();
+  }, "Đã hủy công nợ");
+}
+
+export async function voidPayment(input: z.input<typeof reasonSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("payments.delete");
+    const d = reasonSchema.parse(input);
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("void_payment", { p_payment_id: d.id, p_reason: d.reason });
+    if (error) throw error;
+    refreshFinance();
+  }, "Đã hủy phiếu");
+}
+
+export type DebtPayment = {
+  id: string;
+  code: string;
+  amount: number;
+  paid_at: string;
+  status: string;
+  reference_no: string | null;
+  void_reason: string | null;
+  can_void: boolean;
+};
+
+/** Lịch sử phiếu thu/chi của một công nợ */
+export async function listDebtPayments(kind: "receivable" | "payable", id: string): Promise<ActionResult<DebtPayment[]>> {
+  return runAction(async () => {
+    const me = await requirePermission("receivables.view");
+    if (!uuid.safeParse(id).success) throw new ActionError("Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("payments")
+      .select("id, code, amount, paid_at, status, reference_no, void_reason")
+      .eq(kind === "receivable" ? "receivable_id" : "payable_id", id)
+      .order("paid_at");
+    if (error) throw error;
+    return ((data ?? []) as Omit<DebtPayment, "can_void">[]).map((p) => ({ ...p, can_void: p.status === "posted" && me.permissions.has("payments.delete") }));
+  });
 }

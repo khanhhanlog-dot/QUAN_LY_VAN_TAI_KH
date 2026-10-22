@@ -117,6 +117,8 @@ export type EntityDef = {
   rowActions?: string;
   /** Mọi thao tác ghi cần đúng một quyền này (ví dụ approvals.configure) */
   writePerm?: string;
+  /** Quyền hiện nút tạo nghiệp vụ (mặc định {perm}.create) */
+  createPerm?: string;
 };
 
 /** Cấu hình hiển thị bảng lưu theo người dùng */

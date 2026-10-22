@@ -11,7 +11,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const { active, nav } = await resolveEntityTabs({
     basePath: "/chi-phi",
     searchParams: sp,
-    tabs: [{ key: "advances", label: "Ứng tiền" }, { key: "expenses", label: "Chi phí chuyến" }],
+    tabs: [{ key: "advances", label: "Ứng tiền" }, { key: "expenses", label: "Chi phí chuyến" }, { key: "payrolls", label: "Đối soát lương" }],
   });
   return (
     <>

@@ -27,9 +27,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Tài chính",
     items: [
       { href: "/chi-phi", label: "Ứng tiền và chi phí", icon: "Receipt", anyOf: ["expenses.view", "advances.view", "settlements.view"] },
-      { href: "/cong-no", label: "Công nợ", icon: "Wallet", anyOf: ["receivables.view"], phase: 7 },
+      { href: "/cong-no", label: "Công nợ", icon: "Wallet", anyOf: ["receivables.view", "payments.view"] },
       { href: "/phe-duyet", label: "Phê duyệt", icon: "BadgeCheck", anyOf: ["approvals.view"] },
-      { href: "/bao-cao", label: "Báo cáo", icon: "BarChart3", anyOf: ["reports.view"], phase: 7 },
+      { href: "/bao-cao", label: "Báo cáo", icon: "BarChart3", anyOf: ["reports.view"] },
     ],
   },
   {

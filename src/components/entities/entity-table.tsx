@@ -121,9 +121,16 @@ export function EntityTable(props: EntityTableProps) {
   const [deleting, setDeleting] = useState<Row | null>(null);
   const [delPending, startDelete] = useTransition();
   const [q, setQ] = useState(props.q ?? "");
-  const [createOpen, setCreateOpen] = useState(false);
   const CreateAction = entity.createAction ? CREATE_ACTIONS[entity.createAction] : undefined;
+  // Mở sẵn biểu mẫu nghiệp vụ khi đường dẫn có ?new=1 (ví dụ bấm "Lập công nợ" từ danh sách chuyến)
+  const [createOpen, setCreateOpenRaw] = useState(() => Boolean(CreateAction && access.create && searchParams.get("new") === "1"));
+  const [prefill] = useState<Record<string, string>>(() => (searchParams.get("new") === "1" ? Object.fromEntries(searchParams.entries()) : {}));
   const RowAction = entity.rowActions ? ROW_ACTIONS[entity.rowActions] : undefined;
+
+  function setCreateOpen(o: boolean) {
+    setCreateOpenRaw(o);
+    if (!o && searchParams.get("new") === "1") setParams({ new: null, customer: null, shipment: null });
+  }
 
   function setParams(patch: Record<string, string | null>) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -638,6 +645,7 @@ export function EntityTable(props: EntityTableProps) {
           onOpenChange={setCreateOpen}
           customRows={customRows}
           canAddField={access.configureFields}
+          prefill={prefill}
           onDone={() => {
             setCreateOpen(false);
             router.refresh();

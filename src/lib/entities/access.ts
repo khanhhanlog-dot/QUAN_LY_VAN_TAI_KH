@@ -18,7 +18,7 @@ export function entityAccess(entity: EntityDef, perms: Set<string>): EntityAcces
   if (entity.readOnlyRows) {
     return {
       view,
-      create: Boolean(entity.createAction) && sensitiveOk && has("create"),
+      create: Boolean(entity.createAction) && sensitiveOk && (entity.createPerm ? perms.has(entity.createPerm) : has("create")),
       update: false,
       delete: false,
       export: exp,

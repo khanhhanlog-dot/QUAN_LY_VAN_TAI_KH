@@ -244,7 +244,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   check(await visible(page.getByText("Số chuyến 14 ngày gần đây")), "Tổng quan có biểu đồ số chuyến theo ngày");
   check(await visible(page.getByRole("img", { name: /Biểu đồ tròn/ })), "Tổng quan có biểu đồ trạng thái chuyến");
   check(await visible(page.locator("tbody").getByText("Chờ tài xế nhận")), "Chuyến gần đây hiển thị nhãn trạng thái");
-  check(await visible(page.getByText("Chưa triển khai – Giai đoạn 7")), "Chỉ tiêu tài chính ghi rõ chưa triển khai, không có số giả");
+  check(await visible(page.getByText("Tạm ứng tài xế đang giữ")), "Tổng quan có chỉ tiêu tài chính tính từ dữ liệu thật");
   await shot(page, "p3-07-tong-quan");
 
   await page.getByRole("combobox", { name: "Tìm chức năng" }).fill("bang gia");

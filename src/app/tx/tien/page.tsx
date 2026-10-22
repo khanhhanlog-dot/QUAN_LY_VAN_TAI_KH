@@ -18,12 +18,24 @@ type Finance = {
   month: { advance_paid: number; expense_approved: number; expense_pending: number };
 };
 
+type Payrolls = {
+  ok: boolean;
+  advance_balance: number;
+  payrolls: { code: string; period: string; trip_count: number; salary: number; expense_reimbursement: number; advance_offset: number; net_amount: number; status: string; paid_at: string | null }[];
+};
+
 const STATUS: Record<string, { label: string; variant: "warning" | "success" | "secondary" | "info" | "destructive" }> = {
   pending: { label: "Chờ Giám đốc duyệt", variant: "warning" },
   approved: { label: "Đã duyệt", variant: "info" },
   paid: { label: "Đã chuyển tiền", variant: "success" },
   rejected: { label: "Bị từ chối", variant: "destructive" },
   cancelled: { label: "Đã hủy", variant: "secondary" },
+};
+const PAYROLL_STATUS: typeof STATUS = {
+  pending: { label: "Chờ Giám đốc duyệt", variant: "warning" },
+  approved: { label: "Đã duyệt, chờ trả lương", variant: "info" },
+  paid: { label: "Đã trả lương", variant: "success" },
+  rejected: { label: "Đang lập lại", variant: "secondary" },
 };
 const ADV_STATUS: typeof STATUS = { ...STATUS, approved: { label: "Đã duyệt, chờ kế toán chuyển tiền", variant: "info" as const } };
 
@@ -32,12 +44,14 @@ export default async function DriverMoney() {
   const supabase = anonClient();
   const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string } | null) : null;
   if (!me) return <PlateForm />;
-  const [finRes, tripRes] = await Promise.all([
+  const [finRes, tripRes, payRes] = await Promise.all([
     supabase.rpc("driver_link_finance", { p_token: token }),
     supabase.rpc("driver_link_trips", { p_token: token }),
+    supabase.rpc("driver_link_payrolls", { p_token: token }),
   ]);
   if (finRes.error) throw finRes.error;
   const f = finRes.data as Finance;
+  const pay = (payRes.data ?? { ok: false, advance_balance: 0, payrolls: [] }) as Payrolls;
   const trips = ((tripRes.data ?? []) as { shipment_id: string; shipment_code: string; status: string; pickup_name: string; delivery_name: string }[])
     .filter((t) => ["accepted", "in_transit", "driver_completed", "closed"].includes(t.status))
     .map((t) => ({ id: t.shipment_id, label: `${t.shipment_code} · ${t.pickup_name} → ${t.delivery_name}` }));
@@ -54,7 +68,10 @@ export default async function DriverMoney() {
           <Stat label="Chi phí đã duyệt" value={f.month.expense_approved} />
           <Stat label="Chi phí chờ duyệt" value={f.month.expense_pending} />
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">Cuối tháng kế toán đối soát: tiền đã ứng trừ chi phí được duyệt, phần còn lại cộng hoặc trừ vào lương.</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Tiền ứng đang giữ: <b className="tabular-nums text-foreground">{formatVND(pay.advance_balance ?? 0)}</b>. Cuối tháng kế toán đối soát: lương cộng chi phí tự trả
+          đã duyệt, trừ tiền đã ứng.
+        </p>
       </div>
 
       {!f.driver_id ? (
@@ -65,6 +82,37 @@ export default async function DriverMoney() {
           <ExpenseButton trips={trips} categories={f.categories} />
         </div>
       )}
+
+      {pay.payrolls?.length ? (
+        <Section title="Bảng lương" empty="">
+          {pay.payrolls.map((p) => {
+            const st = PAYROLL_STATUS[p.status] ?? { label: p.status, variant: "secondary" as const };
+            return (
+              <li key={p.code} data-payroll={p.code} className="rounded-2xl border bg-card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Lương tháng {p.period}</div>
+                    <div className="text-lg font-semibold tabular-nums">{formatVND(p.net_amount)}</div>
+                  </div>
+                  <Badge variant={st.variant}>{st.label}</Badge>
+                </div>
+                <div className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-sm">
+                  <span>Lương ({p.trip_count} chuyến)</span>
+                  <span className="text-right tabular-nums">{formatVND(p.salary)}</span>
+                  <span>Hoàn chi phí tự trả</span>
+                  <span className="text-right tabular-nums">{formatVND(p.expense_reimbursement)}</span>
+                  <span>Trừ tiền đã ứng</span>
+                  <span className="text-right tabular-nums">−{formatVND(p.advance_offset)}</span>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {p.code}
+                  {p.paid_at ? ` · Trả ngày ${formatDateTime(p.paid_at)}` : ""}
+                </div>
+              </li>
+            );
+          })}
+        </Section>
+      ) : null}
 
       <Section title="Yêu cầu ứng tiền" empty="Chưa có yêu cầu ứng tiền trong 2 tháng gần đây.">
         {f.advances.map((a) => {

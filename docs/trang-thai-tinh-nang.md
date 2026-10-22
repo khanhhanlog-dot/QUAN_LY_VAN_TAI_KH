@@ -54,12 +54,23 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Chi tiết chuyến: kết quả giao hàng, ảnh, chi phí chuyến, chi phí đã duyệt và lợi nhuận gộp | ✅ | E2E |
 | Chưa làm: hủy duyệt sau khi đã duyệt, hủy phiếu chi, yêu cầu bổ sung thông tin | ⏳ | Làm khi có nhu cầu |
 
-## Có sẵn trong CSDL, chờ giao diện
+## Đã hoạt động (Giai đoạn 7, 22/10/2026)
 
-| Chức năng | Trạng thái | Giai đoạn giao diện |
+| Chức năng | Trạng thái | Kiểm thử |
 |---|---|---|
-| Công nợ phải thu/phải trả, thanh toán nhiều lần | 🟡 (chỉ đọc qua RLS) | GĐ7 |
-| Biểu mẫu, quy trình cấu hình được | 🟡 | GĐ8 |
+| Đối soát lương tài xế cuối tháng (Ứng tiền và chi phí → Đối soát lương): thực nhận = lương cơ bản + số chuyến hoàn thành × lương chuyến + phụ cấp + thưởng − khấu trừ + chi phí tài xế tự trả đã duyệt − tiền đã ứng. Xem trước bảng tính trước khi lập; lập cho một tài xế hoặc tất cả tài xế | ✅ | CSDL + E2E |
+| Quy trình bảng lương: Kế toán lập → Giám đốc duyệt → Kế toán ghi nhận trả lương (phiếu chi + cấn trừ sổ tạm ứng). Không lập hai bảng cùng tháng, không trả hai lần, không sửa số tiền trực tiếp; từ chối/hủy thì chi phí được trả lại để lập lại | ✅ | CSDL + E2E |
+| Tạm ứng lớn hơn số được nhận: chỉ trừ đến hết lương, phần còn lại tự chuyển sang tháng sau | ✅ | CSDL |
+| Tài xế xem bảng lương 12 tháng và tiền ứng đang giữ trên điện thoại | ✅ | CSDL + E2E |
+| Công nợ phải thu: lập từ các chuyến đã hoàn thành của cùng khách hàng thanh toán (cước + phụ thu + hỗ trợ dầu), hoặc khoản thu khác; hạn thanh toán tự tính theo số ngày công nợ của khách; chuyến đã lập công nợ bị khóa giá | ✅ | CSDL + E2E |
+| Thu/trả nhiều lần, lịch sử từng lần, hủy phiếu ghi nhầm có lý do (không xóa, công nợ tự cộng lại); hủy công nợ chưa thu có lý do | ✅ | CSDL + E2E |
+| Công nợ phải trả nhà cung cấp hoặc tài xế/xe ngoài; tuổi nợ (chưa đến hạn, quá hạn 1-30, 31-60, 61-90, trên 90 ngày) | ✅ | CSDL + E2E |
+| Danh sách phiếu thu chi (mọi dòng tiền: thu công nợ, trả công nợ, chuyển tiền ứng, trả lương) | ✅ | E2E |
+| Báo cáo: lợi nhuận từng chuyến, tổng hợp theo tháng (doanh thu, chi phí, lợi nhuận, lương, tiền thu/chi thực tế), theo xe, tài xế, khách hàng, chi phí theo loại, số dư tạm ứng; thẻ số liệu và biểu đồ 6 tháng; mọi bảng tìm kiếm nâng cao, chọn cột, xuất Excel | ✅ | CSDL + E2E |
+| Tổng quan: chỉ tiêu tài chính tháng này tính từ dữ liệu thật (người có quyền xem báo cáo) | ✅ | E2E |
+| Lương tính theo quy tắc lương (theo km, % doanh thu, công thức) | ⏳ | Hiện tính theo mức trong hồ sơ tài xế; phụ cấp tính theo tháng |
+| Hủy phiếu chuyển tiền ứng, hủy phiếu trả lương | ⏳ | Chưa hỗ trợ (chỉ hủy được phiếu thu/chi công nợ) |
+| Báo cáo theo tuyến, nhiên liệu, giao trễ, chứng từ thiếu, lịch sử phê duyệt | ⏳ | Làm khi có nhu cầu |
 
 ## Chưa triển khai
 
@@ -67,9 +78,7 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 |---|---|
 | Trường động kiểu tệp | GĐ8 |
 | Trình thiết kế biểu mẫu, quy trình (trang đang ghi "Giai đoạn 8") | GĐ8 |
-| Đối soát cuối tháng: tiền ứng trừ chi phí được duyệt, cộng/trừ vào lương | GĐ7 |
-| Quyết toán, công nợ, 15 báo cáo, chỉ tiêu tài chính trên Tổng quan (đang ghi "Chưa triển khai – Giai đoạn 7") | GĐ7 |
-| Kiểm thử E2E đầy đủ, kiểm thử tải, triển khai production | GĐ8 |
+| Kiểm thử tải, triển khai production | GĐ8 |
 
 ## Quy chuẩn màn hình (áp dụng mọi màn hình, 2026-10-21)
 
