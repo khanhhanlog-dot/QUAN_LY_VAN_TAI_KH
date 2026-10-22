@@ -84,6 +84,17 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Khoản đã duyệt hoặc chuyến đã đóng: tài xế không sửa được, kế toán xử lý | ✅ | CSDL |
 | Cấu hình loại chi phí tài xế được nhập: Danh mục hệ thống → Hạng mục chi phí (Vai trò được nhập có "Tài xế", Bắt buộc ảnh chứng từ, Cần phê duyệt, Đang dùng) | ✅ | Có sẵn từ GĐ3 |
 
+## Giai đoạn 7c: tài xế đăng nhập Google để ứng tiền (khách hàng chốt 22/10/2026)
+
+| Chức năng | Trạng thái | Kiểm thử |
+|---|---|---|
+| Trang "Ứng tiền & chi phí" bắt buộc đăng nhập Google; nhận ra tài xế theo người, không theo xe (chạy xe nào do điều phối sắp xếp) | ✅ | CSDL + E2E |
+| Tự gắn tài khoản: email Google trùng "Email Gmail" trong hồ sơ tài xế (đúng 1 hồ sơ) → tự kích hoạt, chỉ cấp vai trò Tài xế; ghi email sau khi tài xế đã đăng nhập cũng gắn được; tài khoản bị khóa không tự mở lại | ✅ | CSDL |
+| Ứng tiền lúc nào cũng được, không cần chuyến; gắn chuyến là không bắt buộc (chỉ chuyến phân cho chính tài xế) | ✅ | CSDL + E2E |
+| Sửa/hủy chi phí, xem bảng lương theo tài khoản đăng nhập; link biển số không còn xem được lương, tiền ứng | ✅ | CSDL + E2E |
+| Link biển số chỉ dùng cho chuyến: nhận, chạy, hoàn thành, nhập/bổ sung chi phí của chuyến | ✅ | E2E |
+| Google OAuth đang ở chế độ Testing: tài xế phải được thêm vào Test users, hoặc chuyển ứng dụng sang Production | ⏳ | Việc cấu hình của chủ tài khoản Google Cloud |
+
 ## Chưa triển khai
 
 | Chức năng | Giai đoạn |

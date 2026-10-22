@@ -79,12 +79,13 @@ select tests.assert(exists (select 1 from public.notifications where type = 'shi
 -- ---------------------------------------------------------------------------
 -- Ứng tiền: tài xế gửi -> Giám đốc duyệt -> Kế toán chuyển tiền
 -- ---------------------------------------------------------------------------
-set role anon;
-select tests.assert((public.driver_link_request_advance((select v from t_fin where k = 'tok'), 0, 'Dầu') ->> 'ok')::boolean = false, 'Số tiền ứng 0 bị từ chối');
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((public.driver_me_request_advance(0, 'Dầu') ->> 'ok')::boolean = false, 'Số tiền ứng 0 bị từ chối');
 insert into t_fin values ('cr1', gen_random_uuid()::text);
-select tests.assert((public.driver_link_request_advance((select v from t_fin where k = 'tok'), 2000000, 'Ứng tiền dầu chuyến Bình Dương', null, (select v::uuid from t_fin where k = 'cr1')) ->> 'ok')::boolean,
+select tests.assert((public.driver_me_request_advance(2000000, 'Ứng tiền dầu chuyến Bình Dương', null, (select v::uuid from t_fin where k = 'cr1')) ->> 'ok')::boolean,
   'Tài xế gửi yêu cầu ứng tiền');
-select public.driver_link_request_advance((select v from t_fin where k = 'tok'), 2000000, 'Ứng tiền dầu chuyến Bình Dương', null, (select v::uuid from t_fin where k = 'cr1'));
+select public.driver_me_request_advance(2000000, 'Ứng tiền dầu chuyến Bình Dương', null, (select v::uuid from t_fin where k = 'cr1'));
 reset role;
 select tests.assert((select count(*) from public.advance_requests where client_request_id = (select v::uuid from t_fin where k = 'cr1')) = 1, 'Gửi trùng (mạng chập chờn) chỉ tạo 1 yêu cầu');
 insert into t_fin select 'adv', id::text from public.advance_requests where client_request_id = (select v::uuid from t_fin where k = 'cr1');
@@ -132,8 +133,9 @@ select tests.assert((select sum(amount) from public.advance_transactions where a
 select tests.assert((select status from public.approval_requests where id = (select v::uuid from t_fin where k = 'apr')) = 'paid', 'Yêu cầu phê duyệt chuyển Đã thanh toán');
 
 -- Từ chối có lý do
-set role anon;
-select public.driver_link_request_advance((select v from t_fin where k = 'tok'), 500000, 'Ứng ăn uống');
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select public.driver_me_request_advance(500000, 'Ứng ăn uống');
 reset role;
 insert into t_fin select 'apr2', approval_request_id::text from public.advance_requests where amount_requested = 500000;
 select tests.login('00000000-0000-0000-0000-0000000000e1');
@@ -162,8 +164,11 @@ select tests.assert((public.driver_link_add_expense((select v from t_fin where k
 select tests.assert((public.driver_link_add_expense((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'),
   (select v::uuid from t_fin where k = 'cat_WASH'), 80000) ->> 'needs_approval')::boolean = false,
   'Loại chi phí đã tắt duyệt thì không cần duyệt');
-select tests.assert((public.driver_link_finance((select v from t_fin where k = 'tok')) -> 'month' ->> 'expense_pending')::numeric = 120000, 'Điện thoại thấy chi phí chờ duyệt');
-select tests.assert((public.driver_link_finance((select v from t_fin where k = 'tok')) -> 'month' ->> 'advance_paid')::numeric = 1500000, 'Điện thoại thấy tiền đã ứng trong tháng');
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((public.driver_me_finance() -> 'month' ->> 'expense_pending')::numeric = 120000, 'Tài xế đăng nhập thấy chi phí chờ duyệt');
+select tests.assert((public.driver_me_finance() -> 'month' ->> 'advance_paid')::numeric = 1500000, 'Tài xế đăng nhập thấy tiền đã ứng trong tháng');
 reset role;
 select tests.assert((select status from public.shipment_expenses e join public.expense_categories c on c.id = e.category_id where c.code = 'WASH') = 'approved', 'Chi phí rửa xe tự duyệt');
 select tests.assert((select count(*) from public.documents d join public.shipment_expenses e on e.id = d.entity_id where d.entity_type = 'shipment_expense') = 1,
@@ -177,13 +182,15 @@ reset role;
 select tests.assert((select status from public.shipment_expenses e join public.expense_categories c on c.id = e.category_id where c.code = 'TOLL') = 'approved', 'Giám đốc duyệt chi phí');
 
 -- Hủy yêu cầu đang chờ
-set role anon;
-select public.driver_link_request_advance((select v from t_fin where k = 'tok'), 300000, 'Ứng thử để hủy');
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select public.driver_me_request_advance(300000, 'Ứng thử để hủy');
 reset role;
 insert into t_fin select 'adv3', id::text from public.advance_requests where amount_requested = 300000;
-set role anon;
-select tests.assert((public.driver_link_cancel((select v from t_fin where k = 'tok'), 'advance', (select v::uuid from t_fin where k = 'adv3')) ->> 'ok')::boolean, 'Tài xế hủy yêu cầu đang chờ');
-select tests.assert((public.driver_link_cancel((select v from t_fin where k = 'tok'), 'advance', (select v::uuid from t_fin where k = 'adv')) ->> 'ok')::boolean = false, 'Không hủy được khoản đã chuyển tiền');
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((public.driver_me_cancel('advance', (select v::uuid from t_fin where k = 'adv3')) ->> 'ok')::boolean, 'Tài xế hủy yêu cầu đang chờ');
+select tests.assert((public.driver_me_cancel('advance', (select v::uuid from t_fin where k = 'adv')) ->> 'ok')::boolean = false, 'Không hủy được khoản đã chuyển tiền');
 reset role;
 
 -- Nhân viên tạo ứng tiền: không tự duyệt được khoản của mình

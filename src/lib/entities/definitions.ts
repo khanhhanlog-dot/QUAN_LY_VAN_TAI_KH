@@ -279,7 +279,7 @@ export const ENTITIES: Record<string, EntityDef> = {
       code(true),
       { key: "full_name", label: "Họ tên", type: "text", required: true, list: true, maxLength: 150 },
       { key: "phone", label: "Số điện thoại", type: "phone", list: true },
-      { key: "email", label: "Email", type: "email" },
+      { key: "email", label: "Email Gmail", type: "email", list: true, placeholder: "Ví dụ: nguyenvana@gmail.com", help: "Tài xế đăng nhập Google bằng email này để xin ứng tiền, xem chi phí và lương trên điện thoại" },
       { key: "date_of_birth", label: "Ngày sinh", type: "date" },
       { key: "address", label: "Địa chỉ", type: "text", wide: true, maxLength: 300 },
       { key: "contract_type", label: "Loại hợp đồng", type: "text", maxLength: 100 },

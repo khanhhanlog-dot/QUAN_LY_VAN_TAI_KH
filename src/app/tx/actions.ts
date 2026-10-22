@@ -89,25 +89,6 @@ export async function completeTrip(input: z.input<typeof completeSchema>): Promi
   return r.ok ? { ok: true } : { ok: false, error: r.error! };
 }
 
-const advanceSchema = z.object({
-  amount: z.number().positive().max(1_000_000_000),
-  reason: z.string().trim().min(1, "Nhập lý do ứng tiền.").max(500),
-  shipmentId: z.uuid().nullable(),
-  clientRequestId: z.uuid(),
-});
-
-export async function requestAdvance(input: z.input<typeof advanceSchema>): Promise<Result> {
-  const p = advanceSchema.safeParse(input);
-  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ." };
-  const r = await callRpc(
-    "driver_link_request_advance",
-    { p_amount: p.data.amount, p_reason: p.data.reason, p_shipment_id: p.data.shipmentId, p_client_request_id: p.data.clientRequestId },
-    "Không gửi được yêu cầu ứng tiền.",
-  );
-  revalidatePath("/tx/tien");
-  return r.ok ? { ok: true } : { ok: false, error: r.error! };
-}
-
 const expenseSchema = z.object({
   shipmentId: z.uuid("Chọn chuyến."),
   categoryId: z.uuid("Chọn loại chi phí."),
@@ -135,34 +116,4 @@ export async function addExpense(input: z.input<typeof expenseSchema>): Promise<
   revalidatePath("/tx");
   revalidatePath("/tx/tien");
   return r.ok ? { ok: true, needsApproval: (r as { needs_approval?: boolean }).needs_approval } : { ok: false, error: r.error! };
-}
-
-const updateExpenseSchema = z.object({
-  expenseId: z.uuid(),
-  categoryId: z.uuid("Chọn loại chi phí."),
-  amount: z.number().positive("Nhập số tiền.").max(1_000_000_000),
-  note: z.string().max(500).optional(),
-  ticket: z.uuid().nullable(),
-});
-
-/** Sửa khoản chi phí chưa duyệt: máy chủ hủy khoản cũ và tạo khoản mới */
-export async function updateExpense(input: z.input<typeof updateExpenseSchema>): Promise<Result> {
-  const p = updateExpenseSchema.safeParse(input);
-  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ." };
-  const r = await callRpc(
-    "driver_link_update_expense",
-    { p_expense_id: p.data.expenseId, p_category_id: p.data.categoryId, p_amount: p.data.amount, p_note: p.data.note ?? null, p_ticket: p.data.ticket },
-    "Không sửa được chi phí.",
-  );
-  revalidatePath("/tx");
-  revalidatePath("/tx/tien");
-  return r.ok ? { ok: true } : { ok: false, error: r.error! };
-}
-
-export async function cancelRequest(kind: "advance" | "expense", id: string): Promise<Result> {
-  if (!["advance", "expense"].includes(kind) || !z.uuid().safeParse(id).success) return { ok: false, error: "Dữ liệu không hợp lệ." };
-  const r = await callRpc("driver_link_cancel", { p_kind: kind, p_id: id }, "Không hủy được.");
-  revalidatePath("/tx");
-  revalidatePath("/tx/tien");
-  return r.ok ? { ok: true } : { ok: false, error: r.error! };
 }

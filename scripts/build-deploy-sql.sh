@@ -67,3 +67,6 @@ upgrade nang-cap-giai-doan-7.sql "Giai đoạn 7 (đối soát lương tài xế
 
 upgrade nang-cap-giai-doan-7b.sql "Giai đoạn 7b (chi phí tài xế nhập khi hoàn thành chuyến, sửa/hủy chi phí)" "to_regprocedure('public.driver_link_update_expense(text,uuid,uuid,numeric,text,uuid)') is not null" \
   supabase/migrations/20261022000018_driver_expense_on_complete.sql
+
+upgrade nang-cap-giai-doan-7c.sql "Giai đoạn 7c (tài xế đăng nhập Google để ứng tiền, xem chi phí và lương)" "to_regprocedure('public.driver_me_finance()') is not null" \
+  supabase/migrations/20261022000019_driver_google_money.sql

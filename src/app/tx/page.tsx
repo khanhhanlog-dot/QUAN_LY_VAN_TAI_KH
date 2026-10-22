@@ -59,7 +59,7 @@ export default async function DriverHome() {
 
   const [{ data, error }, fin] = await Promise.all([
     supabase.rpc("driver_link_trips", { p_token: token }),
-    supabase.rpc("driver_link_finance", { p_token: token }),
+    supabase.rpc("driver_link_categories", { p_token: token }),
   ]);
   if (error) throw error;
   const trips = (data ?? []) as Trip[];

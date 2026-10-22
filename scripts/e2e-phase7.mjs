@@ -156,11 +156,8 @@ await asUser("giamdoc@khanhha.test", desktop, async (page) => {
 // ---------------------------------------------------------------------------
 // E. Tài xế xem lương trên điện thoại
 // ---------------------------------------------------------------------------
-await asUser(null, phone, async (page) => {
-  await page.goto(`${BASE}/tx`);
-  await page.getByLabel("Số xe").fill("51C00001");
-  await page.getByRole("button", { name: "Xem chuyến" }).click();
-  await page.getByRole("link", { name: "Ứng tiền & chi phí" }).click();
+await asUser("taixe.a@khanhha.test", phone, async (page) => {
+  await page.goto(`${BASE}/tx/tien`);
   const pr = page.locator("[data-payroll]").first();
   check(await visible(pr.getByText("Đã trả lương")), "Tài xế thấy bảng lương đã trả");
   check(await visible(pr.getByText("7.620.000")), "Tài xế thấy số thực nhận");

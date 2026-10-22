@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { HandCoins } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NativeSelect, Textarea } from "@/components/ui/input";
-import { cancelRequest, requestAdvance } from "../actions";
+import { cancelRequest, requestAdvance, signOutDriver } from "./actions";
 import { Err, MoneyInput, bigBtn } from "../expense-forms";
 
 type Trip = { id: string; label: string };
@@ -108,5 +108,14 @@ export function CancelRequestButton({ kind, id }: { kind: "advance" | "expense";
       </button>
       {error ? <p className="mt-1 text-sm text-destructive">{error}</p> : null}
     </div>
+  );
+}
+
+export function SignOutDriverButton() {
+  const [pending, start] = useTransition();
+  return (
+    <button type="button" disabled={pending} onClick={() => start(() => signOutDriver())} className="rounded-lg border px-3 py-1.5 text-sm">
+      {pending ? "Đang thoát…" : "Đổi tài khoản"}
+    </button>
   );
 }

@@ -47,6 +47,15 @@ const photo = (name) => ({ name, mimeType: "image/png", buffer: png() });
 // A. Điện thoại tài xế: nhận, bắt đầu chạy, hoàn thành kèm ảnh
 // ---------------------------------------------------------------------------
 await asUser(null, phone, async (page) => {
+  await page.goto(`${BASE}/tx/tien`);
+  check(await visible(page.getByRole("button", { name: "Đăng nhập bằng Google" })), "Trang tiền bắt buộc đăng nhập Google, biển số xe không xem được lương");
+});
+await asUser("stranger@khanhha.test", phone, async (page) => {
+  await page.goto(`${BASE}/tx/tien`);
+  check(await visible(page.getByText("Tài khoản chưa gắn với hồ sơ tài xế")), "Email không có trong hồ sơ tài xế thì không vào được trang tiền");
+});
+// Tài xế đã đăng nhập Google (tài khoản taixe.a gắn với Nguyễn Văn Mẫu) và mở link chuyến bằng biển số
+await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await page.goto(`${BASE}/tx`);
   await page.getByLabel("Số xe").fill("51c00001");
   await page.getByRole("button", { name: "Xem chuyến" }).click();
@@ -195,11 +204,8 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
 // ---------------------------------------------------------------------------
 // E. Điện thoại thấy kết quả
 // ---------------------------------------------------------------------------
-await asUser(null, phone, async (page) => {
-  await page.goto(`${BASE}/tx`);
-  await page.getByLabel("Số xe").fill("51C00001");
-  await page.getByRole("button", { name: "Xem chuyến" }).click();
-  await page.getByRole("link", { name: "Ứng tiền & chi phí" }).click();
+await asUser("taixe.a@khanhha.test", phone, async (page) => {
+  await page.goto(`${BASE}/tx/tien`);
   check(await visible(page.locator("[data-advance]").getByText("Đã chuyển tiền")), "Tài xế thấy khoản ứng đã chuyển tiền");
   check(await visible(page.getByText(/Xin 2\.000\.000.*được duyệt 1\.500\.000/)), "Tài xế thấy số tiền được duyệt");
   check(await visible(page.locator("[data-expense]").getByText("Đã duyệt")), "Tài xế thấy chi phí đã duyệt");

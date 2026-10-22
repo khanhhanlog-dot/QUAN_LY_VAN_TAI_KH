@@ -85,12 +85,19 @@ select tests.assert((select sum(amount) from public.advance_transactions where t
 select tests.assert(private.driver_advance_balance('40000000-0000-0000-0000-000000000001') = 0, 'Số dư tạm ứng của tài xế về 0 sau khi trả lương');
 select tests.assert((select status from public.approval_requests where id = (select v::uuid from t_pr where k = 'apr')) = 'paid', 'Yêu cầu phê duyệt chuyển Đã chi');
 
--- Tài xế xem bảng lương trên điện thoại
+-- Tài xế đăng nhập Google xem bảng lương; link biển số không còn xem được lương
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((public.driver_me_payrolls() -> 'payrolls' -> 0 ->> 'net_amount')::numeric = 7600000,
+  'Tài xế đăng nhập thấy bảng lương thực nhận 7.600.000');
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000b2');
+set role authenticated;
+select tests.assert((public.driver_me_payrolls() -> 'payrolls' -> 0) is null, 'Tài xế khác không thấy bảng lương của Tài xế A');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
 set role anon;
-insert into t_pr select 'tok', public.driver_link_login('51C12345') ->> 'token';
-select tests.assert((public.driver_link_payrolls((select v from t_pr where k = 'tok')) -> 'payrolls' -> 0 ->> 'net_amount')::numeric = 7600000,
-  'Điện thoại tài xế thấy bảng lương thực nhận 7.600.000');
-select tests.assert((public.driver_link_payrolls('ma-sai-ma-sai-ma-sai-ma-sai-ma-sai-ma-sai') ->> 'ok')::boolean = false, 'Link sai không xem được lương');
+select tests.assert_fails($$select public.driver_me_payrolls()$$, 'Người chưa đăng nhập không xem được lương');
 reset role;
 
 -- Lập hàng loạt, từ chối, hủy rồi lập lại

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
+import { createClient } from "@/lib/supabase/server";
+import { signInWithGoogle } from "@/app/auth/actions";
 import { formatDateTime, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
-import { PlateForm } from "../plate-form";
-import { AdvanceButton, CancelRequestButton } from "./money-forms";
+import { AdvanceButton, CancelRequestButton, SignOutDriverButton } from "./money-forms";
 import { EditExpenseButton } from "../expense-forms";
 
 export const metadata: Metadata = { title: "Ứng tiền và chi phí" };
@@ -14,6 +14,7 @@ type Finance = {
   driver_id: string | null;
   driver_name: string | null;
   categories: { id: string; name: string; group: string; requires_image: boolean; requires_approval: boolean }[];
+  trips: { id: string; label: string }[];
   advances: { id: string; code: string; amount: number; approved: number | null; reason: string; status: string; created_at: string; shipment_code: string | null; reject_reason: string | null }[];
   expenses: {
     id: string;
@@ -21,7 +22,6 @@ type Finance = {
     amount: number;
     category: string;
     category_id: string;
-    shipment_id: string;
     note: string | null;
     status: string;
     incurred_at: string;
@@ -54,29 +54,38 @@ const PAYROLL_STATUS: typeof STATUS = {
 };
 const ADV_STATUS: typeof STATUS = { ...STATUS, approved: { label: "Đã duyệt, chờ kế toán chuyển tiền", variant: "info" as const } };
 
+type Me = { ok: boolean; signed_in: boolean; email?: string; driver_name?: string | null };
+
 export default async function DriverMoney() {
-  const token = await driverLinkToken();
-  const supabase = anonClient();
-  const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string } | null) : null;
-  if (!me) return <PlateForm />;
-  const [finRes, tripRes, payRes] = await Promise.all([
-    supabase.rpc("driver_link_finance", { p_token: token }),
-    supabase.rpc("driver_link_trips", { p_token: token }),
-    supabase.rpc("driver_link_payrolls", { p_token: token }),
-  ]);
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const me = claims?.claims?.sub ? ((await supabase.rpc("driver_me")).data as Me | null) : null;
+  if (!me?.signed_in) return <SignInCard />;
+  if (!me.ok)
+    return (
+      <div className="space-y-3 rounded-2xl bg-card p-5 shadow-xs">
+        <h1 className="text-lg font-semibold">Tài khoản chưa gắn với hồ sơ tài xế</h1>
+        <p className="text-sm">
+          Bạn đang đăng nhập bằng <b>{me.email}</b>. Nhờ văn phòng ghi đúng email này vào hồ sơ tài xế (Danh mục → Tài xế → Email), sau đó mở lại trang này.
+        </p>
+        <SignOutDriverButton />
+      </div>
+    );
+
+  const [finRes, payRes] = await Promise.all([supabase.rpc("driver_me_finance"), supabase.rpc("driver_me_payrolls")]);
   if (finRes.error) throw finRes.error;
   const f = finRes.data as Finance;
   const pay = (payRes.data ?? { ok: false, advance_balance: 0, payrolls: [] }) as Payrolls;
-  const trips = ((tripRes.data ?? []) as { shipment_id: string; shipment_code: string; status: string; pickup_name: string; delivery_name: string }[])
-    .filter((t) => ["accepted", "in_transit", "driver_completed", "closed"].includes(t.status))
-    .map((t) => ({ id: t.shipment_id, label: `${t.shipment_code} · ${t.pickup_name} → ${t.delivery_name}` }));
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-card p-4 shadow-xs">
-        <div className="text-sm text-muted-foreground">
-          Xe <span className="font-mono font-semibold text-foreground">{me.plate}</span>
-          {f.driver_name ? <> · Tài xế {f.driver_name}</> : null}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-sm text-muted-foreground">
+            Tài xế <span className="font-semibold text-foreground">{f.driver_name}</span>
+            <div className="text-xs">{me.email}</div>
+          </div>
+          <SignOutDriverButton />
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <Stat label="Đã ứng tháng này" value={f.month.advance_paid} />
@@ -89,14 +98,8 @@ export default async function DriverMoney() {
         </p>
       </div>
 
-      {!f.driver_id ? (
-        <p className="rounded-2xl border bg-card p-4 text-sm">Xe chưa được gán tài xế mặc định nên chưa xin ứng được. Vui lòng gọi điều phối.</p>
-      ) : (
-        <>
-          <AdvanceButton trips={trips} />
-          <p className="text-xs text-muted-foreground">Chi phí chuyến được nhập khi bấm &quot;Hoàn thành chuyến&quot;; nhập sót thì bấm &quot;Bổ sung chi phí&quot; trên thẻ chuyến.</p>
-        </>
-      )}
+      <AdvanceButton trips={f.trips} />
+      <p className="text-xs text-muted-foreground">Chi phí chuyến được nhập khi bấm &quot;Hoàn thành chuyến&quot;; nhập sót thì bấm &quot;Bổ sung chi phí&quot; trên thẻ chuyến.</p>
 
       {pay.payrolls?.length ? (
         <Section title="Bảng lương" empty="">
@@ -201,5 +204,29 @@ function Section({ title, empty, children }: { title: string; empty: string; chi
       <h2 className="mb-2 font-semibold">{title}</h2>
       {children.length ? <ul className="space-y-2">{children}</ul> : <p className="rounded-2xl border bg-card p-4 text-sm text-muted-foreground">{empty}</p>}
     </section>
+  );
+}
+
+function SignInCard() {
+  return (
+    <div className="space-y-4 rounded-2xl bg-card p-5 shadow-xs">
+      <h1 className="text-lg font-semibold">Ứng tiền, chi phí và bảng lương</h1>
+      <p className="text-sm text-muted-foreground">
+        Đăng nhập bằng tài khoản Google (Gmail) của bạn để xin ứng tiền, xem chi phí và lương. Bạn chạy xe nào cũng dùng được. Email phải trùng email văn phòng ghi trong hồ sơ tài xế.
+      </p>
+      <form action={signInWithGoogle}>
+        <input type="hidden" name="next" value="/tx/tien" />
+        <button type="submit" className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border bg-card text-lg font-semibold">
+          <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
+            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7z" />
+            <path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z" />
+            <path fill="#FBBC05" d="M5.4 14.3a7.2 7.2 0 0 1 0-4.6V6.6h-4a12 12 0 0 0 0 10.8l4-3.1z" />
+            <path fill="#EA4335" d="M12 4.8c1.7 0 3.3.6 4.5 1.8l3.4-3.4A12 12 0 0 0 1.4 6.6l4 3.1C6.3 6.9 8.9 4.8 12 4.8z" />
+          </svg>
+          Đăng nhập bằng Google
+        </button>
+      </form>
+      <p className="text-xs text-muted-foreground">Nhận chuyến và hoàn thành chuyến vẫn dùng biển số xe ở mục &quot;Chuyến&quot;, không cần đăng nhập.</p>
+    </div>
   );
 }

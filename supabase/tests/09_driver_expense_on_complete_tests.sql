@@ -42,17 +42,18 @@ select tests.assert((select expense_declaration = 'has' and expense_count = 1 an
   where shipment_id = (select v::uuid from t_ex where k = 's2')), 'Bổ sung chi phí: thẻ chuyến chuyển sang có chi phí, đúng tổng');
 reset role;
 insert into t_ex select 'e1id', id::text from public.shipment_expenses where code = (select v from t_ex where k = 'e1');
-set role anon;
-select tests.assert((select (x ->> 'editable')::boolean from jsonb_array_elements(public.driver_link_finance((select v from t_ex where k = 'tok')) -> 'expenses') x
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((select (x ->> 'editable')::boolean from jsonb_array_elements(public.driver_me_finance() -> 'expenses') x
   where x ->> 'code' = (select v from t_ex where k = 'e1')), 'Khoản chờ duyệt hiện nút Sửa');
 
 -- Sửa: hủy khoản cũ, tạo khoản mới
-insert into t_ex select 'e2', public.driver_link_update_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 'e1id'),
+insert into t_ex select 'e2', public.driver_me_update_expense((select v::uuid from t_ex where k = 'e1id'),
   (select v::uuid from t_ex where k = 'cat_MEAL'), 70000, 'Cơm trưa + nước') ->> 'code';
 select tests.assert((select v from t_ex where k = 'e2') is not null, 'Sửa khoản chi phí thành công');
 select tests.assert((select expense_count = 1 and expense_total = 70000 from public.driver_link_trips((select v from t_ex where k = 'tok'))
   where shipment_id = (select v::uuid from t_ex where k = 's2')), 'Sau khi sửa chỉ còn 1 khoản, số tiền mới');
-select tests.assert((public.driver_link_update_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 'e1id'),
+select tests.assert((public.driver_me_update_expense((select v::uuid from t_ex where k = 'e1id'),
   (select v::uuid from t_ex where k = 'cat_MEAL'), 10000) ->> 'ok')::boolean = false, 'Khoản đã sửa (đã hủy) không sửa lại được');
 reset role;
 select tests.assert((select status from public.shipment_expenses where code = (select v from t_ex where k = 'e1')) = 'cancelled', 'Khoản cũ giữ lại ở trạng thái Đã hủy');
@@ -67,22 +68,32 @@ set role authenticated;
 select public.approval_decide((select approval_request_id from public.shipment_expenses where code = (select v from t_ex where k = 'e2')), 'approve');
 reset role;
 insert into t_ex select 'e2id', id::text from public.shipment_expenses where code = (select v from t_ex where k = 'e2');
-set role anon;
-select tests.assert((public.driver_link_update_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 'e2id'),
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+
+select tests.assert((public.driver_me_update_expense((select v::uuid from t_ex where k = 'e2id'),
   (select v::uuid from t_ex where k = 'cat_MEAL'), 10000) ->> 'ok')::boolean = false, 'Khoản đã duyệt không sửa được');
-select tests.assert((public.driver_link_cancel((select v from t_ex where k = 'tok'), 'expense', (select v::uuid from t_ex where k = 'e2id')) ->> 'ok')::boolean = false,
+select tests.assert((public.driver_me_cancel('expense', (select v::uuid from t_ex where k = 'e2id')) ->> 'ok')::boolean = false,
   'Khoản đã duyệt không hủy được');
 
 -- Loại không cần duyệt: hủy được khi chưa vào bảng lương
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
 insert into t_ex select 'e3', public.driver_link_add_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 's2'),
   (select v::uuid from t_ex where k = 'cat_WASH'), 80000) ->> 'code';
 reset role;
 insert into t_ex select 'e3id', id::text from public.shipment_expenses where code = (select v from t_ex where k = 'e3');
-set role anon;
-select tests.assert((public.driver_link_cancel((select v from t_ex where k = 'tok'), 'expense', (select v::uuid from t_ex where k = 'e3id')) ->> 'ok')::boolean,
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+
+select tests.assert((public.driver_me_cancel('expense', (select v::uuid from t_ex where k = 'e3id')) ->> 'ok')::boolean,
   'Hủy được khoản loại không cần duyệt');
 
 -- Văn phòng đóng chuyến: không bổ sung, không sửa nữa
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
 insert into t_ex select 'e4', public.driver_link_add_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 's2'),
   (select v::uuid from t_ex where k = 'cat_MEAL'), 30000) ->> 'code';
 reset role;
@@ -91,17 +102,65 @@ update public.shipments set status = 'closed' where id = (select v::uuid from t_
 set role anon;
 select tests.assert((public.driver_link_add_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 's2'),
   (select v::uuid from t_ex where k = 'cat_MEAL'), 30000) ->> 'error') like '%đóng%', 'Chuyến đã đóng không bổ sung chi phí');
-select tests.assert((public.driver_link_update_expense((select v from t_ex where k = 'tok'), (select v::uuid from t_ex where k = 'e4id'),
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select tests.assert((public.driver_me_update_expense((select v::uuid from t_ex where k = 'e4id'),
   (select v::uuid from t_ex where k = 'cat_MEAL'), 10000) ->> 'ok')::boolean = false, 'Chuyến đã đóng không sửa chi phí');
-select tests.assert((public.driver_link_cancel((select v from t_ex where k = 'tok'), 'expense', (select v::uuid from t_ex where k = 'e4id')) ->> 'ok')::boolean = false,
+select tests.assert((public.driver_me_cancel('expense', (select v::uuid from t_ex where k = 'e4id')) ->> 'ok')::boolean = false,
   'Chuyến đã đóng không hủy chi phí');
 
--- Xe khác không sửa được chi phí của xe này
-insert into t_ex select 'tok2', public.driver_link_login('99A00001') ->> 'token';
-select tests.assert((public.driver_link_update_expense((select v from t_ex where k = 'tok2'), (select v::uuid from t_ex where k = 'e2id'),
-  (select v::uuid from t_ex where k = 'cat_MEAL'), 10000) ->> 'ok')::boolean = false, 'Xe khác không sửa được chi phí');
-select tests.assert((public.driver_link_update_expense('sai', (select v::uuid from t_ex where k = 'e2id'),
-  (select v::uuid from t_ex where k = 'cat_MEAL'), 10000) ->> 'expired')::boolean, 'Phiên sai không sửa được');
+-- Tài xế khác, người chưa đăng nhập không sửa được chi phí của Tài xế A
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000b2');
+set role authenticated;
+select tests.assert((public.driver_me_update_expense((select v::uuid from t_ex where k = 'e2id'),
+  (select v::uuid from t_ex where k = 'cat_MEAL'), 10000) ->> 'ok')::boolean = false, 'Tài xế khác không sửa được chi phí');
+select tests.assert((public.driver_me_cancel('expense', (select v::uuid from t_ex where k = 'e2id')) ->> 'ok')::boolean = false, 'Tài xế khác không hủy được chi phí');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+select tests.assert_fails($$select public.driver_me_update_expense((select v::uuid from t_ex where k = 'e2id'), (select v::uuid from t_ex where k = 'cat_MEAL'), 10000)$$,
+  'Người chưa đăng nhập không sửa được');
+select tests.assert_fails($$select public.driver_me_request_advance(100000, 'x')$$, 'Link biển số không xin ứng tiền được');
+reset role;
+
+-- Gắn tài khoản Google theo email trong hồ sơ tài xế (không cần lời mời)
+update public.drivers set email = 'TaiXe.Moi@Gmail.com ' where id = '40000000-0000-0000-0000-000000000002' and profile_id is null;
+insert into public.drivers (id, code, full_name, email) values ('40000000-0000-0000-0000-000000000009', 'TX009', 'Tài xế Mới', 'taixe.moi2@gmail.com');
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000b9', 'taixe.moi2@gmail.com');
+select tests.assert((select profile_id from public.drivers where id = '40000000-0000-0000-0000-000000000009') = '00000000-0000-0000-0000-0000000000b9',
+  'Đăng nhập Google lần đầu: email trùng hồ sơ tài xế thì tự gắn');
+select tests.assert((select status from public.profiles where id = '00000000-0000-0000-0000-0000000000b9') = 'active', 'Tài khoản tài xế tự kích hoạt');
+select tests.assert((select array_agg(r.code) from public.user_roles ur join public.roles r on r.id = ur.role_id where ur.user_id = '00000000-0000-0000-0000-0000000000b9') = '{driver}',
+  'Chỉ được vai trò Tài xế');
+select tests.login('00000000-0000-0000-0000-0000000000b9');
+set role authenticated;
+select tests.assert((public.driver_me() ->> 'driver_name') = 'Tài xế Mới', 'Tài xế mới đăng nhập thấy tên mình');
+select tests.assert((public.driver_me_request_advance(300000, 'Ứng tiền dầu, chưa có chuyến') ->> 'ok')::boolean, 'Ứng tiền khi chưa có chuyến, không cần xe');
+select tests.assert((public.driver_me_finance() -> 'advances' -> 0 ->> 'amount')::numeric = 300000, 'Thấy yêu cầu ứng của mình');
+reset role;
+-- Đăng nhập trước, văn phòng ghi email sau
+insert into public.drivers (id, code, full_name) values ('40000000-0000-0000-0000-000000000008', 'TX008', 'Tài xế Sau');
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000b8', 'taixe.sau@gmail.com');
+select tests.login('00000000-0000-0000-0000-0000000000b8');
+set role authenticated;
+select tests.assert((public.driver_me() ->> 'ok')::boolean = false, 'Email chưa có trong hồ sơ tài xế thì chưa vào được trang tiền');
+reset role;
+update public.drivers set email = 'taixe.sau@gmail.com' where id = '40000000-0000-0000-0000-000000000008';
+set role authenticated;
+select tests.assert((public.driver_me() ->> 'driver_name') = 'Tài xế Sau', 'Văn phòng ghi email xong thì tài xế vào được ngay');
+reset role;
+-- Hai hồ sơ trùng email: không tự gắn
+insert into public.drivers (code, full_name, email) values ('TX007', 'Trùng 1', 'trung@gmail.com'), ('TX006', 'Trùng 2', 'trung@gmail.com');
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000b7', 'trung@gmail.com');
+select tests.assert((select count(*) from public.drivers where email = 'trung@gmail.com' and profile_id is not null) = 0, 'Email trùng 2 hồ sơ thì không tự gắn');
+-- Tài khoản bị khóa không tự mở lại
+select set_config('request.jwt.claim.sub', '', false);
+update public.profiles set status = 'disabled' where id = '00000000-0000-0000-0000-0000000000b8';
+select tests.login('00000000-0000-0000-0000-0000000000b8');
+set role authenticated;
+select tests.assert((public.driver_me() ->> 'ok')::boolean = false, 'Tài khoản bị khóa không vào được trang tiền');
 reset role;
 
 \o

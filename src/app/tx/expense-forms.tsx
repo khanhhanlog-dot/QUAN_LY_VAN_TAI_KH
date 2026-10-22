@@ -5,7 +5,8 @@ import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { uploadWithTicket } from "@/lib/driver-link/upload";
-import { addExpense, requestUploadTicket, updateExpense } from "./actions";
+import { addExpense, requestUploadTicket } from "./actions";
+import { requestExpenseTicket, updateExpense } from "./tien/actions";
 import { PhotoPicker, type PickedFile } from "./photo-picker";
 
 export type ExpenseCategory = { id: string; name: string; group: string; requires_image: boolean; requires_approval: boolean };
@@ -56,9 +57,11 @@ export function lineError(l: ExpenseLine, categories: ExpenseCategory[], n: numb
 }
 
 /** Gửi ảnh (nếu có) và trả về vé tải ảnh */
-export async function uploadLineFiles(shipmentId: string, files: PickedFile[], onProgress: (s: string) => void): Promise<{ ticket: string | null } | { error: string }> {
+type TicketResult = { ok: true; ticket: string } | { ok: false; error: string };
+
+export async function uploadLineFiles(getTicket: () => Promise<TicketResult>, files: PickedFile[], onProgress: (s: string) => void): Promise<{ ticket: string | null } | { error: string }> {
   if (!files.length) return { ticket: null };
-  const t = await requestUploadTicket(shipmentId, "expense");
+  const t = await getTicket();
   if (!t.ok) return { error: t.error };
   try {
     onProgress(`Đang gửi ảnh hóa đơn 0/${files.length}…`);
@@ -164,7 +167,7 @@ export async function submitLines(shipmentId: string, lines: ExpenseLine[], onPr
   let error: string | null = null;
   for (const [i, l] of lines.entries()) {
     onProgress(`Đang lưu chi phí ${i + 1}/${lines.length}…`);
-    const up = await uploadLineFiles(shipmentId, l.files, onProgress);
+    const up = await uploadLineFiles(() => requestUploadTicket(shipmentId, "expense"), l.files, onProgress);
     if ("error" in up) {
       failed.push(l);
       error ??= up.error;
@@ -228,7 +231,7 @@ export function AddExpenseButton({ shipmentId, code, categories }: { shipmentId:
   );
 }
 
-type EditableExpense = { id: string; code: string; amount: number; note: string | null; category_id: string; shipment_id: string; shipment_code: string; files: number };
+type EditableExpense = { id: string; code: string; amount: number; note: string | null; category_id: string; shipment_code: string; files: number };
 
 /** Sửa khoản chi phí chưa duyệt: lưu thành khoản mới, khoản cũ chuyển Đã hủy */
 export function EditExpenseButton({ expense, categories }: { expense: EditableExpense; categories: ExpenseCategory[] }) {
@@ -245,7 +248,7 @@ export function EditExpenseButton({ expense, categories }: { expense: EditableEx
       setError(null);
       const bad = lineError(line, categories, null, expense.files === 0);
       if (bad) return setError(bad);
-      const up = await uploadLineFiles(expense.shipment_id, line.files, setProgress);
+      const up = await uploadLineFiles(() => requestExpenseTicket(expense.id), line.files, setProgress);
       if ("error" in up) {
         setProgress(null);
         return setError(up.error);
