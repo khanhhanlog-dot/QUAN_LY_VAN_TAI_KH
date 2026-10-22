@@ -3,7 +3,8 @@ import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
 import { formatDateTime, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { PlateForm } from "../plate-form";
-import { AdvanceButton, CancelRequestButton, ExpenseButton } from "./money-forms";
+import { AdvanceButton, CancelRequestButton } from "./money-forms";
+import { EditExpenseButton } from "../expense-forms";
 
 export const metadata: Metadata = { title: "Ứng tiền và chi phí" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,21 @@ type Finance = {
   driver_name: string | null;
   categories: { id: string; name: string; group: string; requires_image: boolean; requires_approval: boolean }[];
   advances: { id: string; code: string; amount: number; approved: number | null; reason: string; status: string; created_at: string; shipment_code: string | null; reject_reason: string | null }[];
-  expenses: { id: string; code: string; amount: number; category: string; note: string | null; status: string; incurred_at: string; shipment_code: string; reject_reason: string | null; files: number }[];
+  expenses: {
+    id: string;
+    code: string;
+    amount: number;
+    category: string;
+    category_id: string;
+    shipment_id: string;
+    note: string | null;
+    status: string;
+    incurred_at: string;
+    shipment_code: string;
+    reject_reason: string | null;
+    files: number;
+    editable: boolean;
+  }[];
   month: { advance_paid: number; expense_approved: number; expense_pending: number };
 };
 
@@ -77,10 +92,10 @@ export default async function DriverMoney() {
       {!f.driver_id ? (
         <p className="rounded-2xl border bg-card p-4 text-sm">Xe chưa được gán tài xế mặc định nên chưa xin ứng được. Vui lòng gọi điều phối.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <>
           <AdvanceButton trips={trips} />
-          <ExpenseButton trips={trips} categories={f.categories} />
-        </div>
+          <p className="text-xs text-muted-foreground">Chi phí chuyến được nhập khi bấm &quot;Hoàn thành chuyến&quot;; nhập sót thì bấm &quot;Bổ sung chi phí&quot; trên thẻ chuyến.</p>
+        </>
       )}
 
       {pay.payrolls?.length ? (
@@ -157,7 +172,12 @@ export default async function DriverMoney() {
                 {e.code} · Chuyến {e.shipment_code} · {formatDateTime(e.incurred_at)} · {e.files} ảnh
               </div>
               {e.reject_reason ? <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-sm">Lý do từ chối: {e.reject_reason}</p> : null}
-              {e.status === "pending" ? <CancelRequestButton kind="expense" id={e.id} /> : null}
+              {e.editable ? (
+                <div className="mt-2 flex flex-wrap items-start gap-2">
+                  <EditExpenseButton expense={e} categories={f.categories} />
+                  <CancelRequestButton kind="expense" id={e.id} />
+                </div>
+              ) : null}
             </li>
           );
         })}

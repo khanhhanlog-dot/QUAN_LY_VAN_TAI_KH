@@ -38,6 +38,8 @@ type Extra = {
   actual_km: number | null;
   delivery_result: string | null;
   completion_note: string | null;
+  expense_declaration: "none" | "has" | null;
+  expense_declared_at: string | null;
 };
 type History = { id: number; status_field: string; from_status: string | null; to_status: string; changed_by: string | null; changed_at: string; note: string | null };
 type Assignment = {
@@ -117,7 +119,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase
       .from("shipments")
       .select(
-        "pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note",
+        "pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -398,6 +400,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <Line label="Hoàn thành lúc" value={formatDateTime(x.completed_at)} />
                 {x.delivery_result ? <Line label="Kết quả" value={RESULT_LABEL[x.delivery_result] ?? x.delivery_result} /> : null}
                 {x.completion_note ? <p className="rounded-md bg-muted/50 p-2">Ghi chú tài xế: {x.completion_note}</p> : null}
+                {x.expense_declaration ? (
+                  <Line label="Chi phí tài xế" value={x.expense_declaration === "none" ? "Tài xế xác nhận không phát sinh chi phí" : "Tài xế khai có chi phí (xem mục Chi phí)"} />
+                ) : null}
               </>
             ) : x.departed_pickup_at ? (
               <Line label="Bắt đầu chạy lúc" value={formatDateTime(x.departed_pickup_at)} />

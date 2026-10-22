@@ -64,3 +64,6 @@ upgrade nang-cap-giai-doan-6.sql "Giai đoạn 6 (hoàn thành chuyến kèm ả
 
 upgrade nang-cap-giai-doan-7.sql "Giai đoạn 7 (đối soát lương tài xế, công nợ, báo cáo)" "to_regclass('public.driver_payrolls') is not null" \
   supabase/migrations/20261022000017_payroll_debts_reports.sql
+
+upgrade nang-cap-giai-doan-7b.sql "Giai đoạn 7b (chi phí tài xế nhập khi hoàn thành chuyến, sửa/hủy chi phí)" "to_regprocedure('public.driver_link_update_expense(text,uuid,uuid,numeric,text,uuid)') is not null" \
+  supabase/migrations/20261022000018_driver_expense_on_complete.sql

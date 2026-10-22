@@ -59,13 +59,33 @@ await asUser(null, phone, async (page) => {
   await card.getByRole("button", { name: /Hoàn thành chuyến/ }).click();
   await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();
   check(await visible(dialog(page).getByText("Chụp ít nhất 1 ảnh")), "Chưa chụp ảnh thì không hoàn thành được");
-  await dialog(page).getByLabel("Chọn ảnh có sẵn").setInputFiles([photo("hang.png")]);
+  await dialog(page).getByLabel("Chọn ảnh có sẵn").first().setInputFiles([photo("hang.png")]);
   await dialog(page).getByRole("radio", { name: "Phiếu ký nhận" }).click();
-  await dialog(page).getByLabel("Chọn ảnh có sẵn").setInputFiles([photo("phieu.png")]);
+  await dialog(page).getByLabel("Chọn ảnh có sẵn").first().setInputFiles([photo("phieu.png")]);
   check((await dialog(page).locator("li img").count()) === 2, "Xem trước 2 ảnh đã chọn");
+  await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();
+  check(await visible(dialog(page).getByText(/Không phát sinh chi phí/).last()), "Chưa khai chi phí thì không hoàn thành được");
+
+  // Chi phí nhập ngay trong bước hoàn thành: 2 khoản
+  await dialog(page).getByRole("radio", { name: "Có chi phí" }).click();
+  const line1 = dialog(page).locator("[data-expense-line='1']");
+  await line1.getByLabel("Loại chi phí").selectOption({ label: "Cầu đường" });
+  check(await visible(line1.getByText("Bắt buộc chụp hóa đơn")), "Loại chi phí báo cần ảnh hóa đơn");
+  await line1.getByLabel("Số tiền").fill("120000");
+  await dialog(page).getByRole("button", { name: "Thêm khoản chi phí" }).click();
+  const line2 = dialog(page).locator("[data-expense-line='2']");
+  await line2.getByLabel("Loại chi phí").selectOption({ label: "Ăn uống" });
+  await line2.getByLabel("Số tiền").fill("50000");
+  await line2.getByLabel("Ghi chú").fill("Cơm trưa");
+  check(await visible(dialog(page).getByText("170.000 đ")), "Hiện tổng chi phí các khoản");
+  await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();
+  check(await visible(dialog(page).getByText(/cần chụp hóa đơn.*khoản 1/)), "Khoản bắt buộc ảnh chưa có ảnh thì không gửi được");
+  await line1.getByLabel("Chọn ảnh có sẵn").setInputFiles([photo("bienlai.png")]);
   await shot(page, "p6-01-hoan-thanh");
   await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();
   check(await visible(card.getByText(/Hoàn thành lúc .* 2 ảnh/), 20000), "Hoàn thành chuyến, thẻ ghi 2 ảnh đã gửi");
+  check(await visible(card.getByText("Chi phí: 2 khoản · 170.000")), "Thẻ chuyến hiện 2 khoản chi phí, tổng 170.000");
+  check(await visible(card.getByRole("button", { name: /Bổ sung chi phí/ })), "Chuyến đã xong có nút Bổ sung chi phí");
   await shot(page, "p6-02-da-xong");
 
   // Ứng tiền và chi phí
@@ -79,19 +99,26 @@ await asUser(null, phone, async (page) => {
   await dialog(page).getByRole("button", { name: "Xong", exact: true }).click();
   check(await visible(page.locator("[data-advance]").getByText("Chờ Giám đốc duyệt")), "Yêu cầu ứng hiện trạng thái chờ Giám đốc duyệt");
 
-  await page.getByRole("button", { name: "Nhập chi phí" }).click();
-  await dialog(page).getByLabel("Chuyến").selectOption({ index: 1 });
-  await dialog(page).getByLabel("Loại chi phí").selectOption({ label: "Cầu đường" });
-  check(await visible(dialog(page).getByText("Bắt buộc chụp hóa đơn")), "Loại chi phí báo cần ảnh hóa đơn");
-  await dialog(page).getByLabel("Số tiền").fill("120000");
-  await dialog(page).getByRole("button", { name: "Gửi chi phí" }).click();
-  check(await visible(dialog(page).getByText(/cần chụp hóa đơn/)), "Chưa có ảnh thì không gửi được chi phí bắt buộc ảnh");
-  await dialog(page).getByLabel("Chọn ảnh có sẵn").setInputFiles([photo("bienlai.png")]);
-  await dialog(page).getByRole("button", { name: "Gửi chi phí" }).click();
-  check(await visible(dialog(page).getByText("đang chờ Giám đốc duyệt"), 20000), "Gửi chi phí kèm biên lai");
-  await dialog(page).getByRole("button", { name: "Xong", exact: true }).click();
-  check(await visible(page.locator("[data-expense]").getByText("1 ảnh")), "Chi phí hiện 1 ảnh đã gửi");
+  check(!(await visible(page.getByRole("button", { name: "Nhập chi phí" }), 1000)), "Trang tiền không còn nút Nhập chi phí riêng");
+  const toll = page.locator("[data-expense]").filter({ hasText: "Cầu đường" });
+  check(await visible(toll.getByText("1 ảnh")), "Chi phí cầu đường hiện 1 ảnh đã gửi");
+  check(await visible(toll.getByText("Chờ Giám đốc duyệt")), "Chi phí cầu đường chờ Giám đốc duyệt");
+
+  // Sửa khoản nhập sai: khoản cũ thành Đã hủy, khoản mới chờ duyệt
+  const meal = page.locator("[data-expense]").filter({ hasText: "Cơm trưa" }).first();
+  await meal.getByRole("button", { name: /^Sửa/ }).click();
+  await dialog(page).getByLabel("Số tiền").fill("70000");
+  await dialog(page).getByRole("button", { name: "Lưu thay đổi" }).click();
+  const edited = page.locator("[data-expense]").filter({ hasText: "70.000" });
+  check(await visible(edited.getByText(/sửa từ /), 20000), "Sửa chi phí: khoản mới ghi sửa từ khoản cũ");
+  check(await visible(page.locator("[data-expense]").filter({ hasText: "50.000" }).getByText("Đã hủy")), "Khoản cũ giữ lại ở trạng thái Đã hủy");
+  page.once("dialog", (d) => d.accept());
+  await edited.getByRole("button", { name: "Hủy khoản" }).click();
+  check(await visible(edited.getByText("Đã hủy"), 15000), "Tài xế hủy khoản chi phí chưa duyệt");
   await shot(page, "p6-03-tien");
+
+  await page.getByRole("link", { name: "Chuyến" }).first().click();
+  check(await visible(page.locator("[data-trip]").first().getByText("Chi phí: 1 khoản · 120.000")), "Thẻ chuyến cập nhật sau khi sửa và hủy");
 });
 
 // ---------------------------------------------------------------------------

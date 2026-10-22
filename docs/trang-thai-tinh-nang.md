@@ -72,6 +72,18 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Hủy phiếu chuyển tiền ứng, hủy phiếu trả lương | ⏳ | Chưa hỗ trợ (chỉ hủy được phiếu thu/chi công nợ) |
 | Báo cáo theo tuyến, nhiên liệu, giao trễ, chứng từ thiếu, lịch sử phê duyệt | ⏳ | Làm khi có nhu cầu |
 
+## Giai đoạn 7b: chi phí tài xế nhập khi hoàn thành chuyến (khách hàng chốt 22/10/2026)
+
+| Chức năng | Trạng thái | Kiểm thử |
+|---|---|---|
+| Bước "Hoàn thành chuyến" bắt buộc chọn: "Có chi phí" (nhập nhiều khoản: loại, số tiền, ghi chú, ảnh hóa đơn) hoặc "Không phát sinh chi phí" | ✅ | CSDL + E2E |
+| Xác nhận không phát sinh chi phí lưu trên chuyến và lịch sử; văn phòng thấy trên chi tiết chuyến | ✅ | CSDL |
+| Thẻ chuyến đã xong hiện số khoản, tổng chi phí; nút "Bổ sung chi phí" cho tới khi văn phòng đóng chuyến | ✅ | CSDL + E2E |
+| Bỏ nút "Nhập chi phí" riêng trên trang tiền; chi phí chỉ nhập cho chuyến đã hoàn thành | ✅ | CSDL + E2E |
+| Tài xế sửa/hủy khoản chưa duyệt (hoặc loại không cần duyệt, chưa vào bảng lương, chuyến chưa đóng). Sửa = khoản cũ chuyển Đã hủy, tạo khoản mới ghi "sửa từ ..."; không chụp lại thì giữ ảnh cũ | ✅ | CSDL + E2E |
+| Khoản đã duyệt hoặc chuyến đã đóng: tài xế không sửa được, kế toán xử lý | ✅ | CSDL |
+| Cấu hình loại chi phí tài xế được nhập: Danh mục hệ thống → Hạng mục chi phí (Vai trò được nhập có "Tài xế", Bắt buộc ảnh chứng từ, Cần phê duyệt, Đang dùng) | ✅ | Có sẵn từ GĐ3 |
+
 ## Chưa triển khai
 
 | Chức năng | Giai đoạn |

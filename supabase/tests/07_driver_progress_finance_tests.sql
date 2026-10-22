@@ -57,12 +57,14 @@ insert into storage.objects (bucket_id, name, metadata)
 values ('documents', 'tx/' || (select v from t_fin where k = 'ticket') || '/photo-' || gen_random_uuid() || '.jpg', '{"mimetype":"image/jpeg","size":120000}'),
        ('documents', 'tx/' || (select v from t_fin where k = 'ticket') || '/delivery_note-' || gen_random_uuid() || '.jpg', '{"mimetype":"image/jpeg","size":90000}');
 
-select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'), null) ->> 'error') like 'Cần ít nhất 1 ảnh%',
+select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'), null) ->> 'error') like '%Không phát sinh chi phí%',
+  'Hoàn thành chuyến phải khai có hay không có chi phí');
+select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'), null, p_no_expense => false) ->> 'error') like 'Cần ít nhất 1 ảnh%',
   'Hoàn thành chuyến bắt buộc có ảnh');
 select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'),
-  (select v::uuid from t_fin where k = 'ticket'), 'partial', '') ->> 'ok')::boolean = false, 'Giao thiếu phải ghi lý do');
+  (select v::uuid from t_fin where k = 'ticket'), 'partial', '', false) ->> 'ok')::boolean = false, 'Giao thiếu phải ghi lý do');
 select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'),
-  (select v::uuid from t_fin where k = 'ticket'), 'full', 'Đã giao đủ') ->> 'photos')::int = 2, 'Hoàn thành chuyến kèm 2 ảnh');
+  (select v::uuid from t_fin where k = 'ticket'), 'full', 'Đã giao đủ', false) ->> 'photos')::int = 2, 'Hoàn thành chuyến kèm 2 ảnh');
 select tests.assert(not private.driver_upload_ok('tx/' || (select v from t_fin where k = 'ticket') || '/photo-' || gen_random_uuid() || '.jpg'), 'Vé đã dùng không tải thêm được');
 select tests.assert((select photo_count from public.driver_link_trips((select v from t_fin where k = 'tok')) where shipment_id = (select v::uuid from t_fin where k = 's1')) = 2,
   'Thẻ chuyến hiện số ảnh đã gửi');

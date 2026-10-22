@@ -1,9 +1,10 @@
-import { Clock, MapPin, Navigation, Phone, Truck } from "lucide-react";
+import { Clock, MapPin, Navigation, Phone, Receipt, Truck } from "lucide-react";
 import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { PlateForm } from "./plate-form";
 import { AcceptButton, ChangeVehicleButton, CompleteButton, StartButton } from "./trip-actions";
+import { AddExpenseButton, type ExpenseCategory } from "./expense-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,9 @@ type Trip = {
   completed_at: string | null;
   delivery_result: string | null;
   photo_count: number;
+  expense_declaration: "none" | "has" | null;
+  expense_count: number;
+  expense_total: number;
 };
 
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
@@ -53,9 +57,13 @@ export default async function DriverHome() {
   const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string; driver_name: string | null } | null) : null;
   if (!me) return <PlateForm />;
 
-  const { data, error } = await supabase.rpc("driver_link_trips", { p_token: token });
+  const [{ data, error }, fin] = await Promise.all([
+    supabase.rpc("driver_link_trips", { p_token: token }),
+    supabase.rpc("driver_link_finance", { p_token: token }),
+  ]);
   if (error) throw error;
   const trips = (data ?? []) as Trip[];
+  const categories = ((fin.data as { categories?: ExpenseCategory[] } | null)?.categories ?? []) as ExpenseCategory[];
   const waiting = trips.filter((t) => t.status === "assigned").length;
 
   return (
@@ -116,13 +124,24 @@ export default async function DriverHome() {
                 ) : t.status === "in_transit" ? (
                   <>
                     {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
-                    <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} />
+                    <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} />
                   </>
                 ) : t.completed_at ? (
-                  <p className="mt-3 text-center text-sm text-success">
-                    Hoàn thành lúc {formatDateTime(t.completed_at)}
-                    {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
-                  </p>
+                  <>
+                    <p className="mt-3 text-center text-sm text-success">
+                      Hoàn thành lúc {formatDateTime(t.completed_at)}
+                      {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
+                    </p>
+                    <p data-expense-summary className="mt-2 flex items-center justify-center gap-1.5 text-sm">
+                      <Receipt className="size-4 text-muted-foreground" />
+                      {Number(t.expense_count) > 0
+                        ? `Chi phí: ${t.expense_count} khoản · ${formatVND(Number(t.expense_total))}`
+                        : t.expense_declaration === "none"
+                          ? "Đã xác nhận không phát sinh chi phí"
+                          : "Chưa có chi phí"}
+                    </p>
+                    {t.status === "driver_completed" ? <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} /> : null}
+                  </>
                 ) : null}
               </li>
             );
