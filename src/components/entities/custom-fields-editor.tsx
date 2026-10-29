@@ -4,7 +4,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { computeFormula } from "@/lib/formula";
-import { applyLayout, formatValue, toFormValues } from "@/lib/entities/record";
+import { applyLayout, formatValue, isFieldShown, toFormValues } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 import { FieldInput } from "./field-input";
 
@@ -46,6 +46,7 @@ export function CustomFieldsEditor({
     <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-4", className)}>
       {items.map(({ key, field: f }) => {
         if (!f) return <div key={`slot-${key}`} className="contents">{slots?.[key]}</div>;
+        if (!isFieldShown(f, values)) return null;
         const wide = f.wide || f.type === "textarea" || f.type === "multiselect";
         if (f.type === "formula" || f.readOnly) {
           const v = f.type === "formula" ? computeFormula(f.formula, values) : initial?.[f.key];

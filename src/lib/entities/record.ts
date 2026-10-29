@@ -64,7 +64,20 @@ export function customFieldToDef(row: CustomFieldRow): FieldDef {
     displayFormat: row.display_format ?? undefined,
     custom: true,
     wide: row.data_type === "long_text",
+    showIf: parseVisibility(row.visibility_condition),
   };
+}
+
+/** Điều kiện hiện của trường bổ sung: {"field": "ncc", "in": ["3-PL"]} (sai định dạng thì luôn hiện) */
+export function parseVisibility(raw: string | null | undefined): FieldDef["showIf"] {
+  if (!raw) return undefined;
+  try {
+    const j = JSON.parse(raw) as { field?: unknown; in?: unknown };
+    if (typeof j.field !== "string" || !Array.isArray(j.in) || !j.in.length || j.in.some((x) => typeof x !== "string")) return undefined;
+    return { field: j.field, in: j.in as string[] };
+  } catch {
+    return undefined;
+  }
 }
 
 /** Trường hệ thống + trường động người dùng được xem (theo view_permission) */

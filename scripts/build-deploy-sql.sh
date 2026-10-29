@@ -76,3 +76,6 @@ upgrade nang-cap-tang-toc-tim-kiem.sql "Tăng tốc tìm kiếm (RLS tính quy�
 
 upgrade nang-cap-thu-tu-truong.sql "Sắp thứ tự trường trên biểu mẫu (Quản lý trường dữ liệu)" "to_regclass('public.form_layouts') is not null" \
   supabase/migrations/20261029000021_form_layouts.sql
+
+upgrade nang-cap-an-hien-truong.sql "Hiện/ẩn trường bổ sung theo giá trị trường khác" "to_regprocedure('private.valid_visibility_condition(text)') is not null" \
+  supabase/migrations/20261029000022_field_visibility.sql

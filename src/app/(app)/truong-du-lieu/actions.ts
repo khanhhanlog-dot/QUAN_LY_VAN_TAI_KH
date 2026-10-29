@@ -9,6 +9,7 @@ import { FIELD_DATA_TYPES, REFERENCE_TARGETS } from "@/lib/entities/field-types"
 import { validateFormula } from "@/lib/formula";
 import { isUuid, parseNumberVN } from "@/lib/entities/record";
 import { loadCustomFields } from "@/lib/entities/server";
+import { conditionSources } from "@/lib/entities/visibility";
 
 const PATH = "/truong-du-lieu";
 const optNum = z
@@ -51,6 +52,12 @@ const fieldSchema = z.object({
   options_text: z.string().max(5000).optional(),
   reference_target: z.string().optional().transform((v) => v || null),
   status: z.enum(["active", "inactive"]).default("active"),
+  /** Chỉ hiện khi trường này nhận một trong các giá trị bên dưới (bỏ trống = luôn hiện) */
+  show_if_field: z.string().trim().max(63).optional().transform((v) => v || null),
+  show_if_values: z
+    .union([z.array(z.string().max(200)), z.string().max(200), z.literal(false), z.null()])
+    .optional()
+    .transform((v) => (Array.isArray(v) ? v : typeof v === "string" && v ? [v] : [])),
   change_note: z.string().trim().max(300).optional(),
 });
 export type FieldInput = z.input<typeof fieldSchema>;
@@ -106,9 +113,17 @@ export async function saveField(id: string | null, input: FieldInput): Promise<A
     }
 
     const supabase = await createClient();
+    const custom = await loadCustomFields(supabase, v.module);
+    let visibility: string | null = null;
+    if (v.show_if_field) {
+      const src = conditionSources(v.module, custom, v.field_key).find((c) => c.key === v.show_if_field);
+      if (!src) throw new ActionError("Trường điều kiện không hợp lệ (chỉ chọn được trường danh sách hoặc Có/Không đang dùng)");
+      const vals = [...new Set(v.show_if_values)].filter((x) => src.options.some((o) => o.value === x));
+      if (!vals.length) throw new ActionError(`Chọn ít nhất một giá trị của “${src.label}” để hiện trường này`);
+      visibility = JSON.stringify({ field: src.key, in: vals });
+    }
     if (v.data_type === "formula") {
       if (!v.formula) throw new ActionError("Nhập công thức");
-      const custom = await loadCustomFields(supabase, v.module);
       const numericCustom = custom
         .filter((c) => c.field_key !== v.field_key && FIELD_DATA_TYPES.find((t) => t.value === c.data_type)?.numeric && c.data_type !== "formula")
         .map((c) => c.field_key);
@@ -140,6 +155,7 @@ export async function saveField(id: string | null, input: FieldInput): Promise<A
       options,
       reference_target: v.data_type === "reference" ? v.reference_target : null,
       status: v.status,
+      visibility_condition: visibility,
     };
     const { data, error } = await supabase.rpc("save_field_definition", { p_id: id, p_values: values, p_change_note: v.change_note || null });
     if (error) {

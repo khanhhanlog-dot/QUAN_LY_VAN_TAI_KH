@@ -14,6 +14,8 @@ import { ConfirmDialog } from "@/components/entities/confirm-dialog";
 import { ENTITIES } from "@/lib/entities/definitions";
 import { FIELD_DATA_TYPES, REFERENCE_TARGETS, slugifyKey } from "@/lib/entities/field-types";
 import type { CustomFieldRow } from "@/lib/entities/types";
+import { parseVisibility } from "@/lib/entities/record";
+import { conditionSources } from "@/lib/entities/visibility";
 import { validateFormula } from "@/lib/formula";
 import { formatDateTime } from "@/lib/format";
 import { permissionLabel as PERMISSION_LABEL } from "@/lib/permissions";
@@ -31,11 +33,27 @@ import {
 
 const typeLabel = (t: string) => FIELD_DATA_TYPES.find((x) => x.value === t)?.label ?? t;
 
-type FormV = Omit<FieldInput, "min" | "max" | "maxLength" | "sort_order"> & { min: string; max: string; maxLength: string; sort_order: string };
+/** "chỉ hiện khi NCC = 3-PL" để hiện trong bảng trường */
+function conditionText(module: string, rows: CustomFieldRow[], r: CustomFieldRow): string | null {
+  const c = parseVisibility(r.visibility_condition);
+  if (!c) return null;
+  const src = conditionSources(module, rows).find((s) => s.key === c.field);
+  const vals = c.in.map((v) => src?.options.find((o) => o.value === v)?.label ?? v).join(" hoặc ");
+  return `chỉ hiện khi ${src?.label ?? c.field} = ${vals}`;
+}
+
+type FormV = Omit<FieldInput, "min" | "max" | "maxLength" | "sort_order" | "show_if_values"> & {
+  min: string;
+  max: string;
+  maxLength: string;
+  sort_order: string;
+  show_if_values: string[];
+};
 
 function toForm(module: string, r: CustomFieldRow | null): FormV {
   const opts = (r?.options ?? []).map((o) => (typeof o === "string" ? o : o.value === o.label ? o.value : `${o.value}|${o.label}`));
   const dv = r?.default_value;
+  const cond = parseVisibility(r?.visibility_condition);
   return {
     module,
     field_key: r?.field_key ?? "",
@@ -60,6 +78,8 @@ function toForm(module: string, r: CustomFieldRow | null): FormV {
     options_text: opts.join("\n"),
     reference_target: r?.reference_target ?? "",
     status: (r?.status as "active" | "inactive") ?? "active",
+    show_if_field: cond?.field ?? "",
+    show_if_values: cond?.in ?? [],
     change_note: "",
   };
 }
@@ -136,7 +156,14 @@ export function FieldManager({
                     {r.data_type === "formula" ? <div className="font-mono text-xs text-muted-foreground">{r.formula}</div> : null}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {[r.is_required && "bắt buộc", r.is_visible && "hiện trên bảng", r.is_filterable && "lọc", r.is_searchable && "tìm kiếm", r.view_permission && `xem: ${PERMISSION_LABEL(r.view_permission)}`]
+                    {[
+                      r.is_required && "bắt buộc",
+                      r.is_visible && "hiện trên bảng",
+                      r.is_filterable && "lọc",
+                      r.is_searchable && "tìm kiếm",
+                      r.view_permission && `xem: ${PERMISSION_LABEL(r.view_permission)}`,
+                      conditionText(module, rows, r),
+                    ]
                       .filter(Boolean)
                       .join(" · ") || "—"}
                   </td>
@@ -228,10 +255,11 @@ export function FieldManager({
         description={
           deleteImpact === null ? (
             "Đang kiểm tra dữ liệu liên quan…"
-          ) : deleteImpact.records_with_value > 0 || deleteImpact.used_in_formulas.length > 0 ? (
+          ) : deleteImpact.records_with_value > 0 || deleteImpact.used_in_formulas.length > 0 || deleteImpact.used_in_visibility.length > 0 ? (
             <>
               Không thể xóa: {deleteImpact.records_with_value > 0 ? `${deleteImpact.records_with_value} bản ghi đang có dữ liệu` : ""}
-              {deleteImpact.used_in_formulas.length ? ` · được dùng trong công thức: ${deleteImpact.used_in_formulas.map((f) => f.label).join(", ")}` : ""}. Hãy chọn “Ngừng
+              {deleteImpact.used_in_formulas.length ? ` · được dùng trong công thức: ${deleteImpact.used_in_formulas.map((f) => f.label).join(", ")}` : ""}
+              {deleteImpact.used_in_visibility.length ? ` · là điều kiện hiện của: ${deleteImpact.used_in_visibility.map((f) => f.label).join(", ")}` : ""}. Hãy chọn “Ngừng
               sử dụng” để ẩn trường mà vẫn giữ dữ liệu.
             </>
           ) : (
@@ -305,6 +333,8 @@ export function FieldEditor({
   const formulaError = v.data_type === "formula" && v.formula ? validateFormula(v.formula, numericRefs.map((r) => r.key), v.field_key) : null;
   const keyClash = !row && (systemKeys.includes(v.field_key ?? "") || others.some((o) => o.field_key === v.field_key));
   const typeChanged = row && v.data_type !== row.data_type;
+  const sources = useMemo(() => conditionSources(module, others, v.field_key), [module, others, v.field_key]);
+  const condSource = sources.find((c) => c.key === v.show_if_field);
 
   function onSubmit(values: FormV) {
     start(async () => {
@@ -334,7 +364,8 @@ export function FieldEditor({
           <Alert>
             <AlertDescription>
               <b>Phân tích ảnh hưởng:</b> {impact.records_with_value} bản ghi đang có dữ liệu ở trường này
-              {impact.used_in_formulas.length ? `; được dùng trong công thức: ${impact.used_in_formulas.map((f) => f.label).join(", ")}` : "; không công thức nào dùng trường này"}.
+              {impact.used_in_formulas.length ? `; được dùng trong công thức: ${impact.used_in_formulas.map((f) => f.label).join(", ")}` : "; không công thức nào dùng trường này"}
+              {impact.used_in_visibility.length ? `; là điều kiện hiện của: ${impact.used_in_visibility.map((f) => f.label).join(", ")} (đổi lựa chọn có thể làm các trường đó không hiện nữa)` : ""}.
               {impact.records_with_value > 0 ? " Không thể đổi kiểu dữ liệu khi đã có dữ liệu." : ""} Báo cáo và quy trình dùng trường động sẽ được kiểm tra khi các module đó hoàn thiện (GĐ6–7).
             </AlertDescription>
           </Alert>
@@ -489,6 +520,40 @@ export function FieldEditor({
                 {label}
               </label>
             ))}
+          </fieldset>
+          <fieldset className="space-y-2 rounded-md border p-3 text-sm">
+            <legend className="px-1 text-xs text-muted-foreground">Điều kiện hiện trường</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="fd-showif">Chỉ hiện khi trường</Label>
+                <NativeSelect id="fd-showif" {...form.register("show_if_field", { onChange: () => form.setValue("show_if_values", []) })}>
+                  <option value="">Luôn hiện</option>
+                  {sources.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              {condSource ? (
+                <div className="space-y-1.5">
+                  <span className="text-sm font-medium">bằng một trong các giá trị</span>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {condSource.options.map((o) => (
+                      <label key={o.value} className="flex items-center gap-2">
+                        <input type="checkbox" value={o.value} {...form.register("show_if_values")} />
+                        {o.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {sources.length
+                ? "Ví dụ: trường “3-PL” chỉ hiện khi “NCC” là “3-PL”. Khi bị ẩn, trường không bắt buộc nhập và được lưu trống."
+                : "Màn hình này chưa có trường danh sách chọn một hoặc Có/Không để làm điều kiện. Hãy thêm một trường như vậy trước (ví dụ “NCC” với lựa chọn Xe nội bộ, 3-PL)."}
+            </p>
           </fieldset>
           {row ? (
             <div className="space-y-1.5">
