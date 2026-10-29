@@ -70,3 +70,6 @@ upgrade nang-cap-giai-doan-7b.sql "Giai đoạn 7b (chi phí tài xế nhập kh
 
 upgrade nang-cap-giai-doan-7c.sql "Giai đoạn 7c (tài xế đăng nhập Google để ứng tiền, xem chi phí và lương)" "to_regprocedure('public.driver_me_finance()') is not null" \
   supabase/migrations/20261022000019_driver_google_money.sql
+
+upgrade nang-cap-tang-toc-tim-kiem.sql "Tăng tốc tìm kiếm (RLS tính quyền một lần mỗi truy vấn)" "to_regprocedure('private.wrap_rls_calls(text)') is not null" \
+  supabase/migrations/20261029000020_rls_performance.sql
