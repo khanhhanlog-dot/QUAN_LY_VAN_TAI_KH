@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
-import { CUSTOM_FIELD_MODULES, ENTITIES } from "@/lib/entities/definitions";
+import { CUSTOM_FIELD_MODULES, ENTITIES, FORM_SYSTEM_FIELDS } from "@/lib/entities/definitions";
 import { FIELD_DATA_TYPES, REFERENCE_TARGETS } from "@/lib/entities/field-types";
 import { validateFormula } from "@/lib/formula";
 import { isUuid, parseNumberVN } from "@/lib/entities/record";
@@ -79,7 +79,7 @@ export async function saveField(id: string | null, input: FieldInput): Promise<A
     if (id && !isUuid(id)) throw new ActionError("Mã trường không hợp lệ");
     const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === v.module)!;
     const entity = mod.entity ? ENTITIES[mod.entity] : undefined;
-    if (entity?.fields.some((f) => f.key === v.field_key) || ["id", "code", "custom_fields", "created_at", "updated_at", "created_by", "updated_by"].includes(v.field_key)) {
+    if (entity?.fields.some((f) => f.key === v.field_key) || FORM_SYSTEM_FIELDS[v.module]?.some((f) => f.key === v.field_key) || ["id", "code", "custom_fields", "created_at", "updated_at", "created_by", "updated_by"].includes(v.field_key)) {
       throw new ActionError(`Mã "${v.field_key}" trùng với trường hệ thống`);
     }
     for (const perm of [v.view_permission, v.edit_permission]) {
@@ -232,4 +232,18 @@ export async function restoreFieldVersion(id: string, version: number): Promise<
     if (error) throw error;
     revalidatePath(PATH);
   }, `Đã khôi phục phiên bản ${version}.`);
+}
+
+/** Lưu thứ tự trường (hệ thống + bổ sung) trên biểu mẫu của một màn hình */
+export async function saveFormLayout(module: string, order: string[]): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("fields.configure");
+    if (!CUSTOM_FIELD_MODULES.some((m) => m.module === module)) throw new ActionError("Màn hình không hợp lệ");
+    const keys = z.array(z.string().regex(/^[a-z][a-z0-9_]{0,62}$/)).max(300).safeParse(order);
+    if (!keys.success) throw new ActionError("Danh sách trường không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("save_form_layout", { p_module: module, p_field_order: keys.data });
+    if (error) throw error;
+    revalidatePath("/", "layout");
+  }, "Đã lưu thứ tự trường trên biểu mẫu");
 }

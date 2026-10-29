@@ -66,6 +66,8 @@ export function OrderForm({
   canCreatePriceList,
   orderFields,
   shipmentFields,
+  orderLayout,
+  shipmentLayout,
   canAddField,
 }: {
   order?: { id: string; code: string; customerId: string; customerName: string };
@@ -73,6 +75,9 @@ export function OrderForm({
   /** Trường bổ sung do người dùng tự thêm cho đơn hàng / chuyến */
   orderFields: FieldDef[];
   shipmentFields: FieldDef[];
+  /** Thứ tự trường trên biểu mẫu (Quản lý trường dữ liệu → Thứ tự trên biểu mẫu) */
+  orderLayout: string[];
+  shipmentLayout: string[];
   canAddField: boolean;
 }) {
   const [customer, setCustomer] = useState({ id: order?.customerId ?? "", label: order?.customerName ?? "" });
@@ -127,30 +132,41 @@ export function OrderForm({
           <CardHeader>
             <CardTitle className="text-base">Thông tin đơn hàng</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5 lg:col-span-2">
-              <Label htmlFor="order-customer">Khách hàng *</Label>
-              <ReferenceSelect id="order-customer" refKey="customers" value={customer.id} initialLabel={customer.label} onChange={(id, label) => setCustomer({ id, label })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="order-payer">Khách thanh toán</Label>
-              <ReferenceSelect id="order-payer" refKey="customers" value={payer} onChange={(id) => setPayer(id)} allowQuickCreate={false} />
-              <p className="text-xs text-muted-foreground">Bỏ trống nếu chính khách hàng thanh toán.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="order-date">Ngày đơn hàng</Label>
-              <Input id="order-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
-              <Label htmlFor="order-notes">Ghi chú đơn hàng</Label>
-              <Textarea id="order-notes" className="min-h-14" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
-            </div>
-            <CustomFieldsEditor fields={orderFields} idPrefix="order-cf-" onChange={setOrderCustom} className="sm:col-span-2 lg:col-span-4" />
-            {canAddField ? (
-              <div className="sm:col-span-2 lg:col-span-4">
-                <AddFieldButton module="transport_orders" customRows={[]} label="Thêm trường cho đơn hàng" />
-              </div>
-            ) : null}
+          <CardContent className="space-y-3">
+            <CustomFieldsEditor
+              fields={orderFields}
+              idPrefix="order-cf-"
+              onChange={setOrderCustom}
+              order={orderLayout}
+              slots={{
+                customer_id: (
+                  <div className="space-y-1.5 lg:col-span-2">
+                    <Label htmlFor="order-customer">Khách hàng *</Label>
+                    <ReferenceSelect id="order-customer" refKey="customers" value={customer.id} initialLabel={customer.label} onChange={(id, label) => setCustomer({ id, label })} />
+                  </div>
+                ),
+                payer_customer_id: (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="order-payer">Khách thanh toán</Label>
+                    <ReferenceSelect id="order-payer" refKey="customers" value={payer} onChange={(id) => setPayer(id)} allowQuickCreate={false} />
+                    <p className="text-xs text-muted-foreground">Bỏ trống nếu chính khách hàng thanh toán.</p>
+                  </div>
+                ),
+                order_date: (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="order-date">Ngày đơn hàng</Label>
+                    <Input id="order-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+                  </div>
+                ),
+                notes: (
+                  <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+                    <Label htmlFor="order-notes">Ghi chú đơn hàng</Label>
+                    <Textarea id="order-notes" className="min-h-14" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
+                  </div>
+                ),
+              }}
+            />
+            {canAddField ? <AddFieldButton module="transport_orders" customRows={[]} label="Thêm trường cho đơn hàng" /> : null}
           </CardContent>
         </Card>
       )}
@@ -163,6 +179,7 @@ export function OrderForm({
           customerId={customer.id}
           canCreatePriceList={canCreatePriceList}
           shipmentFields={shipmentFields}
+          shipmentLayout={shipmentLayout}
           canAddField={canAddField}
           canRemove={rows.length > 1}
           onChange={(patch) => update(row.key, patch)}
@@ -189,6 +206,7 @@ function ShipmentEditor({
   customerId,
   canCreatePriceList,
   shipmentFields,
+  shipmentLayout,
   canAddField,
   canRemove,
   onChange,
@@ -200,6 +218,7 @@ function ShipmentEditor({
   customerId: string;
   canCreatePriceList: boolean;
   shipmentFields: FieldDef[];
+  shipmentLayout: string[];
   canAddField: boolean;
   canRemove: boolean;
   onChange: (patch: Partial<Row>) => void;
@@ -281,56 +300,86 @@ function ShipmentEditor({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label htmlFor={id("pickup-at")}>Giờ nhận hàng *</Label>
-            <Input id={id("pickup-at")} type="datetime-local" value={row.pickupAt} onChange={(e) => onChange({ pickupAt: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={id("delivery-at")}>Giờ giao dự kiến</Label>
-            <Input id={id("delivery-at")} type="datetime-local" value={row.expectedDeliveryAt} onChange={(e) => onChange({ expectedDeliveryAt: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={id("vtype")}>Loại xe</Label>
-            <ReferenceSelect id={id("vtype")} refKey="vehicle_types" value={row.vehicleTypeId} onChange={(v) => onChange({ vehicleTypeId: v, priceListId: "" })} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={id("qty")}>Số lượng ({PRICING_UNITS[unit] ?? unit})</Label>
-            <Input id={id("qty")} type="number" min="0.001" step="any" value={row.quantity} onChange={(e) => onChange({ quantity: e.target.value })} />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor={id("pickup")}>Điểm nhận *</Label>
-            <ReferenceSelect id={id("pickup")} refKey="locations" value={row.pickupLocationId} onChange={(v) => onChange({ pickupLocationId: v, priceListId: "" })} />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor={id("delivery")}>Điểm giao *</Label>
-            <ReferenceSelect id={id("delivery")} refKey="locations" value={row.deliveryLocationId} onChange={(v) => onChange({ deliveryLocationId: v, priceListId: "" })} />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor={id("vehicle")}>Xe (có thể chọn sau)</Label>
-            <ReferenceSelect
-              id={id("vehicle")}
-              refKey="vehicles"
-              value={row.vehicleId}
-              onChange={(v) => {
-                onChange({ vehicleId: v });
-                if (v) {
-                  vehicleDefaultDriver(v).then((r) => {
-                    if (!r.ok || !r.data) return;
-                    const patch: Partial<Row> = {};
-                    if (r.data.driverId && !row.driverId) Object.assign(patch, { driverId: r.data.driverId, driverKey: row.driverKey + 1 });
-                    if (r.data.vehicleTypeId && !row.vehicleTypeId) Object.assign(patch, { vehicleTypeId: r.data.vehicleTypeId, priceListId: "" });
-                    if (Object.keys(patch).length) onChange(patch);
-                  });
-                }
-              }}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
-            <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} onChange={(v) => onChange({ driverId: v })} />
-          </div>
-        </div>
+        <CustomFieldsEditor
+          fields={shipmentFields}
+          idPrefix={`s${row.key}-cf-`}
+          initial={row.custom}
+          onChange={(custom) => onChange({ custom })}
+          order={shipmentLayout}
+          slots={{
+              pickup_at: (
+                <div className="space-y-1.5">
+                  <Label htmlFor={id("pickup-at")}>Giờ nhận hàng *</Label>
+                  <Input id={id("pickup-at")} type="datetime-local" value={row.pickupAt} onChange={(e) => onChange({ pickupAt: e.target.value })} />
+                </div>
+              ),
+              expected_delivery_at: (
+                <div className="space-y-1.5">
+                  <Label htmlFor={id("delivery-at")}>Giờ giao dự kiến</Label>
+                  <Input id={id("delivery-at")} type="datetime-local" value={row.expectedDeliveryAt} onChange={(e) => onChange({ expectedDeliveryAt: e.target.value })} />
+                </div>
+              ),
+              vehicle_type_id: (
+                <div className="space-y-1.5">
+                  <Label htmlFor={id("vtype")}>Loại xe</Label>
+                  <ReferenceSelect id={id("vtype")} refKey="vehicle_types" value={row.vehicleTypeId} onChange={(v) => onChange({ vehicleTypeId: v, priceListId: "" })} />
+                </div>
+              ),
+              quantity: (
+                <div className="space-y-1.5">
+                  <Label htmlFor={id("qty")}>Số lượng ({PRICING_UNITS[unit] ?? unit})</Label>
+                  <Input id={id("qty")} type="number" min="0.001" step="any" value={row.quantity} onChange={(e) => onChange({ quantity: e.target.value })} />
+                </div>
+              ),
+              pickup_location_id: (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor={id("pickup")}>Điểm nhận *</Label>
+                  <ReferenceSelect id={id("pickup")} refKey="locations" value={row.pickupLocationId} onChange={(v) => onChange({ pickupLocationId: v, priceListId: "" })} />
+                </div>
+              ),
+              delivery_location_id: (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor={id("delivery")}>Điểm giao *</Label>
+                  <ReferenceSelect id={id("delivery")} refKey="locations" value={row.deliveryLocationId} onChange={(v) => onChange({ deliveryLocationId: v, priceListId: "" })} />
+                </div>
+              ),
+              vehicle_id: (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor={id("vehicle")}>Xe (có thể chọn sau)</Label>
+                  <ReferenceSelect
+                    id={id("vehicle")}
+                    refKey="vehicles"
+                    value={row.vehicleId}
+                    onChange={(v) => {
+                      onChange({ vehicleId: v });
+                      if (v) {
+                        vehicleDefaultDriver(v).then((r) => {
+                          if (!r.ok || !r.data) return;
+                          const patch: Partial<Row> = {};
+                          if (r.data.driverId && !row.driverId) Object.assign(patch, { driverId: r.data.driverId, driverKey: row.driverKey + 1 });
+                          if (r.data.vehicleTypeId && !row.vehicleTypeId) Object.assign(patch, { vehicleTypeId: r.data.vehicleTypeId, priceListId: "" });
+                          if (Object.keys(patch).length) onChange(patch);
+                        });
+                      }
+                    }}
+                  />
+                </div>
+              ),
+              driver_id: (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
+                  <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} onChange={(v) => onChange({ driverId: v })} />
+                </div>
+              ),
+              notes: (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor={id("notes")}>Ghi chú cho tài xế</Label>
+                  <Input id={id("notes")} value={row.notes} onChange={(e) => onChange({ notes: e.target.value })} maxLength={1000} />
+                </div>
+              ),
+          }}
+        />
+        {canAddField ? <AddFieldButton module="shipments" customRows={[]} label="Thêm trường cho chuyến" /> : null}
 
         <div className="rounded-lg border bg-muted/30 p-3">
           {!canQuote ? (
@@ -386,7 +435,7 @@ function ShipmentEditor({
                   </div>
                 </div>
               ) : null}
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor={id("surcharge")}>Phụ phí (đ)</Label>
                   <Input
@@ -413,10 +462,6 @@ function ShipmentEditor({
                   />
                   <p className="text-xs text-muted-foreground">Bỏ trống để dùng tỷ lệ tự động{rateSource && manualRate === undefined ? ` (${rateSource})` : ""}.</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor={id("notes")}>Ghi chú cho tài xế</Label>
-                  <Input id={id("notes")} value={row.notes} onChange={(e) => onChange({ notes: e.target.value })} maxLength={1000} />
-                </div>
               </div>
               {chosen || manual ? (
                 <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -429,14 +474,6 @@ function ShipmentEditor({
             </div>
           )}
         </div>
-        {shipmentFields.length || canAddField ? (
-          <div className="mt-4 space-y-2 border-t pt-4">
-            <CustomFieldsEditor fields={shipmentFields} idPrefix={`s${row.key}-cf-`} initial={row.custom} onChange={(custom) => onChange({ custom })} />
-            {canAddField ? (
-              <AddFieldButton module="shipments" customRows={[]} label="Thêm trường cho chuyến" />
-            ) : null}
-          </div>
-        ) : null}
       </CardContent>
       {canCreatePriceList ? (
         <EntityFormDialog

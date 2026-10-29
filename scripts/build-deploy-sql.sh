@@ -73,3 +73,6 @@ upgrade nang-cap-giai-doan-7c.sql "Giai đoạn 7c (tài xế đăng nhập Goog
 
 upgrade nang-cap-tang-toc-tim-kiem.sql "Tăng tốc tìm kiếm (RLS tính quyền một lần mỗi truy vấn)" "to_regprocedure('private.wrap_rls_calls(text)') is not null" \
   supabase/migrations/20261029000020_rls_performance.sql
+
+upgrade nang-cap-thu-tu-truong.sql "Sắp thứ tự trường trên biểu mẫu (Quản lý trường dữ liệu)" "to_regclass('public.form_layouts') is not null" \
+  supabase/migrations/20261029000021_form_layouts.sql

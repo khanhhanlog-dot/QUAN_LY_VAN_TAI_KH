@@ -160,4 +160,6 @@ export type CustomFieldRow = {
   reference_target: string | null;
   status: string;
   version: number;
+  /** Chỉ có ở dòng giả field_kind = "layout": thứ tự trường trên biểu mẫu (bảng form_layouts) */
+  layout?: string[];
 };

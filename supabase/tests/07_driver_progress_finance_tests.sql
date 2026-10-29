@@ -15,6 +15,10 @@ insert into t_fin select 's1', id::text from public.shipments
 insert into t_fin select 's2', id::text from public.shipments
  where vehicle_id is null and driver_id = '40000000-0000-0000-0000-000000000001' and status = 'assigned' order by created_at desc limit 1;
 
+-- Ngày nhận hàng trong 04 cố định (21/10/2026); dời về hôm nay để thẻ chuyến vẫn hiện chuyến đã xong (3 ngày gần đây)
+update public.shipments set pickup_at = now(), expected_delivery_at = null
+ where id in ((select v::uuid from t_fin where k = 's1'), (select v::uuid from t_fin where k = 's2'));
+
 -- Giám đốc
 select tests.login('00000000-0000-0000-0000-0000000000a1');
 set role authenticated;

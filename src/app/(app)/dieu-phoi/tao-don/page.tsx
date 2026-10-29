@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { isUuid, moduleCustomFields } from "@/lib/entities/record";
+import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { PageHeader } from "@/components/layout/page-header";
 import { OrderForm } from "./order-form";
@@ -50,6 +50,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
         canCreatePriceList={me.permissions.has("price_lists.create")}
         orderFields={orderFields}
         shipmentFields={shipmentFields}
+        orderLayout={layoutOf("transport_orders", orderRows)}
+        shipmentLayout={layoutOf("shipments", shipRows)}
         canAddField={canAddField}
       />
     </>

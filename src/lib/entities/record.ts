@@ -78,7 +78,32 @@ export function effectiveFields(entity: EntityDef, customRows: CustomFieldRow[],
       if (r.edit_permission && permissions && !permissions.has(r.edit_permission)) def.readOnly = true;
       return def;
     });
-  return [...entity.fields, ...custom];
+  return applyLayout([...entity.fields, ...custom], layoutOf(entity.customModule, customRows));
+}
+
+/** Dòng giả mang thứ tự trường trên biểu mẫu, đi kèm danh sách trường bổ sung */
+export function layoutRow(module: string, order: string[]): CustomFieldRow {
+  return {
+    id: `layout:${module}`, module, field_key: "__layout", label: "", description: null, field_kind: "layout", data_type: "layout",
+    is_required: false, is_editable: false, is_visible: false, is_searchable: false, is_filterable: false, is_sortable: false,
+    default_value: null, display_format: null, sort_order: 0, view_permission: null, edit_permission: null, validation: null,
+    formula: null, visibility_condition: null, options: null, reference_target: null, status: "layout", version: 0, layout: order,
+  };
+}
+
+/** Thứ tự trường đã lưu của màn hình (rỗng nếu chưa sắp xếp) */
+export function layoutOf(module: string | undefined, customRows: CustomFieldRow[]): string[] {
+  return customRows.find((r) => r.field_kind === "layout" && r.module === module)?.layout ?? [];
+}
+
+/** Sắp theo thứ tự đã lưu; trường chưa có trong thứ tự (mới thêm) giữ vị trí tương đối, xếp sau cùng */
+export function applyLayout<T extends { key: string }>(items: T[], order: string[]): T[] {
+  if (!order.length) return items;
+  const pos = new Map(order.map((k, i) => [k, i]));
+  return items
+    .map((it, i) => ({ it, rank: pos.get(it.key) ?? order.length + i }))
+    .sort((a, b) => a.rank - b.rank)
+    .map((x) => x.it);
 }
 
 /** Trường có đang hiện theo điều kiện showIf hay không */

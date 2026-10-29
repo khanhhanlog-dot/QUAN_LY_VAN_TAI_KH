@@ -1,28 +1,35 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { computeFormula } from "@/lib/formula";
-import { formatValue, toFormValues } from "@/lib/entities/record";
+import { applyLayout, formatValue, toFormValues } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 import { FieldInput } from "./field-input";
 
 type Values = Record<string, unknown>;
 
-/** Ô nhập cho các trường bổ sung (người dùng tự thêm) trong biểu mẫu không thuộc bộ danh mục chung, ví dụ đơn hàng, chuyến */
+/**
+ * Ô nhập cho các trường bổ sung (người dùng tự thêm) trong biểu mẫu không thuộc bộ danh mục chung, ví dụ đơn hàng, chuyến.
+ * Truyền `slots` (ô của trường hệ thống, đã bọc sẵn) và `order` để xếp chung với trường bổ sung theo thứ tự người dùng sắp.
+ */
 export function CustomFieldsEditor({
   fields,
   idPrefix,
   initial,
   onChange,
   className,
+  slots,
+  order = [],
 }: {
   fields: FieldDef[];
   idPrefix: string;
   initial?: Values | null;
   onChange: (values: Values) => void;
   className?: string;
+  slots?: Record<string, ReactNode>;
+  order?: string[];
 }) {
   const form = useForm<Values>({ defaultValues: toFormValues(fields, initial ?? null) });
   const values = useWatch({ control: form.control }) as Values;
@@ -30,10 +37,15 @@ export function CustomFieldsEditor({
     onChange(values);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(values)]);
-  if (!fields.length) return null;
+  if (!fields.length && !slots) return null;
+  const items = applyLayout(
+    [...Object.keys(slots ?? {}).map((key) => ({ key, field: null as FieldDef | null })), ...fields.map((f) => ({ key: f.key, field: f as FieldDef | null }))],
+    order,
+  );
   return (
     <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-4", className)}>
-      {fields.map((f) => {
+      {items.map(({ key, field: f }) => {
+        if (!f) return <div key={`slot-${key}`} className="contents">{slots?.[key]}</div>;
         const wide = f.wide || f.type === "textarea" || f.type === "multiselect";
         if (f.type === "formula" || f.readOnly) {
           const v = f.type === "formula" ? computeFormula(f.formula, values) : initial?.[f.key];

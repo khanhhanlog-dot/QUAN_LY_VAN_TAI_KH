@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ENTITIES } from "./definitions";
 import { applyConditions, parseConditions } from "@/lib/advanced-filter";
 import { addDaysYMD, startOfDayVN } from "@/lib/format";
-import { advancedFields, effectiveFields, flattenRow, rowLabel } from "./record";
+import { advancedFields, effectiveFields, flattenRow, layoutRow, rowLabel } from "./record";
 import type { CustomFieldRow, EntityDef, FieldDef, TableViewConfig } from "./types";
 
 export const PAGE_SIZES = [20, 50, 100] as const;
@@ -26,13 +26,24 @@ export type RefLabels = Record<string, Record<string, string>>;
 const CUSTOM_FIELD_COLUMNS =
   "id, module, field_key, label, description, field_kind, data_type, is_required, is_editable, is_visible, is_searchable, is_filterable, is_sortable, default_value, display_format, sort_order, view_permission, edit_permission, validation, formula, visibility_condition, options, reference_target, status, version";
 
+/**
+ * Trường bổ sung của một màn hình. Khi không lấy trường đã ngừng dùng, kèm thêm một dòng giả field_kind = "layout"
+ * mang thứ tự trường trên biểu mẫu để mọi nơi dùng effectiveFields tự sắp đúng thứ tự.
+ */
 export async function loadCustomFields(supabase: SupabaseClient, module: string | undefined, includeInactive = false): Promise<CustomFieldRow[]> {
   if (!module) return [];
   let q = supabase.from("field_definitions").select(CUSTOM_FIELD_COLUMNS).eq("module", module).order("sort_order");
   if (!includeInactive) q = q.eq("status", "active");
-  const { data, error } = await q;
+  const [{ data, error }, layout] = await Promise.all([q, includeInactive ? Promise.resolve(null) : loadFormLayout(supabase, module)]);
   if (error) throw error;
-  return (data ?? []) as CustomFieldRow[];
+  const rows = (data ?? []) as CustomFieldRow[];
+  return layout?.length ? [...rows, layoutRow(module, layout)] : rows;
+}
+
+/** Thứ tự trường đã lưu cho biểu mẫu (rỗng nếu chưa sắp xếp) */
+export async function loadFormLayout(supabase: SupabaseClient, module: string): Promise<string[]> {
+  const { data } = await supabase.from("form_layouts").select("field_order").eq("module", module).maybeSingle();
+  return (data?.field_order as string[] | undefined) ?? [];
 }
 
 /** Trường động người dùng được xem (lọc theo view_permission ở máy chủ) */

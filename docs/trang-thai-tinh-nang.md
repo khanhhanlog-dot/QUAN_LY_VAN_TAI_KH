@@ -112,6 +112,7 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 |---|---|---|
 | Ô chọn danh mục thêm mới ngay tại ô (gõ tên chưa có → Thêm mới, điền sẵn tên) | ✅ | Mọi ô chọn danh mục; theo quyền tạo của vai trò |
 | Người dùng tự thêm trường, kể cả trường công thức, cho mọi biểu mẫu | ✅ | Xe, tài xế, khách hàng, nhà cung cấp, địa điểm, loại xe, tuyến, bảng giá, quy tắc dầu, loại chi phí, ngân hàng, phương thức thanh toán, pháp nhân, quy tắc lương, bảo dưỡng, mục danh mục, đơn hàng, chuyến. Liên kết "+ Thêm trường" ngay trong biểu mẫu |
+| Kéo thả sắp thứ tự trường trên biểu mẫu (trường hệ thống và trường bổ sung xen kẽ), áp dụng cho mọi người dùng | ✅ | Quản lý trường dữ liệu → chọn màn hình → "Thứ tự trên biểu mẫu". Áp dụng cho form tạo đơn hàng/chuyến (Điều phối) và hộp thêm/sửa của mọi danh mục. Hộp tạo ứng tiền, chi phí, lương, công nợ: trường hệ thống giữ cố định, chỉ trường bổ sung theo thứ tự |
 | Ô tìm kiếm trên mọi danh sách | ✅ | Danh mục, bảng chuyến, điều phối, thông báo, người dùng, nhật ký |
 | Tìm kiếm nâng cao: người dùng tự thêm điều kiện theo trường (kể cả trường bổ sung) | ✅ | Mọi bảng danh mục và bảng chuyến; xuất Excel theo đúng điều kiện |
 | Chọn cột hiển thị, kéo đổi thứ tự cột, kéo giãn cột, kéo giãn dòng, cố định cột, lưu cấu hình theo người dùng | ✅ | Mọi bảng danh mục và bảng chuyến |

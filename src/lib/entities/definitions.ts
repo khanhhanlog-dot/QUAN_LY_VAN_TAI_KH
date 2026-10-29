@@ -1328,14 +1328,35 @@ export function getEntity(key: string): EntityDef {
 }
 
 /** Các module cho phép thêm trường động và tên hiển thị */
+/** Trường hệ thống của các biểu mẫu viết riêng (không dùng bộ danh mục chung), để sắp thứ tự cùng trường bổ sung */
+export const FORM_SYSTEM_FIELDS: Record<string, { key: string; label: string }[]> = {
+  transport_orders: [
+    { key: "customer_id", label: "Khách hàng" },
+    { key: "payer_customer_id", label: "Khách thanh toán" },
+    { key: "order_date", label: "Ngày đơn hàng" },
+    { key: "notes", label: "Ghi chú đơn hàng" },
+  ],
+  shipments: [
+    { key: "pickup_at", label: "Giờ nhận hàng" },
+    { key: "expected_delivery_at", label: "Giờ giao dự kiến" },
+    { key: "vehicle_type_id", label: "Loại xe" },
+    { key: "quantity", label: "Số lượng" },
+    { key: "pickup_location_id", label: "Điểm nhận" },
+    { key: "delivery_location_id", label: "Điểm giao" },
+    { key: "vehicle_id", label: "Xe" },
+    { key: "driver_id", label: "Tài xế" },
+    { key: "notes", label: "Ghi chú cho tài xế" },
+  ],
+};
+
 export const CUSTOM_FIELD_MODULES: { module: string; label: string; entity?: string }[] = [
   { module: "vehicles", label: "Phương tiện", entity: "vehicles" },
   { module: "drivers", label: "Tài xế", entity: "drivers" },
   { module: "customers", label: "Khách hàng", entity: "customers" },
   { module: "suppliers", label: "Nhà cung cấp", entity: "suppliers" },
   { module: "locations", label: "Địa điểm", entity: "locations" },
-  { module: "transport_orders", label: "Đơn hàng" },
-  { module: "shipments", label: "Chuyến xe" },
+  { module: "transport_orders", label: "Đơn hàng (Điều phối)" },
+  { module: "shipments", label: "Chuyến xe (Điều phối)" },
   { module: "vehicle_types", label: "Loại xe", entity: "vehicle_types" },
   { module: "routes", label: "Tuyến đường", entity: "routes" },
   { module: "price_lists", label: "Bảng giá", entity: "price_lists" },

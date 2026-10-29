@@ -6,10 +6,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CUSTOM_FIELD_MODULES, ENTITIES } from "@/lib/entities/definitions";
-import { loadCustomFields } from "@/lib/entities/server";
+import { CUSTOM_FIELD_MODULES, ENTITIES, FORM_SYSTEM_FIELDS } from "@/lib/entities/definitions";
+import { loadCustomFields, loadFormLayout } from "@/lib/entities/server";
+import { applyLayout } from "@/lib/entities/record";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 import { FieldManager } from "./field-manager";
+import { FormLayoutCard, type LayoutItem } from "./form-layout-card";
 
 export const metadata: Metadata = { title: "Quản lý trường dữ liệu" };
 
@@ -24,8 +26,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
   const { module: mp, them } = await searchParams;
   const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === mp) ?? CUSTOM_FIELD_MODULES[0];
   const supabase = await createClient();
-  const custom = await loadCustomFields(supabase, mod.module, true);
+  const [custom, layout] = await Promise.all([loadCustomFields(supabase, mod.module, true), loadFormLayout(supabase, mod.module)]);
   const entity = mod.entity ? ENTITIES[mod.entity] : undefined;
+  const systemForm = entity ? entity.fields.filter((f) => !f.hideInForm && f.key !== entity.parentKey) : (FORM_SYSTEM_FIELDS[mod.module] ?? []);
+  const layoutDefaults: LayoutItem[] = [
+    ...systemForm.map((f) => ({ key: f.key, label: f.label, system: true })),
+    ...custom
+      .filter((r) => r.status === "active")
+      .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, "vi"))
+      .map((r) => ({ key: r.field_key, label: r.label, system: false })),
+  ];
   const numericSystem = (entity?.fields ?? []).filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => ({ key: f.key, label: f.label }));
 
   return (
@@ -55,9 +65,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
           rows={custom}
           canConfigure={me.permissions.has("fields.configure")}
           numericSystem={numericSystem}
-          systemKeys={(entity?.fields ?? []).map((f) => f.key)}
+          systemKeys={(entity?.fields ?? FORM_SYSTEM_FIELDS[mod.module] ?? []).map((f) => f.key)}
           permissions={ALL_PERMISSIONS}
           autoOpen={them === "1"}
+        />
+        <FormLayoutCard
+          key={`${mod.module}:${layout.join()}`}
+          module={mod.module}
+          moduleLabel={mod.label}
+          items={applyLayout(layoutDefaults, layout)}
+          defaults={layoutDefaults}
+          canConfigure={me.permissions.has("fields.configure")}
+          note={entity?.createAction ? "Hộp tạo mới của màn hình này giữ cố định ô hệ thống; trường bổ sung hiện theo thứ tự này." : undefined}
         />
         {entity ? (
           <Card>
