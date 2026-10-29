@@ -40,6 +40,8 @@ export type ShipmentListRow = {
   notes: string | null;
   version: number;
   custom_fields?: Record<string, unknown> | null;
+  /** Thứ tự chuyến của xe trong ngày (1, 2...) khi xe chạy nhiều chuyến cùng ngày */
+  vehicle_day_order?: number | null;
   order_custom_fields?: Record<string, unknown> | null;
 };
 

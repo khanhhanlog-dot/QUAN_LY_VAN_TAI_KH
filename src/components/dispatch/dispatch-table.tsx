@@ -79,11 +79,17 @@ export function DispatchTable({
               <td className="px-3 py-2.5 whitespace-nowrap">
                 {r.driver_id ? (
                   <>
-                    <div className="font-medium">{r.plate_number ?? <span className="text-muted-foreground">Chưa chọn xe</span>}</div>
+                    <div className="font-medium">
+                      {r.plate_number ?? <span className="text-muted-foreground">Chưa chọn xe</span>}
+                      {r.vehicle_day_order ? <DayOrder n={r.vehicle_day_order} /> : null}
+                    </div>
                     <div className="text-xs text-muted-foreground">{r.driver_name}</div>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">{r.plate_number ?? "Chưa phân công"}</span>
+                  <span className="text-muted-foreground">
+                    {r.plate_number ?? "Chưa phân công"}
+                    {r.plate_number && r.vehicle_day_order ? <DayOrder n={r.vehicle_day_order} /> : null}
+                  </span>
                 )}
               </td>
               <td className="px-3 py-2.5">
@@ -104,6 +110,7 @@ export function DispatchTable({
                         driverLabel={r.driver_name ? `${r.driver_name} (${r.driver_code})` : null}
                         vehicleId={r.vehicle_id}
                         vehicleLabel={r.plate_number}
+                        pickupAt={r.pickup_at}
                       />
                     ) : null}
                     {canCancel && CANCELLABLE_STATUSES.includes(r.status) ? <CancelDialog compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
@@ -115,5 +122,14 @@ export function DispatchTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Thứ tự chuyến của xe trong ngày */
+function DayOrder({ n }: { n: number }) {
+  return (
+    <Badge variant="info" className="ml-1.5 px-1.5 py-0 align-middle" title={`Chuyến thứ ${n} của xe trong ngày`}>
+      Chuyến {n}
+    </Badge>
   );
 }

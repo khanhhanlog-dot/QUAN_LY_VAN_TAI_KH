@@ -79,3 +79,6 @@ upgrade nang-cap-thu-tu-truong.sql "Sắp thứ tự trường trên biểu mẫ
 
 upgrade nang-cap-an-hien-truong.sql "Hiện/ẩn trường bổ sung theo giá trị trường khác" "to_regprocedure('private.valid_visibility_condition(text)') is not null" \
   supabase/migrations/20261029000022_field_visibility.sql
+
+upgrade nang-cap-thu-tu-chuyen-xe.sql "Thứ tự chuyến của xe trong ngày (Điều phối)" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'vehicle_day_order')" \
+  supabase/migrations/20261029000023_vehicle_day_order.sql

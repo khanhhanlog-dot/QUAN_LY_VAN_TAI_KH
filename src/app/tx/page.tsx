@@ -48,6 +48,8 @@ type Trip = {
   expense_count: number;
   expense_total: number;
   outsourced: boolean;
+  /** Thứ tự chuyến của xe trong ngày (điều phối nhập khi xe chạy nhiều chuyến cùng ngày) */
+  vehicle_day_order?: number | null;
 };
 
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
@@ -93,6 +95,7 @@ export default async function DriverHome() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-mono text-base font-semibold">{t.shipment_code}</div>
+                    {t.vehicle_day_order ? <div className="text-sm font-semibold text-primary">Chuyến thứ {t.vehicle_day_order} trong ngày</div> : null}
                     <div className="text-sm text-muted-foreground">Tài xế: {t.driver_name}</div>
                   </div>
                   <Badge variant={st.variant}>{st.label}</Badge>

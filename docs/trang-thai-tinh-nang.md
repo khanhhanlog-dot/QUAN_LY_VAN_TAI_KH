@@ -98,6 +98,14 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Xe thuê ngoài 3PL (Hình thức sở hữu = "Thuê ngoài 3PL"): chuyến không ứng tiền, không nhập chi phí tài xế, hoàn thành không cần khai chi phí | ✅ | CSDL |
 | Google OAuth đang ở chế độ Testing: tài xế phải được thêm vào Test users, hoặc chuyển ứng dụng sang Production | ⏳ | Việc cấu hình của chủ tài khoản Google Cloud |
 
+## Cải tiến màn hình Điều phối (khách hàng yêu cầu 29/10/2026)
+
+| Chức năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Lọc theo khoảng ngày nhận hàng (từ ngày – đến ngày, tối đa 92 ngày, nút nhanh Hôm qua/Hôm nay/Ngày mai/7 ngày tới/Tháng này), công ty/khách hàng, số xe, tài xế, từ khóa, tìm kiếm nâng cao theo mọi cột của chuyến | ✅ | Liên kết cũ `?ngay=` vẫn chạy |
+| Báo cáo "Xe chưa có đơn": xe công ty đang hoạt động (không tính 3PL) còn trống trong ngày/khoảng ngày, số ngày trống và danh sách ngày trống | ✅ | Chuyến chạy nhiều ngày tính bận đến ngày giao dự kiến; bảng có tìm kiếm, tìm nâng cao, chọn/kéo/giãn cột, lưu cấu hình |
+| Cảnh báo khi giao xe đã có chuyến cùng ngày (khi phân công và khi tạo đơn); tích "Vẫn giao cho xe này" và bắt buộc nhập thứ tự chuyến của xe trong ngày (1, 2…) | ✅ | Migration 0023 (`shipments.vehicle_day_order`), app tài xế xếp chuyến trong ngày theo thứ tự này |
+
 ## Chưa triển khai
 
 | Chức năng | Giai đoạn |
