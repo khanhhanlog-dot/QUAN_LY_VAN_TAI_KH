@@ -19,6 +19,7 @@ export function FormLayoutCard({
   defaults,
   canConfigure,
   note,
+  appliesTo,
 }: {
   module: string;
   moduleLabel: string;
@@ -27,6 +28,8 @@ export function FormLayoutCard({
   defaults: LayoutItem[];
   canConfigure: boolean;
   note?: string;
+  /** Biểu mẫu nhận thứ tự này, ví dụ "form Tạo đơn hàng ở Điều phối" */
+  appliesTo: string;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initial);
@@ -51,12 +54,16 @@ export function FormLayoutCard({
         <div>
           <CardTitle className="text-base">Thứ tự trên biểu mẫu {moduleLabel.toLowerCase()}</CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            {canConfigure ? "Kéo thả hoặc bấm mũi tên để đổi vị trí, rồi bấm Lưu. Áp dụng cho mọi người dùng." : "Bạn chỉ được xem, cần quyền Cấu hình trường để sắp xếp."}
+            Áp dụng cho <b>{appliesTo}</b>, cho mọi người dùng.{" "}
+            {canConfigure ? "Kéo thả hoặc bấm mũi tên ↑ ↓ để đổi vị trí, rồi bấm Lưu thứ tự." : "Bạn chỉ được xem, cần quyền Cấu hình trường để sắp xếp."}
             {note ? ` ${note}` : ""}
           </p>
         </div>
         {canConfigure ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className={cn("text-xs", dirty ? "font-medium text-amber-700" : "text-muted-foreground")}>
+              {dirty ? "Có thay đổi chưa lưu" : "Đổi vị trí một trường thì nút Lưu thứ tự mới sáng"}
+            </span>
             <Button variant="outline" size="sm" onClick={() => setItems(defaults)} disabled={pending}>
               <RotateCcw /> Mặc định
             </Button>
@@ -90,6 +97,7 @@ export function FormLayoutCard({
               onDragStart={(e) => {
                 setDrag(i);
                 e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", it.key); // Firefox chỉ bắt đầu kéo khi có dữ liệu
               }}
               onDragOver={(e) => {
                 if (drag === null) return;

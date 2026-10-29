@@ -76,6 +76,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
           items={applyLayout(layoutDefaults, layout)}
           defaults={layoutDefaults}
           canConfigure={me.permissions.has("fields.configure")}
+          appliesTo={
+            mod.module === "transport_orders"
+              ? "phần Thông tin đơn hàng trên form Tạo đơn hàng (Điều phối)"
+              : mod.module === "shipments"
+                ? "phần Chuyến trên form Tạo đơn hàng (Điều phối)"
+                : `hộp Thêm/Sửa ${mod.label.toLowerCase()}`
+          }
           note={entity?.createAction ? "Hộp tạo mới của màn hình này giữ cố định ô hệ thống; trường bổ sung hiện theo thứ tự này." : undefined}
         />
         {entity ? (
