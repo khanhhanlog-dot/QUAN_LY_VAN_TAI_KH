@@ -76,3 +76,6 @@ upgrade nang-cap-tang-toc-tim-kiem.sql "Tăng tốc tìm kiếm (RLS tính quy�
 
 upgrade nang-cap-thu-tu-truong.sql "Sắp thứ tự trường trên biểu mẫu (Quản lý trường dữ liệu)" "to_regclass('public.form_layouts') is not null" \
   supabase/migrations/20261029000021_form_layouts.sql
+
+upgrade nang-cap-thu-tu-chuyen-xe.sql "Thứ tự chuyến của xe trong ngày (Điều phối)" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'vehicle_day_order')" \
+  supabase/migrations/20261029000022_vehicle_day_order.sql

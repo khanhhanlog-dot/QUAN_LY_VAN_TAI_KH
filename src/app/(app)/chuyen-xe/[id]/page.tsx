@@ -183,6 +183,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 driverLabel={s.driver_name ? `${s.driver_name} (${s.driver_code})` : null}
                 vehicleId={s.vehicle_id}
                 vehicleLabel={s.plate_number}
+                pickupAt={s.pickup_at}
               />
             ) : null}
             {canCancel ? <CancelDialog shipmentId={s.id} shipmentCode={s.shipment_code} /> : null}

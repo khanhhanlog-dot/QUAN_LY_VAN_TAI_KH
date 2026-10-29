@@ -4,7 +4,7 @@ import { isUuid } from "@/lib/entities/record";
 import { sanitizeSearch } from "@/lib/entities/server";
 import { SHIPMENT_STATUS } from "@/lib/status";
 import { applyConditions, parseConditions, encodeCondition, type AdvField } from "@/lib/advanced-filter";
-import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
+import { loadCustomFields, resolveRefLabels, visibleCustomRows } from "@/lib/entities/server";
 import { advancedFields, moduleCustomFields } from "@/lib/entities/record";
 import { shipmentCustomAdvFields } from "@/lib/shipments";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -63,4 +63,16 @@ export function applyShipmentFilters(query: any, f: ShipmentFilters, opts: { sta
 export async function shipmentCustomFields(supabase: SupabaseClient, perms: Set<string>) {
   const defs = moduleCustomFields("shipments", visibleCustomRows(await loadCustomFields(supabase, "shipments"), perms), perms);
   return { defs, adv: shipmentCustomAdvFields(advancedFields(defs)) };
+}
+
+/** Nhãn của khách hàng, địa điểm, xe… đang dùng trong điều kiện tìm kiếm nâng cao */
+export async function advRefLabels(supabase: SupabaseClient, adv: string[], all: AdvField[]) {
+  const conds = parseConditions(adv, all).filter((c) => all.find((x) => x.key === c.field)?.kind === "reference");
+  if (!conds.length) return {};
+  const fields = conds.map((c) => {
+    const af = all.find((x) => x.key === c.field)!;
+    return { key: c.field, label: af.label, type: "reference" as const, ref: af.ref };
+  });
+  const labels = await resolveRefLabels(supabase, fields, conds.map((c) => ({ [c.field]: c.value })));
+  return Object.assign({}, ...Object.values(labels)) as Record<string, string>;
 }

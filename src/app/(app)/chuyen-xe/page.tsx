@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePagePermission } from "@/lib/auth/session";
-import { loadTableView, resolveRefLabels } from "@/lib/entities/server";
-import { parseConditions, type AdvField } from "@/lib/advanced-filter";
+import { loadTableView } from "@/lib/entities/server";
 import { SHIPMENT_ADV_FIELDS } from "@/lib/shipments";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
@@ -10,7 +9,7 @@ import { addDaysYMD, formatVND, startOfDayVN } from "@/lib/format";
 import { SHIPMENT_STATUS } from "@/lib/status";
 import { TONE_BADGE } from "@/lib/tones";
 import type { ShipmentListRow } from "@/lib/shipments";
-import { applyShipmentFilters, parseShipmentFilters, shipmentCustomFields, type ShipmentFilters } from "@/lib/shipments-query";
+import { advRefLabels, applyShipmentFilters, parseShipmentFilters, shipmentCustomFields, type ShipmentFilters } from "@/lib/shipments-query";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -164,16 +163,4 @@ async function summarize(supabase: SupabaseClient, f: ShipmentFilters): Promise<
     if (rows.length < 1000) break;
   }
   return { data: { total, by_status: by }, error: null };
-}
-
-/** Nhãn của khách hàng, địa điểm, xe… đang dùng trong điều kiện tìm kiếm nâng cao */
-async function advRefLabels(supabase: SupabaseClient, adv: string[], all: AdvField[]) {
-  const conds = parseConditions(adv, all).filter((c) => all.find((x) => x.key === c.field)?.kind === "reference");
-  if (!conds.length) return {};
-  const fields = conds.map((c) => {
-    const af = all.find((x) => x.key === c.field)!;
-    return { key: c.field, label: af.label, type: "reference" as const, ref: af.ref };
-  });
-  const labels = await resolveRefLabels(supabase, fields, conds.map((c) => ({ [c.field]: c.value })));
-  return Object.assign({}, ...Object.values(labels)) as Record<string, string>;
 }

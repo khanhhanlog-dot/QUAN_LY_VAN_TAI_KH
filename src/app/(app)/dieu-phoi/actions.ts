@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { addDaysYMD, startOfDayVN } from "@/lib/format";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { moduleCustomFields, splitCustom, validateRecord } from "@/lib/entities/record";
@@ -80,6 +81,17 @@ export async function quoteShipment(input: z.input<typeof quoteSchema>): Promise
   });
 }
 
+const dayOrder = z.number().int().min(1, "Thứ tự chuyến của xe phải từ 1").max(99, "Thứ tự chuyến của xe tối đa 99");
+const otherOrders = z.array(z.object({ shipmentId: uuid, order: dayOrder })).max(50).optional();
+
+/** Ghi thứ tự chuyến của xe trong ngày (null = bỏ thứ tự) */
+async function setDayOrders(supabase: Awaited<ReturnType<typeof createClient>>, list: { shipmentId: string; order: number | null }[]) {
+  for (const x of list) {
+    const { error } = await supabase.rpc("set_vehicle_day_order", { p_shipment_id: x.shipmentId, p_order: x.order });
+    if (error) throw error;
+  }
+}
+
 const dateTime = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "Thời gian không hợp lệ");
 
 const shipmentSchema = z
@@ -99,6 +111,7 @@ const shipmentSchema = z
     fuelSupportRate: optNum("Tỷ lệ hỗ trợ dầu", { min: 0, max: 100 }),
     notes: z.string().max(1000).optional(),
     custom: z.record(z.string(), z.unknown()).optional(),
+    vehicleDayOrder: dayOrder.nullable().optional(),
   })
   .refine((s) => s.pickupLocationId !== s.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
   .refine((s) => !s.expectedDeliveryAt || Date.parse(s.expectedDeliveryAt) >= Date.parse(s.pickupAt), {
@@ -113,6 +126,8 @@ const orderSchema = z.object({
   notes: z.string().max(2000).optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
   shipments: z.array(shipmentSchema).min(1, "Đơn hàng phải có ít nhất một chuyến").max(100, "Mỗi lần tạo tối đa 100 chuyến"),
+  /** Thứ tự mới của các chuyến đã có của xe trong cùng ngày */
+  otherOrders,
 });
 
 export type CreateOrderInput = z.input<typeof orderSchema>;
@@ -155,13 +170,26 @@ export async function createOrder(input: CreateOrderInput): Promise<ActionResult
     }));
     const { data, error } = await supabase.rpc("create_transport_order", { p_order: order, p_shipments: shipments });
     if (error) throw error;
+    const created = data as { order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[] };
+    // Thứ tự chuyến của xe trong ngày (khi xe chạy nhiều chuyến cùng ngày); chuyến trả về theo đúng thứ tự gửi lên
+    await setDayOrders(supabase, [
+      ...(d.otherOrders ?? []),
+      ...d.shipments.flatMap((s, i) => (s.vehicleDayOrder && created.shipments[i] ? [{ shipmentId: created.shipments[i].id, order: s.vehicleDayOrder }] : [])),
+    ]);
     revalidatePath("/dieu-phoi");
     revalidatePath("/chuyen-xe");
-    return data as { order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[] };
+    return created;
   });
 }
 
-const assignSchema = z.object({ shipmentId: uuid, driverId: optUuid, vehicleId: optUuid });
+const assignSchema = z.object({
+  shipmentId: uuid,
+  driverId: optUuid,
+  vehicleId: optUuid,
+  /** Thứ tự chuyến của xe trong ngày; null = bỏ thứ tự; không gửi = giữ nguyên */
+  vehicleDayOrder: dayOrder.nullable().optional(),
+  otherOrders,
+});
 
 /** Phân công / đổi / gỡ tài xế và xe cho chuyến */
 export async function assignShipment(input: z.input<typeof assignSchema>): Promise<ActionResult> {
@@ -169,7 +197,7 @@ export async function assignShipment(input: z.input<typeof assignSchema>): Promi
     async () => {
       await requirePermission("dispatch.update");
       const p = assignSchema.safeParse(input);
-      if (!p.success) throw new ActionError("Dữ liệu không hợp lệ");
+      if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
       const supabase = await createClient();
       const { error } = await supabase.rpc("assign_shipment", {
         p_shipment_id: p.data.shipmentId,
@@ -177,6 +205,10 @@ export async function assignShipment(input: z.input<typeof assignSchema>): Promi
         p_vehicle_id: p.data.vehicleId ?? null,
       });
       if (error) throw error;
+      await setDayOrders(supabase, [
+        ...(p.data.otherOrders ?? []),
+        ...(p.data.vehicleDayOrder !== undefined ? [{ shipmentId: p.data.shipmentId, order: p.data.vehicleDayOrder }] : []),
+      ]);
       revalidatePath("/dieu-phoi", "layout");
       revalidatePath("/chuyen-xe", "layout");
     },
@@ -209,5 +241,44 @@ export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionRes
     const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id").eq("id", vehicleId).maybeSingle();
     if (error) throw error;
     return { driverId: data?.assigned_driver_id ?? null, vehicleTypeId: data?.vehicle_type_id ?? null };
+  });
+}
+
+export type VehicleDayTrip = {
+  id: string;
+  shipment_code: string;
+  pickup_at: string;
+  expected_delivery_at: string | null;
+  pickup_name: string | null;
+  delivery_name: string | null;
+  customer_name: string | null;
+  driver_name: string | null;
+  status: string;
+  vehicle_day_order: number | null;
+};
+
+const dayTripsSchema = z.object({ vehicleId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), excludeShipmentId: optUuid });
+
+/** Các chuyến (chưa hủy) của xe trong một ngày: nhận hàng trong ngày hoặc đang chạy dở sang ngày đó */
+export async function vehicleTripsOnDay(input: z.input<typeof dayTripsSchema>): Promise<ActionResult<VehicleDayTrip[]>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.create", "dispatch.update");
+    const p = dayTripsSchema.safeParse(input);
+    if (!p.success) throw new ActionError("Dữ liệu không hợp lệ");
+    const from = startOfDayVN(p.data.day);
+    const supabase = await createClient();
+    let q = supabase
+      .from("shipment_list")
+      .select("id, shipment_code, pickup_at, expected_delivery_at, pickup_name, delivery_name, customer_name, driver_name, status, vehicle_day_order")
+      .eq("vehicle_id", p.data.vehicleId)
+      .neq("status", "cancelled")
+      .lt("pickup_at", startOfDayVN(addDaysYMD(p.data.day, 1)))
+      .or(`pickup_at.gte.${from},expected_delivery_at.gte.${from}`)
+      .order("pickup_at")
+      .limit(20);
+    if (p.data.excludeShipmentId) q = q.neq("id", p.data.excludeShipmentId);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []) as VehicleDayTrip[];
   });
 }

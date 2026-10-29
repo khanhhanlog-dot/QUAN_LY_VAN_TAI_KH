@@ -9,6 +9,7 @@ import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReferenceSelect } from "@/components/entities/reference-select";
 import { EntityFormDialog } from "@/components/entities/entity-form-dialog";
+import { VehicleDayConflict, type VehicleDayState } from "@/components/dispatch/vehicle-day-conflict";
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { FieldDef } from "@/lib/entities/types";
@@ -34,6 +35,8 @@ type Row = {
   fuelSupportRate: string;
   notes: string;
   custom: Record<string, unknown>;
+  /** Kiểm tra xe đã có chuyến cùng ngày: xác nhận vẫn giao và thứ tự chuyến của xe trong ngày */
+  vehicleDay?: VehicleDayState;
 };
 
 let seq = 0;
@@ -93,6 +96,8 @@ export function OrderForm({
 
   function submit() {
     if (!order && !customer.id) return void toast.error("Vui lòng chọn khách hàng.");
+    const busy = rows.findIndex((r) => r.vehicleDay?.blocked);
+    if (busy >= 0) return void toast.error(`Chuyến ${busy + 1}: xe đã có chuyến cùng ngày, tích "Vẫn giao cho xe này" và nhập thứ tự chuyến của xe.`);
     start(async () => {
       const r = await createOrder({
         orderId: order?.id,
@@ -117,7 +122,9 @@ export function OrderForm({
           fuelSupportRate: num(s.fuelSupportRate),
           notes: s.notes,
           custom: s.custom,
+          vehicleDayOrder: s.vehicleId ? (s.vehicleDay?.order ?? null) : null,
         })),
+        otherOrders: rows.flatMap((s) => (s.vehicleId ? (s.vehicleDay?.others ?? []) : [])),
       });
       if (!r.ok || !r.data) return void toast.error(r.ok ? "Không lưu được đơn hàng" : r.error);
       toast.success(`Đã lưu ${r.data.shipments.length} chuyến vào đơn ${r.data.order_code}.`);
@@ -182,6 +189,13 @@ export function OrderForm({
           shipmentLayout={shipmentLayout}
           canAddField={canAddField}
           canRemove={rows.length > 1}
+          sameVehicle={rows
+            .map((o, j) =>
+              j !== i && o.vehicleId && o.vehicleId === row.vehicleId && o.pickupAt.slice(0, 10) === row.pickupAt.slice(0, 10)
+                ? { label: `Chuyến ${j + 1}`, order: o.vehicleDay?.order ?? null, before: j < i }
+                : null,
+            )
+            .filter((x) => x !== null)}
           onChange={(patch) => update(row.key, patch)}
           onRemove={() => setRows((rs) => rs.filter((r) => r.key !== row.key))}
           onDuplicate={() => setRows((rs) => [...rs.slice(0, i + 1), newRow(row), ...rs.slice(i + 1)])}
@@ -209,6 +223,7 @@ function ShipmentEditor({
   shipmentLayout,
   canAddField,
   canRemove,
+  sameVehicle,
   onChange,
   onRemove,
   onDuplicate,
@@ -221,6 +236,8 @@ function ShipmentEditor({
   shipmentLayout: string[];
   canAddField: boolean;
   canRemove: boolean;
+  /** Chuyến khác trên biểu mẫu chọn cùng xe, cùng ngày */
+  sameVehicle: { label: string; order: number | null; before: boolean }[];
   onChange: (patch: Partial<Row>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
@@ -363,6 +380,7 @@ function ShipmentEditor({
                       }
                     }}
                   />
+                  <VehicleDayConflict vehicleId={row.vehicleId} day={day} sameForm={sameVehicle} onStateChange={(st) => onChange({ vehicleDay: st })} />
                 </div>
               ),
               driver_id: (

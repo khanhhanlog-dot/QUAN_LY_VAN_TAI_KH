@@ -147,3 +147,39 @@ export function applyConditions<Q>(
   }
   return q as Q;
 }
+
+const fold = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase().trim();
+
+/** Kiểm tra một giá trị theo điều kiện, dùng cho bảng lọc ngay trên trình duyệt (báo cáo tính sẵn). */
+export function matchCondition(value: unknown, kind: AdvFieldKind, op: AdvOp, cond: string): boolean {
+  const isEmpty = value === null || value === undefined || value === "";
+  if (op === "empty") return isEmpty;
+  if (op === "notempty") return !isEmpty;
+  if (kind === "number") {
+    const n = Number(cond.replace(/\s/g, "").replace(",", "."));
+    if (!Number.isFinite(n)) return true;
+    if (isEmpty) return op === "neq";
+    const x = Number(value);
+    return op === "eq" ? x === n : op === "neq" ? x !== n : op === "gt" ? x > n : op === "gte" ? x >= n : op === "lt" ? x < n : op === "lte" ? x <= n : true;
+  }
+  if (kind === "date") {
+    if (isEmpty) return op === "neq";
+    const d = String(value).slice(0, 10);
+    return op === "eq" ? d === cond : op === "gt" ? d > cond : op === "gte" ? d >= cond : op === "lt" ? d < cond : op === "lte" ? d <= cond : true;
+  }
+  const v = fold(isEmpty ? "" : String(value));
+  const c = fold(cond);
+  if (kind === "boolean") return String(Boolean(value)) === cond;
+  switch (op) {
+    case "contains":
+      return v.includes(c);
+    case "starts":
+      return v.startsWith(c);
+    case "eq":
+      return v === c;
+    case "neq":
+      return v !== c;
+    default:
+      return true;
+  }
+}
