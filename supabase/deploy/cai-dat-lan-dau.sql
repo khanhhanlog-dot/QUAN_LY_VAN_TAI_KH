@@ -7633,9 +7633,9 @@ $$;
 revoke all on function public.save_form_layout(text, text[]) from public, anon;
 grant execute on function public.save_form_layout(text, text[]) to authenticated;
 
--- >>> 20261029000022_vehicle_day_order.sql
+-- >>> 20261029000023_vehicle_day_order.sql
 -- =============================================================================
--- KHÁNH HÀ TMS - 0022: Thứ tự chuyến của xe trong ngày (khách hàng yêu cầu 29/10/2026)
+-- KHÁNH HÀ TMS - 0023: Thứ tự chuyến của xe trong ngày (khách hàng yêu cầu 29/10/2026)
 --   Một xe có thể chạy nhiều chuyến cùng ngày (giao xong điểm A rồi sang điểm B nhận hàng).
 --   Khi giao xe đã có chuyến cùng ngày, điều phối xác nhận và nhập thứ tự 1, 2, 3...
 --   Ứng dụng tài xế xếp chuyến trong ngày theo thứ tự này.

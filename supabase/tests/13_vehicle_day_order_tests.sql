@@ -1,5 +1,5 @@
 -- =============================================================================
--- Kiểm thử 0022: thứ tự chuyến của xe trong ngày (vehicle_day_order)
+-- Kiểm thử 0023: thứ tự chuyến của xe trong ngày (vehicle_day_order)
 -- =============================================================================
 \set ON_ERROR_STOP 1
 \set QUIET 1
