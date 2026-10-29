@@ -160,7 +160,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             canAssign={canAssign}
             canCancel={canCancel}
             showDate={!single}
-            emptyText={filtered ? "Không có chuyến phù hợp với bộ lọc." : all.length === 0 ? `Chưa có chuyến nào nhận hàng ${rangeText}.` : "Không có chuyến ở trạng thái này."}
+            emptyText={f.q ? "Không có chuyến phù hợp với từ khóa." : filtered ? "Không có chuyến phù hợp với bộ lọc." : all.length === 0 ? `Chưa có chuyến nào nhận hàng ${rangeText}.` : "Không có chuyến ở trạng thái này."}
           />
         </Card>
       )}

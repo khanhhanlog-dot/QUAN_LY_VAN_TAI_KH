@@ -106,6 +106,11 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   // 7. Ô tìm kiếm trên bảng điều phối
   await page.goto(`${BASE}/dieu-phoi?q=khong-co-chuyen-nay`);
   check(await visible(page.getByText("Không có chuyến phù hợp với từ khóa.")), "Bảng điều phối có ô tìm kiếm");
+  check(await visible(page.getByLabel("Từ khóa")), "Điều phối giữ từ khóa trên ô tìm kiếm");
+  check(await visible(page.getByLabel("Nhận hàng từ ngày")) && (await visible(page.getByLabel("Đến ngày"))), "Điều phối lọc được từ ngày đến ngày");
+  check(await visible(page.getByRole("button", { name: /Tìm kiếm nâng cao/ })), "Điều phối có tìm kiếm nâng cao");
+  await page.getByRole("tab", { name: /Xe chưa có đơn/ }).click();
+  check(await visible(page.getByText(/Xe công ty chưa có đơn/)), "Điều phối có báo cáo xe chưa có đơn");
 });
 
 await finish();
