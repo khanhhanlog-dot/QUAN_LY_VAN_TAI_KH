@@ -1,7 +1,7 @@
 // Bộ phân tích công thức an toàn cho trường dữ liệu động.
 // Không dùng eval/Function: tự tách token, dựng cây cú pháp và tính toán trên dữ liệu số.
 // Hỗ trợ: số, mã trường, + - * / %, so sánh (> < >= <= = <>), (), và các hàm
-// ROUND(x, n), MIN(...), MAX(...), ABS(x), IF(điều_kiện, a, b), AND(...), OR(...), NOT(x).
+// ROUND(x, n), MIN(...), MAX(...), ABS(x), IF(điều_kiện, a, b), AND(...), OR(...), NOT(x), N(x) (ô trống tính là 0).
 
 export type FormulaNode =
   | { t: "num"; v: number }
@@ -21,6 +21,7 @@ const FUNCTIONS: Record<string, { min: number; max: number }> = {
   AND: { min: 1, max: 20 },
   OR: { min: 1, max: 20 },
   NOT: { min: 1, max: 1 },
+  N: { min: 1, max: 1 },
 };
 
 type Token = { k: "num" | "id" | "op" | "(" | ")" | ","; v: string; pos: number };
@@ -256,6 +257,9 @@ export function evaluateFormula(node: FormulaNode, vars: Record<string, unknown>
         case "ABS": {
           const v = evaluateFormula(a[0], vars);
           return v === null ? null : Math.abs(v);
+        }
+        case "N": {
+          return evaluateFormula(a[0], vars) ?? 0;
         }
         case "NOT": {
           const v = evaluateFormula(a[0], vars);

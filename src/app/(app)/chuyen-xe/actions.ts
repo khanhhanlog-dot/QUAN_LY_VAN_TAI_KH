@@ -9,6 +9,7 @@ import { isUuid, splitCustom, validateRecord } from "@/lib/entities/record";
 import { LOCKED_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
 import { formatValue } from "@/lib/entities/record";
 import { computeFormula } from "@/lib/formula";
+import { formulaVars } from "@/lib/entities/definitions";
 import { applyShipmentFilters, parseShipmentFilters, shipmentCustomFields } from "@/lib/shipments-query";
 import type { ShipmentListRow } from "@/lib/shipments";
 
@@ -105,7 +106,7 @@ export async function exportShipments(sp: Record<string, string | string[] | und
     for (const r of rows) {
       ws.addRow({
         ...r,
-        ...Object.fromEntries(custom.defs.map((d) => [`cf_${d.key}`, formatValue(d, d.type === "formula" ? computeFormula(d.formula, r.custom_fields ?? {}) : r.custom_fields?.[d.key])])),
+        ...Object.fromEntries(custom.defs.map((d) => [`cf_${d.key}`, formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key])])),
         pickup_at: formatDateTime(r.pickup_at),
         expected_delivery_at: formatDateTime(r.expected_delivery_at),
         quantity: Number(r.quantity),

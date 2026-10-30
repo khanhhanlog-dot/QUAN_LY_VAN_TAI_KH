@@ -44,6 +44,9 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   check(await visible(page.getByText("chưa có quyền thêm mới")), "Người không có quyền tạo tài xế được hướng dẫn nhờ quản trị viên");
   await page.keyboard.press("Escape");
   await shot(page, "p4-01-tao-don");
+  // Dữ liệu mẫu có sẵn một chuyến cùng ngày của XE001: xác nhận vẫn giao cho xe này
+  const sameDay = page.getByLabel("Vẫn giao cho xe này");
+  if (await sameDay.first().isVisible().catch(() => false)) await sameDay.first().check();
   await page.getByRole("button", { name: /Lưu đơn hàng \(2 chuyến\)/ }).click();
   check(await toast(page, "Đã lưu 2 chuyến"), "Lưu đơn hàng 2 chuyến");
   check(await urlMatches(page, /\/dieu-phoi\/don-hang\//), "Chuyển tới trang đơn hàng sau khi lưu");

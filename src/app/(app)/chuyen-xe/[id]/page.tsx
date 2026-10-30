@@ -17,6 +17,7 @@ import { AssignDialog } from "@/components/dispatch/assign-dialog";
 import { CancelDialog } from "@/components/dispatch/cancel-dialog";
 import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
+import { formulaVars } from "@/lib/entities/definitions";
 import { ShipmentExpenseButton } from "./expense-button";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
@@ -282,6 +283,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           version={s.version}
           fields={custom.defs}
           values={s.custom_fields ?? {}}
+          context={formulaVars("shipments", s as unknown as Record<string, unknown>, {})}
           canEdit={me.permissions.has("shipments.update") || me.permissions.has("dispatch.update")}
           canAddField={me.permissions.has("fields.configure")}
         />

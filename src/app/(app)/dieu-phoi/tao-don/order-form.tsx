@@ -323,6 +323,15 @@ function ShipmentEditor({
           initial={row.custom}
           onChange={(custom) => onChange({ custom })}
           order={shipmentLayout}
+          context={{
+            unit_price: unitPrice,
+            quantity: qty,
+            freight_amount: freight,
+            surcharge_amount: surcharge,
+            fuel_support_rate: rate,
+            fuel_support_amount: fuel,
+            total_revenue: fuel === null ? null : freight + surcharge + fuel,
+          }}
           slots={{
               pickup_at: (
                 <div className="space-y-1.5">

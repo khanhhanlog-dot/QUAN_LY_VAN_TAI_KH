@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
-import { CUSTOM_FIELD_MODULES, ENTITIES, FORM_SYSTEM_FIELDS } from "@/lib/entities/definitions";
+import { CUSTOM_FIELD_MODULES, ENTITIES, FORM_SYSTEM_FIELDS, FORMULA_SYSTEM_FIELDS } from "@/lib/entities/definitions";
 import { FIELD_DATA_TYPES, REFERENCE_TARGETS } from "@/lib/entities/field-types";
 import { validateFormula } from "@/lib/formula";
 import { isUuid, parseNumberVN } from "@/lib/entities/record";
@@ -86,7 +86,8 @@ export async function saveField(id: string | null, input: FieldInput): Promise<A
     if (id && !isUuid(id)) throw new ActionError("Mã trường không hợp lệ");
     const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === v.module)!;
     const entity = mod.entity ? ENTITIES[mod.entity] : undefined;
-    if (entity?.fields.some((f) => f.key === v.field_key) || FORM_SYSTEM_FIELDS[v.module]?.some((f) => f.key === v.field_key) || ["id", "code", "custom_fields", "created_at", "updated_at", "created_by", "updated_by"].includes(v.field_key)) {
+    // Chỉ kiểm tra trùng mã khi tạo mới: trường đã có thì mã không đổi, sửa không được chặn
+    if (!id && (entity?.fields.some((f) => f.key === v.field_key) || FORM_SYSTEM_FIELDS[v.module]?.some((f) => f.key === v.field_key) || FORMULA_SYSTEM_FIELDS[v.module]?.some((f) => f.key === v.field_key) || ["id", "code", "custom_fields", "created_at", "updated_at", "created_by", "updated_by"].includes(v.field_key))) {
       throw new ActionError(`Mã "${v.field_key}" trùng với trường hệ thống`);
     }
     for (const perm of [v.view_permission, v.edit_permission]) {
@@ -127,7 +128,9 @@ export async function saveField(id: string | null, input: FieldInput): Promise<A
       const numericCustom = custom
         .filter((c) => c.field_key !== v.field_key && FIELD_DATA_TYPES.find((t) => t.value === c.data_type)?.numeric && c.data_type !== "formula")
         .map((c) => c.field_key);
-      const numericSystem = (entity?.fields ?? []).filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => f.key);
+      const numericSystem = entity
+        ? entity.fields.filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => f.key)
+        : (FORMULA_SYSTEM_FIELDS[v.module] ?? []).map((f) => f.key);
       const err = validateFormula(v.formula, [...numericSystem, ...numericCustom], v.field_key);
       if (err) throw new ActionError(`Công thức không hợp lệ: ${err}`);
     }

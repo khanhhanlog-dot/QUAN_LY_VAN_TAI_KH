@@ -22,6 +22,7 @@ import { AddFieldButton } from "@/components/entities/add-field-button";
 import { encodeCondition, parseConditions, type AdvField } from "@/lib/advanced-filter";
 import { formatValue } from "@/lib/entities/record";
 import { computeFormula } from "@/lib/formula";
+import { formulaVars } from "@/lib/entities/definitions";
 import { resetTableView, saveTableView } from "@/lib/entities/actions";
 import type { FieldDef, TableViewConfig } from "@/lib/entities/types";
 import { Badge } from "@/components/ui/badge";
@@ -154,7 +155,7 @@ export function ShipmentGrid({
         width: d.type === "textarea" ? 220 : 140,
         align: ["number", "currency", "percent", "formula"].includes(d.type) ? ("right" as const) : undefined,
         custom: true,
-        render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, r.custom_fields ?? {}) : r.custom_fields?.[d.key]),
+        render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key]),
       })),
     ],
     [customDefs],

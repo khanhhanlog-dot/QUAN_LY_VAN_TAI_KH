@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldEditor } from "@/app/(app)/truong-du-lieu/field-manager";
-import { ENTITIES } from "@/lib/entities/definitions";
+import Link from "next/link";
+import { Settings2 } from "lucide-react";
+import { ENTITIES, FORMULA_SYSTEM_FIELDS } from "@/lib/entities/definitions";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 import type { CustomFieldRow } from "@/lib/entities/types";
 
@@ -45,6 +47,12 @@ export function AddFieldButton({
       >
         <Plus /> {label}
       </Button>
+      <Link
+        href={`/truong-du-lieu?module=${module}`}
+        className="inline-flex items-center gap-1 px-2 text-sm text-muted-foreground hover:text-primary hover:underline"
+      >
+        <Settings2 className="size-3.5" /> Sửa, xóa, sắp xếp trường
+      </Link>
       <FieldEditor
         key={nonce}
         open={open}
@@ -52,7 +60,11 @@ export function AddFieldButton({
         module={module}
         row={null}
         others={customRows.filter((r) => r.module === module)}
-        numericSystem={(entity?.fields ?? []).filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => ({ key: f.key, label: f.label }))}
+        numericSystem={
+          entity
+            ? entity.fields.filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => ({ key: f.key, label: f.label }))
+            : (FORMULA_SYSTEM_FIELDS[module] ?? [])
+        }
         systemKeys={(entity?.fields ?? []).map((f) => f.key)}
         permissions={ALL_PERMISSIONS}
         onSaved={() => {

@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CUSTOM_FIELD_MODULES, ENTITIES, FORM_SYSTEM_FIELDS } from "@/lib/entities/definitions";
+import { CUSTOM_FIELD_MODULES, ENTITIES, FORMULA_SYSTEM_FIELDS, FORM_SYSTEM_FIELDS } from "@/lib/entities/definitions";
 import { loadCustomFields, loadFormLayout } from "@/lib/entities/server";
 import { applyLayout } from "@/lib/entities/record";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
@@ -36,7 +36,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
       .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, "vi"))
       .map((r) => ({ key: r.field_key, label: r.label, system: false })),
   ];
-  const numericSystem = (entity?.fields ?? []).filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => ({ key: f.key, label: f.label }));
+  const numericSystem = entity
+    ? entity.fields.filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => ({ key: f.key, label: f.label }))
+    : (FORMULA_SYSTEM_FIELDS[mod.module] ?? []);
 
   return (
     <>

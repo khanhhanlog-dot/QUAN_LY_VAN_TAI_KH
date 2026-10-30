@@ -439,10 +439,30 @@ export function FieldEditor({
                 <Label htmlFor="fd-formula">Công thức *</Label>
                 <Input id="fd-formula" className="font-mono" placeholder="ROUND(gia_tri_hang * 0.1, 0)" {...form.register("formula")} />
                 {formulaError ? <p className="text-xs text-destructive">{formulaError}</p> : v.formula ? <p className="text-xs text-emerald-700">Công thức hợp lệ.</p> : null}
-                <p className="text-xs text-muted-foreground">
-                  Dùng được: + − × ÷ (*, /), %, so sánh, ROUND, MIN, MAX, ABS, IF, AND, OR, NOT. Trường số:{" "}
-                  {numericRefs.length ? numericRefs.map((r) => `${r.key} (${r.label})`).join(", ") : "chưa có"}.
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Bấm tên trường để chèn vào công thức:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {numericRefs.length ? (
+                      numericRefs.map((r) => (
+                        <button
+                          key={r.key}
+                          type="button"
+                          className="rounded border bg-muted/50 px-2 py-0.5 text-xs hover:border-primary hover:text-primary"
+                          title={r.key}
+                          onClick={() => form.setValue("formula", `${(form.getValues("formula") ?? "").trimEnd()} ${r.key}`.trim())}
+                        >
+                          {r.label} <span className="font-mono text-muted-foreground">{r.key}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Chưa có trường số. Thêm trường kiểu số hoặc tiền trước.</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Phép tính: + − × ÷ (gõ * và /), ngoặc ( ). Hàm: ROUND, MIN, MAX, ABS, IF, AND, OR, NOT, N(x) tính ô trống là 0. Ví dụ:{" "}
+                    <code>ROUND(unit_price * (1 + fuel_support_rate / 100), 0) + N(phu_thu_ve)</code>
+                  </p>
+                </div>
               </div>
             ) : null}
             {isNumeric || v.data_type === "formula" ? (

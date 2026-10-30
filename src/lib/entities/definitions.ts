@@ -1349,6 +1349,25 @@ export const FORM_SYSTEM_FIELDS: Record<string, { key: string; label: string }[]
   ],
 };
 
+/** Số liệu hệ thống của biểu mẫu viết riêng mà công thức của trường bổ sung dùng được */
+export const FORMULA_SYSTEM_FIELDS: Record<string, { key: string; label: string }[]> = {
+  shipments: [
+    { key: "unit_price", label: "Đơn giá" },
+    { key: "quantity", label: "Số lượng" },
+    { key: "freight_amount", label: "Cước (đơn giá × số lượng)" },
+    { key: "surcharge_amount", label: "Phụ thu" },
+    { key: "fuel_support_rate", label: "% hỗ trợ dầu" },
+    { key: "fuel_support_amount", label: "Tiền hỗ trợ dầu" },
+    { key: "total_revenue", label: "Tổng doanh thu" },
+  ],
+};
+
+/** Giá trị đưa vào công thức: số liệu hệ thống của bản ghi + trường bổ sung */
+export function formulaVars(module: string, row: Record<string, unknown> | null | undefined, custom: Record<string, unknown> | null | undefined) {
+  const sys = Object.fromEntries((FORMULA_SYSTEM_FIELDS[module] ?? []).map((f) => [f.key, row?.[f.key] ?? null]));
+  return { ...sys, ...(custom ?? {}) };
+}
+
 export const CUSTOM_FIELD_MODULES: { module: string; label: string; entity?: string }[] = [
   { module: "vehicles", label: "Phương tiện", entity: "vehicles" },
   { module: "drivers", label: "Tài xế", entity: "drivers" },

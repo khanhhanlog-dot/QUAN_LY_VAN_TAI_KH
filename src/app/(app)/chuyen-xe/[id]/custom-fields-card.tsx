@@ -20,6 +20,7 @@ export function CustomFieldsCard({
   values,
   canEdit,
   canAddField,
+  context,
 }: {
   shipmentId: string;
   version: number;
@@ -27,6 +28,8 @@ export function CustomFieldsCard({
   values: Record<string, unknown>;
   canEdit: boolean;
   canAddField: boolean;
+  /** Đơn giá, % hỗ trợ dầu... của chuyến để tính công thức */
+  context?: Record<string, unknown>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -53,7 +56,7 @@ export function CustomFieldsCard({
           <p className="text-sm text-muted-foreground">Chưa có trường bổ sung. Bấm “Thêm trường” để tạo (ví dụ số container, số PO, số seal).</p>
         ) : editing ? (
           <div className="space-y-3">
-            <CustomFieldsEditor fields={fields} idPrefix="cf-" initial={values} onChange={setDraft} />
+            <CustomFieldsEditor fields={fields} idPrefix="cf-" initial={values} onChange={setDraft} context={context} />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setEditing(false)} disabled={pending}>
                 Hủy
@@ -79,7 +82,7 @@ export function CustomFieldsCard({
             {fields.map((f) => (
               <div key={f.key}>
                 <dt className="text-xs text-muted-foreground">{f.label}</dt>
-                <dd className="mt-0.5 font-medium">{formatValue(f, f.type === "formula" ? computeFormula(f.formula, values) : values[f.key]) || "–"}</dd>
+                <dd className="mt-0.5 font-medium">{formatValue(f, f.type === "formula" ? computeFormula(f.formula, { ...context, ...values }) : values[f.key]) || "–"}</dd>
               </div>
             ))}
           </dl>

@@ -22,6 +22,7 @@ export function CustomFieldsEditor({
   className,
   slots,
   order = [],
+  context,
 }: {
   fields: FieldDef[];
   idPrefix: string;
@@ -30,6 +31,8 @@ export function CustomFieldsEditor({
   className?: string;
   slots?: Record<string, ReactNode>;
   order?: string[];
+  /** Số liệu hệ thống (đơn giá, % hỗ trợ dầu...) mà công thức của trường bổ sung dùng được */
+  context?: Values;
 }) {
   const form = useForm<Values>({ defaultValues: toFormValues(fields, initial ?? null) });
   const values = useWatch({ control: form.control }) as Values;
@@ -49,7 +52,7 @@ export function CustomFieldsEditor({
         if (!isFieldShown(f, values)) return null;
         const wide = f.wide || f.type === "textarea" || f.type === "multiselect";
         if (f.type === "formula" || f.readOnly) {
-          const v = f.type === "formula" ? computeFormula(f.formula, values) : initial?.[f.key];
+          const v = f.type === "formula" ? computeFormula(f.formula, { ...context, ...values }) : initial?.[f.key];
           return (
             <div key={f.key} className={cn("space-y-1.5", wide && "sm:col-span-2")}>
               <Label>{f.label}</Label>
