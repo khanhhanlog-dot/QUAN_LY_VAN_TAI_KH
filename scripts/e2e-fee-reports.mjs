@@ -35,6 +35,11 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   check(sql(`select sp.name from public.shipment_expenses e join public.suppliers sp on sp.id = e.supplier_id where e.shipment_id = '${sid}'`) === "Tổ bốc xếp Tân Cảng", "Chi phí ghi đúng nhà thầu");
   sql(`update public.shipment_expenses set status = 'approved' where shipment_id = '${sid}'`);
 
+  await page.goto(`${BASE}/dieu-phoi`);
+  await page.getByRole("navigation", { name: "Báo cáo cước phí" }).getByRole("link", { name: "Bốc xếp" }).click();
+  check(await visible(page.getByRole("columnheader", { name: /Thu khách bốc xếp/ })), "Từ Điều phối mở thẳng báo cáo Bốc xếp");
+  await page.goto(`${BASE}/chuyen-xe`);
+  check(await visible(page.getByRole("navigation", { name: "Báo cáo cước phí" }).getByRole("link", { name: "Phí chi hộ" })), "Quản lý chuyến xe có lối vào báo cáo Phí chi hộ");
   await page.goto(`${BASE}/bao-cao?tab=report_freight`);
   check(await visible(page.getByRole("cell", { name: code }).first()), "Báo cáo Cước vận chuyển có chuyến");
   check(await visible(page.getByRole("columnheader", { name: /Tổng cước/ })), "Báo cáo cước có cột Tổng cước");

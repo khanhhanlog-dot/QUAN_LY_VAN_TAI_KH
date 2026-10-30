@@ -19,6 +19,7 @@ import { TabLink } from "@/components/dispatch/tab-link";
 import { DispatchFilterBar } from "@/components/dispatch/dispatch-filter-bar";
 import { FreeVehiclesGrid } from "@/components/dispatch/free-vehicles-grid";
 import { cn } from "@/lib/utils";
+import { ReportLinks } from "@/components/reports/report-links";
 
 export const metadata: Metadata = { title: "Điều phối" };
 
@@ -122,6 +123,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
           ) : null
         }
       />
+      {me.permissions.has("reports.view") ? <ReportLinks /> : null}
 
       <DispatchFilterBar filters={{ tu: f.tu, den: f.den, kh: f.kh, xe, tx, q: f.q, adv: f.adv, xem }} today={today} advFields={advFields} advLabels={advLabels} />
 

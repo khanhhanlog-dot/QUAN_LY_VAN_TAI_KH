@@ -17,6 +17,7 @@ import { TabLink } from "@/components/dispatch/tab-link";
 import { ShipmentFilterBar } from "./filter-bar";
 import { ShipmentGrid } from "./shipment-grid";
 import { ExportShipmentsButton } from "./export-button";
+import { ReportLinks } from "@/components/reports/report-links";
 
 export const metadata: Metadata = { title: "Quản lý chuyến xe" };
 
@@ -85,6 +86,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         description="Bảng tổng hợp, mỗi dòng một chuyến. Bấm vào ô có viền chấm để sửa nhanh; mọi thay đổi được ghi vào nhật ký hệ thống."
         actions={me.permissions.has("shipments.export") ? <ExportShipmentsButton params={{ tu: f.tu, den: f.den, tt: f.tt, kh: f.kh, q: f.q, a: f.adv }} /> : null}
       />
+      {me.permissions.has("reports.view") ? <ReportLinks /> : null}
       <ShipmentFilterBar filters={f} />
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Sum label="Cước vận chuyển" value={money.freight} />
