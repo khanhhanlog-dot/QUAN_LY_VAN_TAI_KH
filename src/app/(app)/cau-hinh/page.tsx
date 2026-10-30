@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { SettingValueEditor } from "./setting-row";
+import { PurgeCard } from "./purge-card";
 
 export const metadata: Metadata = { title: "Cấu hình" };
 
@@ -15,6 +16,9 @@ export default async function SettingsPage() {
   const { data, error } = await supabase.from("system_settings").select("key, value, description, updated_at").order("key");
   if (error) throw error;
   const canEdit = me.permissions.has("settings.configure");
+  // Xóa dữ liệu thử: chỉ Super Admin/Admin (CSDL kiểm tra lại vai trò và mật khẩu)
+  const isAdmin = me.roles.some((r) => r.code === "super_admin" || r.code === "admin");
+  const purgeStatus = isAdmin ? ((await supabase.rpc("purge_password_status")).data as { is_set: boolean; updated_at: string | null } | null) : null;
   return (
     <>
       <PageHeader title="Cấu hình" description="Tham số hệ thống. Mỗi lần thay đổi được ghi nhật ký." />
@@ -43,6 +47,7 @@ export default async function SettingsPage() {
           </TableBody>
         </Table>
       </Card>
+      {isAdmin ? <PurgeCard passwordSet={Boolean(purgeStatus?.is_set)} updatedAt={purgeStatus?.updated_at ?? null} /> : null}
     </>
   );
 }

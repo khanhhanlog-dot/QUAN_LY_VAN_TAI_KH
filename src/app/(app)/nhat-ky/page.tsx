@@ -106,7 +106,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
         )}
         <div className="flex items-center justify-between border-t p-3 text-sm">
           <span className="text-muted-foreground">
-            {total.toLocaleString("vi-VN")} bản ghi · Trang {page}/{pages}
+            {total.toLocaleString("en-US")} bản ghi · Trang {page}/{pages}
           </span>
           <div className="flex gap-2">
             {page > 1 ? <Button asChild size="sm" variant="outline"><Link href={qs(page - 1)}>Trước</Link></Button> : null}

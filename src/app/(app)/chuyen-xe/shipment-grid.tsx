@@ -307,7 +307,7 @@ export function ShipmentGrid({
       {rows.length === 0 ? (
         <p className="px-6 py-10 text-center text-sm text-muted-foreground">Không có chuyến phù hợp với bộ lọc.</p>
       ) : (
-        <div className={cn("max-h-[70vh] overflow-auto transition-opacity", navPending && "opacity-60")}>
+        <div className={cn("max-h-[calc(100dvh-12rem)] overflow-auto transition-opacity", navPending && "opacity-60")}>
           <table className="border-separate border-spacing-0 text-sm" style={{ width: table.getTotalSize(), tableLayout: "fixed" }}>
             <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
               <tr>

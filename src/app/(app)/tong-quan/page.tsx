@@ -266,7 +266,7 @@ export default async function DashboardPage() {
                             <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-[11px] font-semibold text-primary">{i + 1}</span>
                             <span className="truncate">{c.name}</span>
                           </span>
-                          <span className="font-medium tabular-nums">{c.total.toLocaleString("vi-VN")} chuyến</span>
+                          <span className="font-medium tabular-nums">{c.total.toLocaleString("en-US")} chuyến</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted">
                           <div className="h-1.5 rounded-full bg-tone-blue" style={{ width: `${(c.total / topMax) * 100}%` }} />
@@ -408,7 +408,7 @@ function Kpi({
         <span className="flex flex-wrap items-center gap-1">
           <span className={cn("inline-flex items-center font-medium", up ? "text-[oklch(0.5_0.13_155)]" : "text-[oklch(0.55_0.2_25)]")}>
             <Arrow className="size-3.5" />
-            {Math.abs(pct).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%
+            {Math.abs(pct).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
           </span>
           <span className="text-muted-foreground">{prevLabel}</span>
         </span>
@@ -422,7 +422,7 @@ function Kpi({
           <div className="pt-0.5 text-sm text-muted-foreground">{label}</div>
           <IconTile icon={icon} tone={tone} className="size-9 sm:size-10" />
         </div>
-        <div className="-mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{value.toLocaleString("vi-VN")}</div>
+        <div className="-mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{value.toLocaleString("en-US")}</div>
         <div className="mt-1 text-xs">{change}</div>
       </CardContent>
     </Card>
@@ -443,7 +443,7 @@ function TodoCard({ todos }: { todos: { icon: LucideIcon; tone: Tone; label: str
               <div className={cn("flex items-center gap-3 rounded-lg border p-2.5", t.href && "transition-colors hover:border-primary/40 hover:bg-accent/40")}>
                 <IconTile icon={t.icon} tone={t.tone} className="size-9 rounded-lg" />
                 <span className="flex-1 text-sm">{t.label}</span>
-                <span className="text-lg font-semibold tabular-nums">{t.value.toLocaleString("vi-VN")}</span>
+                <span className="text-lg font-semibold tabular-nums">{t.value.toLocaleString("en-US")}</span>
                 {t.href ? <ChevronRight className="size-4 text-muted-foreground" /> : null}
               </div>
             );

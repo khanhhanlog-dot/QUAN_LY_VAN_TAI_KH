@@ -30,9 +30,9 @@ export function MoneyField({ id, value, onChange }: { id: string; value: number 
     <Input
       id={id}
       inputMode="numeric"
-      placeholder="Ví dụ 2.000.000"
+      placeholder="Ví dụ 2,000,000"
       className="tabular-nums"
-      value={value ? value.toLocaleString("vi-VN") : ""}
+      value={value ? value.toLocaleString("en-US") : ""}
       onChange={(e) => {
         const n = Number(e.target.value.replace(/\D/g, "").slice(0, 13));
         onChange(n > 0 ? n : null);

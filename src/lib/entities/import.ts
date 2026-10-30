@@ -78,7 +78,7 @@ export function importableFields(fields: FieldDef[]): FieldDef[] {
 export function describeField(f: FieldDef): string {
   switch (f.type) {
     case "currency":
-      return "Số tiền (VD: 3500000 hoặc 3.500.000)";
+      return "Số tiền (VD: 3500000 hoặc 3,500,000)";
     case "number":
       return f.integer ? "Số nguyên" : "Số (VD: 2,5)";
     case "percent":

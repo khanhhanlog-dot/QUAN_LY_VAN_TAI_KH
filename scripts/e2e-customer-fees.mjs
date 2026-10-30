@@ -27,13 +27,13 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   const d = page.getByRole("dialog");
   await d.getByRole("button", { name: "Thêm phí" }).click();
   await pickFee(page, 1, "Phí bốc xếp");
-  await d.getByLabel("Số tiền phí dòng 1").fill("500.000");
+  await d.getByLabel("Số tiền phí dòng 1").fill("500,000");
   await d.getByLabel("Ghi chú phí dòng 1").fill("Bốc 2 đầu");
   await d.getByRole("button", { name: "Thêm phí" }).click();
   await pickFee(page, 2, "Phí chi hộ");
-  await d.getByLabel("Số tiền phí dòng 2").fill("1.000.000");
+  await d.getByLabel("Số tiền phí dòng 2").fill("1,000,000");
   check(await visible(d.getByText("Chi hộ", { exact: true })), "Dòng chi hộ được đánh dấu Chi hộ");
-  check(await visible(d.getByText("1.000.000 ₫").or(d.getByText("1.000.000 đ"))), "Khung phí cộng tổng chi hộ");
+  check(await visible(d.getByText("1,000,000 ₫").or(d.getByText("1,000,000 đ"))), "Khung phí cộng tổng chi hộ");
   await shot(page, "cf-01-nhap-phi");
   await d.getByRole("button", { name: "Lưu phí" }).click();
   check(await toast(page, "Đã lưu phí thu khách"), "Lưu phí thu khách của chuyến");

@@ -500,7 +500,7 @@ export function FieldEditor({
               <div className="space-y-1.5">
                 <Label htmlFor="fd-fmt">Định dạng hiển thị</Label>
                 <NativeSelect id="fd-fmt" {...form.register("display_format")}>
-                  <option value="">Số (1.234,5)</option>
+                  <option value="">Số (1,234.5)</option>
                   <option value="plain">Số không phân cách (2026)</option>
                   <option value="currency">Tiền VND</option>
                   <option value="percent">Phần trăm</option>

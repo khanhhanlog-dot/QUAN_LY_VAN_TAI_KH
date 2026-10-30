@@ -127,9 +127,11 @@ export function isFieldShown(field: FieldDef, values: Record<string, unknown>): 
 }
 
 /**
- * Đọc số theo thói quen nhập ở Việt Nam:
- *  - tiền: "1.500.000", "1,500,000", "1500000" -> 1500000
- *  - số thường/tỷ lệ: "39,5" hoặc "39.5" -> 39.5; "1.234,5" -> 1234.5
+ * Đọc số theo cách công ty dùng: dấu phẩy phân cách hàng nghìn, dấu chấm thập phân.
+ *  - "1,500,000" hoặc "1500000" -> 1500000; "39.5" -> 39.5; "1,234.5" -> 1234.5
+ *  - Nhiều dấu chấm ("1.500.000", dán từ nơi khác) vẫn hiểu là phân cách hàng nghìn.
+ *  - "39,5" (sau dấu phẩy 1-2 chữ số) không thể là hàng nghìn nên hiểu là 39.5.
+ *  - Tiền VND không có số lẻ: làm tròn đến đồng; "500.000" là năm trăm nghìn.
  */
 export function parseNumberVN(input: unknown, currency = false): number | null {
   if (input === null || input === undefined) return null;
@@ -139,25 +141,22 @@ export function parseNumberVN(input: unknown, currency = false): number | null {
   const neg = s.startsWith("-");
   if (neg) s = s.slice(1);
   if (!/^[0-9.,]+$/.test(s)) return NaN;
-  if (currency) {
-    // Tiền VND không có số lẻ: bỏ mọi dấu phân cách
-    const n = Number(s.replace(/[.,]/g, ""));
-    return neg ? -n : n;
-  }
   const dots = (s.match(/\./g) ?? []).length;
-  const commas = (s.match(/,/g) ?? []).length;
-  if (dots && commas) {
-    // Dấu xuất hiện sau cùng là dấu thập phân
-    s = s.lastIndexOf(",") > s.lastIndexOf(".") ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
-  } else if (commas) {
-    s = commas === 1 ? s.replace(",", ".") : s.replace(/,/g, "");
-  } else if (dots > 1) {
-    s = s.replace(/\./g, "");
-  } else if (dots === 1 && /^\d{1,3}\.\d{3}$/.test(s)) {
-    // "1.500" theo kiểu Việt Nam là một nghìn năm trăm
+  if (dots > 1) {
+    // "1.500.000": dấu chấm là phân cách hàng nghìn, khi đó dấu phẩy (nếu có) là thập phân
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (currency && /^\d{1,3}\.\d{3}$/.test(s)) {
+    // Tiền VND không có số lẻ: "500.000" chắc chắn là năm trăm nghìn
     s = s.replace(".", "");
+  } else if (!dots && /^\d+,\d{1,2}$/.test(s)) {
+    // "39,5": không thể là phân cách hàng nghìn, hiểu là số lẻ để tránh nhập nhầm gấp 10 lần
+    s = s.replace(",", ".");
+  } else {
+    s = s.replace(/,/g, "");
   }
-  const n = Number(s);
+  if (!/^\d*\.?\d*$/.test(s) || s === ".") return NaN;
+  let n = Number(s);
+  if (currency) n = Math.round(n);
   return neg ? -n : n;
 }
 

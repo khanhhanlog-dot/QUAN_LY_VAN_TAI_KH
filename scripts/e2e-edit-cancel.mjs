@@ -12,7 +12,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   const d = page.getByRole("dialog");
   await d.getByLabel("Ngày nhận hàng *").fill("2026-11-05");
   await d.getByLabel("Số lượng").fill("2");
-  await d.getByLabel("Đơn giá (đ)").fill("1.200.000");
+  await d.getByLabel("Đơn giá (đ)").fill("1,200,000");
   await d.getByLabel("Ghi chú cho tài xế").fill("Đã sửa ghi chú");
   await shot(page, "ec-01-sua-chuyen");
   await d.getByRole("button", { name: "Lưu thay đổi" }).click();

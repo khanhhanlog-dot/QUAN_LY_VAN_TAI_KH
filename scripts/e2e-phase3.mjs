@@ -90,7 +90,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   const newRow = page.getByRole("row").filter({ hasText: "51D99999" });
   check(await visible(newRow), "Phương tiện mới hiện trên bảng");
   check(await visible(newRow.getByText(/^XE\d{3}$/)), "Mã xe tự sinh dạng XE###");
-  check(await visible(newRow.getByText("2.500")), "Trường công thức tính đúng (2,5 tấn × 1000 = 2.500)");
+  check(await visible(newRow.getByText("2,500")), "Trường công thức tính đúng (2,5 tấn × 1000 = 2,500)");
 
   await openNew(page);
   await page.locator("#f_plate_number").fill("51d 99999");
@@ -153,7 +153,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   await dialog(page).locator("#f_loan_principal").fill("600000000");
   await dialog(page).getByRole("button", { name: "Lưu" }).click();
   check(await toast(page, "Đã lưu"), "Lưu thông tin tài chính xe");
-  check(await visible(page.getByText("10.000.000 ₫")), "Khấu hao tháng tự tính (1 tỷ / 100 tháng)");
+  check(await visible(page.getByText("10,000,000 ₫")), "Khấu hao tháng tự tính (1 tỷ / 100 tháng)");
   await page.getByRole("button", { name: "Thêm" }).first().click();
   await dialog(page).locator("#f_installment_no").fill("1");
   await dialog(page).locator("#f_due_date").fill("2026-11-15");
@@ -161,7 +161,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   await dialog(page).getByRole("button", { name: "Lưu" }).click();
   check(await toast(page, "Đã thêm kỳ trả nợ"), "Thêm kỳ trả nợ");
   check(await visible(page.getByText("Dư nợ gốc (theo lịch trả nợ)")), "Dư nợ chỉ hiện khi đã có lịch trả nợ");
-  check(await visible(page.getByText("600.000.000 ₫").first()), "Dư nợ gốc = số tiền vay − gốc đã trả");
+  check(await visible(page.getByText("600,000,000 ₫").first()), "Dư nợ gốc = số tiền vay − gốc đã trả");
   await shot(page, "p3-04-chi-tiet-xe");
 });
 
@@ -227,7 +227,7 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   await pickRef(page, "pickup_location_id", "Bình Dương", /Kho Mẫu Bình Dương/);
   await pickRef(page, "delivery_location_id", "Cát Lái", /Cảng Cát Lái/);
   await pickRef(page, "vehicle_type_id", "8 tấn", "Xe tải 8 tấn");
-  await dialog(page).locator("#f_unit_price").fill("3.800.000");
+  await dialog(page).locator("#f_unit_price").fill("3,800,000");
   await dialog(page).locator("#f_effective_from").fill("2026-12-01");
   await dialog(page).getByRole("button", { name: "Lưu" }).click();
   check(await toast(page, "chồng lấn"), "Bảng giá cùng phạm vi, cùng ưu tiên, trùng thời gian bị chặn");

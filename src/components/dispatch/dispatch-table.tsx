@@ -29,9 +29,9 @@ export function DispatchTable({
   if (rows.length === 0) return <p className="px-6 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>;
   const now = new Date().getTime();
   return (
-    <div className="overflow-x-auto">
+    <div className="max-h-[calc(100dvh-12rem)] overflow-auto">
       <table className="w-full text-sm">
-        <thead className="bg-muted/60 text-left text-xs whitespace-nowrap text-muted-foreground">
+        <thead className="sticky top-0 z-10 bg-muted text-left text-xs whitespace-nowrap text-muted-foreground">
           <tr>
             <th className="py-2 pr-3 pl-4 font-medium">Ngày nhận</th>
             <th className="px-3 py-2 font-medium">{showOrder ? "Chuyến / Khách hàng" : "Mã chuyến"}</th>

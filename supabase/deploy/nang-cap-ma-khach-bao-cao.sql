@@ -1,5 +1,5 @@
 -- =============================================================================
--- KHÁNH HÀ TMS – NÂNG CẤP CƠ SỞ DỮ LIỆU: Báo cáo hiển thị mã khách hàng
+-- KHÁNH HÀ TMS – NÂNG CẤP CƠ SỞ DỮ LIỆU: Báo cáo hiển thị mã khách hàng; xóa dữ liệu thử trong ứng dụng
 -- Dán toàn bộ tệp vào Supabase → SQL Editor → Run. Chạy MỘT LẦN trên CSDL đang dùng.
 -- Không xóa và không thêm dữ liệu nghiệp vụ. Tệp được ghép tự động – không sửa tay.
 -- =============================================================================
@@ -7,7 +7,7 @@ begin;
 
 do $$ begin
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'report_shipment_profit' and column_name = 'customer_code') then
-    raise exception 'CSDL đã được nâng cấp Báo cáo hiển thị mã khách hàng trước đó, không cần chạy lại.';
+    raise exception 'CSDL đã được nâng cấp Báo cáo hiển thị mã khách hàng; xóa dữ liệu thử trong ứng dụng trước đó, không cần chạy lại.';
   end if;
 end $$;
 
@@ -118,5 +118,216 @@ revoke all on public.report_shipment_profit, public.report_by_customer, public.r
   public.report_pass_through_fees, public.report_loading from anon;
 grant select on public.report_shipment_profit, public.report_by_customer, public.report_fee_lines, public.report_by_fee_type,
   public.report_pass_through_fees, public.report_loading to authenticated;
+
+-- =============================================================================
+-- Xóa dữ liệu thử ngay trong ứng dụng: chỉ Super Admin/Admin, nhập "mật khẩu xóa dữ liệu"
+-- (đặt riêng trong ứng dụng, lưu dạng băm bcrypt) và gõ đúng chữ xác nhận XOA DU LIEU.
+-- Sai mật khẩu 5 lần trong 15 phút thì khóa thử lại 15 phút.
+-- XÓA: đơn hàng, chuyến (kèm hàng hóa, phí thu khách), chi phí, ứng tiền, phê duyệt, lương tài xế,
+--      công nợ, phiếu thu/chi, thông báo, chứng từ gắn với các mục đó.
+-- GIỮ: danh mục (khách hàng, xe, tài xế, bảng giá, hạng mục chi phí, loại phí...), người dùng, cấu hình, nhật ký.
+-- =============================================================================
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists private.admin_secrets (
+  key text primary key,
+  secret_hash text not null,
+  updated_by uuid references public.profiles(id),
+  updated_at timestamptz not null default now()
+);
+revoke all on private.admin_secrets from public, anon, authenticated;
+
+create or replace function private.is_admin_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.is_active_user() and exists (
+    select 1 from public.user_roles ur join public.roles r on r.id = ur.role_id
+    where ur.user_id = auth.uid() and r.code in ('super_admin', 'admin'));
+$$;
+revoke all on function private.is_admin_user() from public, anon;
+grant execute on function private.is_admin_user() to authenticated;
+
+-- Kiểm tra mật khẩu xóa dữ liệu; ghi nhật ký mỗi lần sai, khóa khi sai quá nhiều
+create or replace function private.check_purge_password(p_password text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_hash text;
+  v_fails integer;
+begin
+  if not private.is_admin_user() then
+    raise exception 'Chỉ Super Admin hoặc Admin được xem và xóa dữ liệu thử.' using errcode = '42501';
+  end if;
+  select secret_hash into v_hash from private.admin_secrets where key = 'purge_password';
+  if v_hash is null then
+    raise exception 'Chưa đặt mật khẩu xóa dữ liệu. Bấm "Đặt mật khẩu xóa dữ liệu" trước.' using errcode = '22023';
+  end if;
+  select count(*) into v_fails from public.audit_logs
+  where action = 'test_data.password_failed' and occurred_at > now() - interval '15 minutes';
+  if v_fails >= 5 then
+    raise exception 'Nhập sai mật khẩu quá 5 lần. Thử lại sau 15 phút.' using errcode = '42501';
+  end if;
+  if p_password is null or extensions.crypt(p_password, v_hash) <> v_hash then
+    raise exception 'Mật khẩu xóa dữ liệu không đúng.' using errcode = '42501';
+  end if;
+end;
+$$;
+revoke all on function private.check_purge_password(text) from public, anon, authenticated;
+
+create or replace function public.purge_password_status()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not private.is_admin_user() then
+    raise exception 'Chỉ Super Admin hoặc Admin được xóa dữ liệu thử.' using errcode = '42501';
+  end if;
+  return jsonb_build_object('is_set', exists (select 1 from private.admin_secrets where key = 'purge_password'),
+    'updated_at', (select updated_at from private.admin_secrets where key = 'purge_password'));
+end;
+$$;
+
+-- Đặt lần đầu không cần mật khẩu cũ; đổi lại phải nhập đúng mật khẩu cũ
+create or replace function public.set_purge_password(p_new text, p_old text default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not private.is_admin_user() then
+    raise exception 'Chỉ Super Admin hoặc Admin được đặt mật khẩu xóa dữ liệu.' using errcode = '42501';
+  end if;
+  if length(coalesce(p_new, '')) < 8 then
+    raise exception 'Mật khẩu xóa dữ liệu cần ít nhất 8 ký tự.' using errcode = '22023';
+  end if;
+  if exists (select 1 from private.admin_secrets where key = 'purge_password') then
+    perform private.check_purge_password(p_old);
+  end if;
+  insert into private.admin_secrets (key, secret_hash, updated_by, updated_at)
+  values ('purge_password', extensions.crypt(p_new, extensions.gen_salt('bf', 10)), auth.uid(), now())
+  on conflict (key) do update set secret_hash = excluded.secret_hash, updated_by = excluded.updated_by, updated_at = now();
+  insert into public.audit_logs (actor_id, action, entity_type, entity_id, reason)
+  values (auth.uid(), 'test_data.password_set', 'system', 'du-lieu-thu', 'Đặt mật khẩu xóa dữ liệu');
+end;
+$$;
+
+create or replace function private.test_data_counts_raw()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'transport_orders', (select count(*) from public.transport_orders),
+    'shipments', (select count(*) from public.shipments),
+    'shipment_items', (select count(*) from public.shipment_items),
+    'shipment_fees', (select count(*) from public.shipment_fees),
+    'shipment_expenses', (select count(*) from public.shipment_expenses),
+    'advance_requests', (select count(*) from public.advance_requests),
+    'approval_requests', (select count(*) from public.approval_requests),
+    'driver_payrolls', (select count(*) from public.driver_payrolls),
+    'receivables', (select count(*) from public.receivables),
+    'payables', (select count(*) from public.payables),
+    'payments', (select count(*) from public.payments),
+    'notifications', (select count(*) from public.notifications),
+    'customers', (select count(*) from public.customers),
+    'vehicles', (select count(*) from public.vehicles),
+    'drivers', (select count(*) from public.drivers),
+    'profiles', (select count(*) from public.profiles));
+$$;
+revoke all on function private.test_data_counts_raw() from public, anon, authenticated;
+
+-- Bước 1: nhập mật khẩu, xem trước số dòng sẽ xóa / giữ lại.
+-- Sai mật khẩu thì trả {ok:false} (không raise) để lần sai được ghi lại vào nhật ký.
+create or replace function public.test_data_counts(p_password text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  begin
+    perform private.check_purge_password(p_password);
+  exception when sqlstate '42501' or sqlstate '22023' then
+    if sqlerrm = 'Mật khẩu xóa dữ liệu không đúng.' then
+      insert into public.audit_logs (actor_id, action, entity_type, entity_id, reason)
+      values (auth.uid(), 'test_data.password_failed', 'system', 'du-lieu-thu', 'Nhập sai mật khẩu xóa dữ liệu');
+    end if;
+    return jsonb_build_object('ok', false, 'error', sqlerrm);
+  end;
+  return jsonb_build_object('ok', true, 'counts', private.test_data_counts_raw());
+end;
+$$;
+
+-- Bước 2: nhập lại mật khẩu + gõ XOA DU LIEU (sai mật khẩu cũng trả {ok:false} và ghi nhật ký)
+create or replace function public.purge_test_data(p_password text, p_confirm text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_before jsonb;
+begin
+  begin
+    perform private.check_purge_password(p_password);
+  exception when sqlstate '42501' or sqlstate '22023' then
+    if sqlerrm = 'Mật khẩu xóa dữ liệu không đúng.' then
+      insert into public.audit_logs (actor_id, action, entity_type, entity_id, reason)
+      values (auth.uid(), 'test_data.password_failed', 'system', 'du-lieu-thu', 'Nhập sai mật khẩu xóa dữ liệu');
+    end if;
+    return jsonb_build_object('ok', false, 'error', sqlerrm);
+  end;
+  if coalesce(upper(trim(p_confirm)), '') <> 'XOA DU LIEU' then
+    raise exception 'Chữ xác nhận chưa đúng. Gõ XOA DU LIEU để xóa.' using errcode = '22023';
+  end if;
+
+  v_before := private.test_data_counts_raw();
+  insert into public.audit_logs (actor_id, action, entity_type, entity_id, old_data, reason)
+  values (auth.uid(), 'test_data.purge', 'system', 'du-lieu-thu', v_before, 'Xóa dữ liệu thử trong ứng dụng');
+
+  delete from public.documents
+  where entity_type in ('shipment', 'shipment_expense', 'advance_request', 'payment', 'driver_payroll', 'approval_request', 'receivable', 'payable', 'transport_order');
+
+  truncate table
+    public.advance_transactions,
+    public.payments,
+    public.shipment_expenses,
+    public.advance_requests,
+    public.driver_payrolls,
+    public.approval_steps,
+    public.approval_requests,
+    public.payables,
+    public.receivables,
+    public.shipment_assignments,
+    public.shipment_status_history,
+    public.shipment_items,
+    public.shipment_fees,
+    public.shipments,
+    public.transport_orders,
+    public.notifications,
+    private.driver_upload_tickets;
+
+  delete from public.code_sequences where scope in ('ORD', 'SHP', 'APR', 'ADV', 'PAY', 'AR', 'AP', 'BL');
+  return jsonb_build_object('ok', true, 'counts', v_before);
+end;
+$$;
+
+revoke all on function public.purge_password_status(), public.set_purge_password(text, text),
+  public.test_data_counts(text), public.purge_test_data(text, text) from public, anon;
+grant execute on function public.purge_password_status(), public.set_purge_password(text, text),
+  public.test_data_counts(text), public.purge_test_data(text, text) to authenticated;
 
 commit;

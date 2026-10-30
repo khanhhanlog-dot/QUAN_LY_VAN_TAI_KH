@@ -24,7 +24,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await s1.getByLabel("Tên hàng dòng 1").fill("Thép cuộn");
   await s1.getByLabel("Số lượng dòng 1").fill("2");
   await s1.getByLabel("Đơn giá hàng dòng 1").fill("150000");
-  check(await visible(s1.getByRole("cell", { name: "300.000" }).first()), "Cột công thức Thành tiền tự tính trên từng dòng");
+  check(await visible(s1.getByRole("cell", { name: "300,000" }).first()), "Cột công thức Thành tiền tự tính trên từng dòng");
   await s1.getByRole("button", { name: "Dán từ Excel" }).click();
   await page.getByLabel("Dữ liệu dán từ Excel").fill("MH002\tTôn lạnh\t3\tcuộn\nMH003\tỐng thép\t5\tbó");
   await page.getByRole("button", { name: "Thêm vào bảng" }).click();

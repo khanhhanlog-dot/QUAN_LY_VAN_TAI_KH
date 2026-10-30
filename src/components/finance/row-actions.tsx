@@ -53,7 +53,7 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
               <Input
                 id="approve-amount"
                 inputMode="numeric"
-                value={amount ? amount.toLocaleString("vi-VN") : ""}
+                value={amount ? amount.toLocaleString("en-US") : ""}
                 onChange={(e) => {
                   const n = Number(e.target.value.replace(/\D/g, "").slice(0, 13));
                   setAmount(n > 0 ? n : null);

@@ -28,7 +28,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/chuyen-xe/${sid}`);
   await page.getByRole("button", { name: "Sửa chuyến" }).click();
   const e = page.getByRole("dialog");
-  await e.getByLabel("Đơn giá (đ)").fill("3.000.000");
+  await e.getByLabel("Đơn giá (đ)").fill("3,000,000");
   await e.getByRole("button", { name: "Lưu thay đổi" }).click();
   check(await toast(page, "Đã lưu thay đổi của chuyến"), "Sửa giá chuyến đã đóng (chưa lập công nợ)");
   check(sql(`select unit_price::bigint from public.shipments where id = '${sid}'`) === "3000000", "Giá chuyến đã đóng được cập nhật");

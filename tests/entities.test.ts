@@ -21,14 +21,18 @@ describe("Định nghĩa danh mục", () => {
   });
 });
 
-describe("Đọc số kiểu Việt Nam", () => {
+describe("Đọc số: dấu phẩy hàng nghìn, dấu chấm thập phân", () => {
   it("tiền và số thập phân", () => {
     expect(parseNumberVN("3.500.000", true)).toBe(3500000);
     expect(parseNumberVN("3,500,000", true)).toBe(3500000);
     expect(parseNumberVN("39,5")).toBe(39.5);
     expect(parseNumberVN("39.5")).toBe(39.5);
-    expect(parseNumberVN("1.234,5")).toBe(1234.5);
-    expect(parseNumberVN("1.500")).toBe(1500);
+    expect(parseNumberVN("1.234.567,5")).toBe(1234567.5);
+    expect(parseNumberVN("1,234.5")).toBe(1234.5);
+    expect(parseNumberVN("1,500")).toBe(1500);
+    expect(parseNumberVN("1.500")).toBe(1.5);
+    expect(parseNumberVN("1,500.75", true)).toBe(1501);
+    expect(parseNumberVN("500.000", true)).toBe(500000);
     expect(parseNumberVN("-2,5")).toBe(-2.5);
     expect(parseNumberVN("")).toBeNull();
     expect(parseNumberVN("abc")).toBeNaN();
@@ -80,8 +84,8 @@ describe("Kiểm tra dữ liệu bản ghi", () => {
     const year = vehicles.fields.find((f) => f.key === "model_year")!;
     expect(formatValue(year, 2022)).toBe("2022");
     const price = ENTITIES.price_lists.fields.find((f) => f.key === "unit_price")!;
-    expect(formatValue(price, 3500000).replace(/\s/g, " ")).toBe("3.500.000 ₫");
-    expect(toFormValues([price], { unit_price: 3500000 }).unit_price).toBe("3.500.000");
+    expect(formatValue(price, 3500000).replace(/\s/g, " ")).toBe("3,500,000 ₫");
+    expect(toFormValues([price], { unit_price: 3500000 }).unit_price).toBe("3,500,000");
   });
 });
 

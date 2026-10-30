@@ -19,7 +19,7 @@ export const newLine = (): ExpenseLine => ({ key: crypto.randomUUID(), cat: "", 
 export const bigBtn = "flex h-14 w-full items-center justify-center gap-2 rounded-xl text-lg font-semibold disabled:opacity-60";
 
 /** Ô tiền: chỉ nhận số, hiện dấu chấm phân cách hàng nghìn */
-export function MoneyInput({ id, value, onChange, placeholder = "Ví dụ 2.000.000" }: { id: string; value: number | null; onChange: (v: number | null) => void; placeholder?: string }) {
+export function MoneyInput({ id, value, onChange, placeholder = "Ví dụ 2,000,000" }: { id: string; value: number | null; onChange: (v: number | null) => void; placeholder?: string }) {
   return (
     <div className="relative">
       <Input
@@ -27,7 +27,7 @@ export function MoneyInput({ id, value, onChange, placeholder = "Ví dụ 2.000.
         inputMode="numeric"
         className="h-14 pr-10 text-xl font-semibold tabular-nums"
         placeholder={placeholder}
-        value={value ? value.toLocaleString("vi-VN") : ""}
+        value={value ? value.toLocaleString("en-US") : ""}
         onChange={(e) => {
           const n = Number(e.target.value.replace(/\D/g, "").slice(0, 10));
           onChange(n > 0 ? n : null);
@@ -111,7 +111,7 @@ export function ExpenseLineFields({
       </div>
       <div>
         <label htmlFor={`exp-amount-${idx}`} className="mb-1 block text-sm font-medium">Số tiền</label>
-        <MoneyInput id={`exp-amount-${idx}`} value={line.amount} onChange={(amount) => onChange({ ...line, amount })} placeholder="Ví dụ 150.000" />
+        <MoneyInput id={`exp-amount-${idx}`} value={line.amount} onChange={(amount) => onChange({ ...line, amount })} placeholder="Ví dụ 150,000" />
       </div>
       <div>
         <label htmlFor={`exp-note-${idx}`} className="mb-1 block text-sm font-medium">Ghi chú (không bắt buộc)</label>
@@ -154,7 +154,7 @@ export function ExpenseLinesEditor({ lines, onChange, categories }: { lines: Exp
       </button>
       {total > 0 ? (
         <p className="text-right text-sm">
-          Tổng: <b className="tabular-nums">{total.toLocaleString("vi-VN")} đ</b>
+          Tổng: <b className="tabular-nums">{total.toLocaleString("en-US")} đ</b>
         </p>
       ) : null}
     </div>

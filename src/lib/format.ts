@@ -1,4 +1,5 @@
-// Định dạng theo chuẩn Việt Nam, múi giờ Asia/Ho_Chi_Minh.
+// Ngày theo kiểu Việt Nam (dd/mm/yyyy), múi giờ Asia/Ho_Chi_Minh.
+// Số theo cách công ty dùng: dấu phẩy phân cách hàng nghìn, dấu chấm thập phân (3,500,000 ₫; 39.5).
 export const TIME_ZONE = "Asia/Ho_Chi_Minh";
 
 const dateFmt = new Intl.DateTimeFormat("vi-VN", {
@@ -16,8 +17,9 @@ const dateTimeFmt = new Intl.DateTimeFormat("vi-VN", {
   minute: "2-digit",
   hour12: false,
 });
-const vndFmt = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
-const numFmt = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+export const NUMBER_LOCALE = "en-US";
+const vndFmt = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 0 });
+const numFmt = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 2 });
 
 type DateInput = string | number | Date | null | undefined;
 
@@ -46,11 +48,11 @@ export function formatDateTime(v: DateInput): string {
   return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
 }
 
-/** 3.500.000 ₫ */
+/** 3,500,000 ₫ */
 export function formatVND(v: number | string | null | undefined): string {
   if (v === null || v === undefined || v === "") return "";
   const n = typeof v === "string" ? Number(v) : v;
-  return Number.isFinite(n) ? vndFmt.format(n) : "";
+  return Number.isFinite(n) ? `${vndFmt.format(n)} ₫` : "";
 }
 
 export function formatNumber(v: number | string | null | undefined): string {

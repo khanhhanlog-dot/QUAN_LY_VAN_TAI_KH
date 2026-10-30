@@ -26,18 +26,18 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   const d = dialog(page);
   await pick(page, d, "Tài xế *", "Mẫu", /Nguyễn Văn Mẫu/);
   const sheet = d.getByLabel("Bảng tính lương");
-  check(await visible(sheet.getByText("1 chuyến × 300.000")), "Bảng tính đếm 1 chuyến đã xong trong tháng");
+  check(await visible(sheet.getByText("1 chuyến × 300,000")), "Bảng tính đếm 1 chuyến đã xong trong tháng");
   check(await visible(sheet.getByText("1 khoản đã duyệt")), "Bảng tính có chi phí tự trả đã duyệt");
   await d.getByLabel("Thưởng").fill("200000");
   // 8.000.000 + 300.000 + 500.000 + 200.000 + 120.000 = 9.120.000; trừ 1.500.000 đã ứng = 7.620.000
-  check(await visible(sheet.getByText("9.120.000")), "Tổng được nhận 9.120.000");
-  check(await visible(sheet.getByText("7.620.000")), "Thực nhận sau khi trừ tiền ứng 7.620.000");
+  check(await visible(sheet.getByText("9,120,000")), "Tổng được nhận 9,120,000");
+  check(await visible(sheet.getByText("7,620,000")), "Thực nhận sau khi trừ tiền ứng 7,620,000");
   await shot(page, "p7-01-lap-bang-luong");
   await d.getByRole("button", { name: "Lập và gửi duyệt" }).click();
   check(await toast(page, "Đã lập bảng lương"), "Lập bảng lương, gửi Giám đốc duyệt");
   const row = page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).first();
   check(await visible(row.getByText("Chờ duyệt")), "Bảng lương hiện trạng thái Chờ duyệt");
-  check(await visible(row.getByText("7.620.000")), "Danh sách hiện thực nhận");
+  check(await visible(row.getByText("7,620,000")), "Danh sách hiện thực nhận");
 });
 
 // ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/chi-phi?tab=payrolls`);
   const row = page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).first();
   await row.getByRole("button", { name: /Trả lương/ }).click();
-  check(await visible(dialog(page).getByText("1.500.000")), "Hộp trả lương ghi số tiền ứng được cấn trừ");
+  check(await visible(dialog(page).getByText("1,500,000")), "Hộp trả lương ghi số tiền ứng được cấn trừ");
   await dialog(page).getByLabel("Số giao dịch ngân hàng").fill("FT-LUONG-10");
   await dialog(page).getByRole("button", { name: "Xác nhận đã trả" }).click();
   check(await toast(page, "Đã ghi nhận trả lương"), "Ghi nhận trả lương");
@@ -70,7 +70,7 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   // Lập công nợ từ chuyến chưa lập
   await page.goto(`${BASE}/cong-no?tab=billing`);
   const ship = page.locator("tbody tr").first();
-  check(await visible(ship.getByText("6.950.000")), "Chuyến hoàn thành hiện tổng tiền gồm hỗ trợ dầu 39%");
+  check(await visible(ship.getByText("6,950,000")), "Chuyến hoàn thành hiện tổng tiền gồm hỗ trợ dầu 39%");
   await ship.getByRole("link", { name: /Lập công nợ/ }).click();
   await page.waitForURL(/tab=receivables/);
   const d = dialog(page);
@@ -87,11 +87,11 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   await ar.getByRole("button", { name: /Thu tiền/ }).click();
   await dialog(page).getByLabel("Số tiền lần này *").fill("3000000");
   await dialog(page).getByRole("button", { name: "Xác nhận thu tiền" }).click();
-  check(await toast(page, "Đã ghi nhận thu tiền"), "Thu lần 1: 3.000.000");
+  check(await toast(page, "Đã ghi nhận thu tiền"), "Thu lần 1: 3,000,000");
   check(await visible(ar.getByText("Thanh toán một phần")), "Công nợ chuyển Thanh toán một phần");
-  check(await visible(ar.getByText("3.950.000")), "Còn phải thu 3.950.000");
+  check(await visible(ar.getByText("3,950,000")), "Còn phải thu 3,950,000");
   await ar.getByRole("button", { name: /Thu tiền/ }).click();
-  check((await dialog(page).getByLabel("Số tiền lần này *").inputValue()) === "3.950.000", "Lần thu sau điền sẵn số còn nợ");
+  check((await dialog(page).getByLabel("Số tiền lần này *").inputValue()) === "3,950,000", "Lần thu sau điền sẵn số còn nợ");
   await dialog(page).getByRole("button", { name: "Xác nhận thu tiền" }).click();
   check(await toast(page, "Đã ghi nhận thu tiền"), "Thu lần 2 đủ số còn lại");
   check(await visible(ar.getByText("Đã thanh toán đủ")), "Công nợ Đã thanh toán đủ");
@@ -123,7 +123,7 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   await dialog(page).getByLabel("Số tiền lần này *").fill("500000");
   await dialog(page).getByRole("button", { name: "Xác nhận trả tiền" }).click();
   check(await toast(page, "Đã ghi nhận trả tiền"), "Trả nhà cung cấp lần 1");
-  check(await visible(ap.getByText("1.500.000")), "Còn phải trả 1.500.000");
+  check(await visible(ap.getByText("1,500,000")), "Còn phải trả 1,500,000");
 
   await page.goto(`${BASE}/cong-no?tab=payments`);
   check(await visible(page.locator("tbody tr").filter({ hasText: "Trả lương tài xế" })), "Phiếu thu chi có phiếu trả lương");
@@ -137,10 +137,10 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
 await asUser("giamdoc@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/bao-cao`);
   check(await visible(page.getByText("Doanh thu tháng này")), "Báo cáo có thẻ doanh thu tháng");
-  check(await visible(page.getByText("6.950.000").first()), "Doanh thu tháng gồm chuyến đã hoàn thành");
+  check(await visible(page.getByText("6,950,000").first()), "Doanh thu tháng gồm chuyến đã hoàn thành");
   check(await visible(page.getByRole("img", { name: /Doanh thu, Chi phí, Lợi nhuận/ })), "Báo cáo có biểu đồ 6 tháng");
   const r = page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).first();
-  check(await visible(r.getByText("6.830.000")), "Lợi nhuận chuyến = 6.950.000 - 120.000 chi phí");
+  check(await visible(r.getByText("6,830,000")), "Lợi nhuận chuyến = 6,950,000 - 120,000 chi phí");
   await page.getByRole("button", { name: /Tìm kiếm nâng cao/ }).click();
   await dialog(page).getByLabel("Trường điều kiện 1").selectOption({ label: "Lợi nhuận" });
   await dialog(page).getByLabel("Phép so sánh 1").selectOption("gte");
@@ -150,7 +150,7 @@ await asUser("giamdoc@khanhha.test", desktop, async (page) => {
   check(await visible(r), "Tìm kiếm nâng cao theo lợi nhuận trên báo cáo");
   await shot(page, "p7-06-bao-cao");
   await page.goto(`${BASE}/bao-cao?tab=report_advance`);
-  check(await visible(page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).getByText("1.500.000").first()), "Báo cáo tạm ứng: đã ứng và đã trừ vào lương");
+  check(await visible(page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).getByText("1,500,000").first()), "Báo cáo tạm ứng: đã ứng và đã trừ vào lương");
 });
 
 // ---------------------------------------------------------------------------
@@ -160,8 +160,8 @@ await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await page.goto(`${BASE}/tx/tien`);
   const pr = page.locator("[data-payroll]").first();
   check(await visible(pr.getByText("Đã trả lương")), "Tài xế thấy bảng lương đã trả");
-  check(await visible(pr.getByText("7.620.000")), "Tài xế thấy số thực nhận");
-  check(await visible(pr.getByText("−1.500.000")), "Tài xế thấy tiền ứng đã trừ");
+  check(await visible(pr.getByText("7,620,000")), "Tài xế thấy số thực nhận");
+  check(await visible(pr.getByText("−1,500,000")), "Tài xế thấy tiền ứng đã trừ");
   await shot(page, "p7-07-dien-thoai-luong");
 });
 

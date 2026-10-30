@@ -127,7 +127,7 @@ const feeSchema = z.object({
 });
 const feesSchema = z.array(feeSchema).max(100, "Mỗi chuyến tối đa 100 dòng phí");
 
-/** Chuẩn hóa dòng phí thu khách: số tiền theo kiểu Việt Nam (1.200.000) */
+/** Chuẩn hóa dòng phí thu khách: số tiền có dấu phẩy hàng nghìn (1,200,000) */
 function feeRows(fees: z.infer<typeof feesSchema>, prefix: string) {
   return fees.map((f, j) => {
     const a = f.amount === undefined || f.amount === "" ? null : parseNumberVN(f.amount, true);

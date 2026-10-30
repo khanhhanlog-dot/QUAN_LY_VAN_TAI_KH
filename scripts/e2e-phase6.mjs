@@ -86,12 +86,12 @@ await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await line2.getByLabel("Loại chi phí").selectOption({ label: "Ăn uống" });
   await line2.getByLabel("Số tiền").fill("50000");
   await line2.getByLabel("Ghi chú").fill("Cơm trưa");
-  check(await visible(dialog(page).getByText("170.000 đ")), "Hiện tổng chi phí các khoản");
+  check(await visible(dialog(page).getByText("170,000 đ")), "Hiện tổng chi phí các khoản");
   await line1.getByLabel("Chọn ảnh có sẵn").setInputFiles([photo("bienlai.png")]);
   await shot(page, "p6-01-hoan-thanh");
   await dialog(page).getByRole("button", { name: "Gửi và hoàn thành" }).click();
   check(await visible(card.getByText(/Hoàn thành lúc .* 2 ảnh/), 20000), "Hoàn thành chuyến, thẻ ghi 2 ảnh đã gửi");
-  check(await visible(card.getByText("Chi phí: 2 khoản · 170.000")), "Thẻ chuyến hiện 2 khoản chi phí, tổng 170.000");
+  check(await visible(card.getByText("Chi phí: 2 khoản · 170,000")), "Thẻ chuyến hiện 2 khoản chi phí, tổng 170,000");
   check(await visible(card.getByRole("button", { name: /Bổ sung chi phí/ })), "Chuyến đã xong có nút Bổ sung chi phí");
   await shot(page, "p6-02-da-xong");
 
@@ -99,7 +99,7 @@ await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await page.getByRole("link", { name: "Ứng tiền & chi phí" }).click();
   await page.getByRole("button", { name: "Xin ứng tiền" }).click();
   await dialog(page).getByLabel("Số tiền cần ứng").fill("2000000");
-  check((await dialog(page).getByLabel("Số tiền cần ứng").inputValue()) === "2.000.000", "Ô tiền tự thêm dấu chấm hàng nghìn");
+  check((await dialog(page).getByLabel("Số tiền cần ứng").inputValue()) === "2,000,000", "Ô tiền tự thêm dấu chấm hàng nghìn");
   await dialog(page).getByLabel("Lý do").fill("Ứng tiền dầu chuyến Bình Dương");
   await dialog(page).getByRole("button", { name: "Gửi yêu cầu" }).click();
   check(await visible(dialog(page).getByText("Đã gửi yêu cầu ứng tiền")), "Gửi yêu cầu ứng tiền từ điện thoại");
@@ -116,16 +116,16 @@ await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await meal.getByRole("button", { name: /^Sửa/ }).click();
   await dialog(page).getByLabel("Số tiền").fill("70000");
   await dialog(page).getByRole("button", { name: "Lưu thay đổi" }).click();
-  const edited = page.locator("[data-expense]").filter({ hasText: "70.000" });
+  const edited = page.locator("[data-expense]").filter({ hasText: "70,000" });
   check(await visible(edited.getByText(/sửa từ /), 20000), "Sửa chi phí: khoản mới ghi sửa từ khoản cũ");
-  check(await visible(page.locator("[data-expense]").filter({ hasText: "50.000" }).getByText("Đã hủy")), "Khoản cũ giữ lại ở trạng thái Đã hủy");
+  check(await visible(page.locator("[data-expense]").filter({ hasText: "50,000" }).getByText("Đã hủy")), "Khoản cũ giữ lại ở trạng thái Đã hủy");
   page.once("dialog", (d) => d.accept());
   await edited.getByRole("button", { name: "Hủy khoản" }).click();
   check(await visible(edited.getByText("Đã hủy"), 15000), "Tài xế hủy khoản chi phí chưa duyệt");
   await shot(page, "p6-03-tien");
 
   await page.getByRole("link", { name: "Chuyến" }).first().click();
-  check(await visible(page.locator("[data-trip]").first().getByText("Chi phí: 1 khoản · 120.000")), "Thẻ chuyến cập nhật sau khi sửa và hủy");
+  check(await visible(page.locator("[data-trip]").first().getByText("Chi phí: 1 khoản · 120,000")), "Thẻ chuyến cập nhật sau khi sửa và hủy");
 });
 
 // ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ await asUser("giamdoc@khanhha.test", desktop, async (page) => {
   await adv.getByRole("button", { name: /^Duyệt/ }).click();
   await dialog(page).getByLabel("Số tiền duyệt").fill("1500000");
   await dialog(page).getByRole("button", { name: "Xác nhận duyệt" }).click();
-  check(await toast(page, "Đã duyệt"), "Duyệt ứng tiền 1.500.000");
+  check(await toast(page, "Đã duyệt"), "Duyệt ứng tiền 1,500,000");
 
   await page.locator("tbody tr").filter({ hasText: "Ứng tiền" }).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
   const exp = page.locator("tbody tr").filter({ hasText: "Cầu đường" }).first();
@@ -170,7 +170,7 @@ await asUser("ketoan@khanhha.test", desktop, async (page) => {
   const row = page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).first();
   check(await visible(row.getByText("Đã duyệt")), "Kế toán thấy khoản ứng đã duyệt");
   await row.getByRole("button", { name: /Chuyển tiền/ }).click();
-  check(await visible(dialog(page).getByText("1.500.000")), "Hộp chuyển tiền hiện đúng số tiền được duyệt");
+  check(await visible(dialog(page).getByText("1,500,000")), "Hộp chuyển tiền hiện đúng số tiền được duyệt");
   await dialog(page).getByLabel("Số giao dịch ngân hàng").fill("FT26295000001");
   await dialog(page).getByRole("button", { name: "Xác nhận đã chuyển" }).click();
   check(await toast(page, "Đã ghi nhận chuyển tiền"), "Ghi nhận chuyển tiền ứng");
@@ -205,7 +205,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
 await asUser("taixe.a@khanhha.test", phone, async (page) => {
   await page.goto(`${BASE}/tx/tien`);
   check(await visible(page.locator("[data-advance]").getByText("Đã chuyển tiền")), "Tài xế thấy khoản ứng đã chuyển tiền");
-  check(await visible(page.getByText(/Xin 2\.000\.000.*được duyệt 1\.500\.000/)), "Tài xế thấy số tiền được duyệt");
+  check(await visible(page.getByText(/Xin 2,000,000.*được duyệt 1,500,000/)), "Tài xế thấy số tiền được duyệt");
   check(await visible(page.locator("[data-expense]").getByText("Đã duyệt")), "Tài xế thấy chi phí đã duyệt");
 });
 

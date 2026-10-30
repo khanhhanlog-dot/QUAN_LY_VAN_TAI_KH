@@ -48,7 +48,7 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/bao-cao?tab=report_loading`);
   const row = page.locator("tbody tr").filter({ hasText: code });
   check(await visible(row.getByText("Tổ bốc xếp Tân Cảng")), "Báo cáo Bốc xếp có nhà thầu");
-  check(await visible(row.getByText("150.000")), "Báo cáo Bốc xếp tính chênh lệch thu khách trừ chi (500.000 − 350.000)");
+  check(await visible(row.getByText("150,000")), "Báo cáo Bốc xếp tính chênh lệch thu khách trừ chi (500,000 − 350,000)");
   await shot(page, "fr-02-bao-cao-boc-xep");
 });
 

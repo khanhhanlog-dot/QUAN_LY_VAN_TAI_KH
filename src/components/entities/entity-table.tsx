@@ -377,7 +377,7 @@ export function EntityTable(props: EntityTableProps) {
                     active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
                   )}
                 >
-                  {n.toLocaleString("vi-VN")}
+                  {n.toLocaleString("en-US")}
                 </span>
               </button>
             );
@@ -497,9 +497,9 @@ export function EntityTable(props: EntityTableProps) {
         </div>
       </div>
 
-      <div className={cn("overflow-x-auto transition-opacity", navPending && "opacity-60")}>
+      <div className={cn("max-h-[calc(100dvh-12rem)] overflow-auto transition-opacity", navPending && "opacity-60")}>
         <table className="w-full border-collapse text-sm" style={{ minWidth: table.getTotalSize(), tableLayout: "fixed" }}>
-          <thead className="bg-muted/60">
+          <thead className="sticky top-0 z-20 bg-muted">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((h) => {

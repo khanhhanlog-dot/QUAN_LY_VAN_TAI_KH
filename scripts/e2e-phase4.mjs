@@ -31,7 +31,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await pick(page, s1.getByLabel("Điểm giao *"), "Cát Lái", "Cảng Cát Lái");
   check(await visible(s1.getByText("Bảng giá áp dụng")), "Tự tìm bảng giá theo khách hàng, điểm nhận, điểm giao, loại xe");
   check(await visible(s1.getByText("BG001")), "Hiện mã bảng giá được áp dụng");
-  check(await visible(s1.getByText("4.865.000")), "Xem trước tổng doanh thu = cước 3.500.000 + hỗ trợ dầu 39%");
+  check(await visible(s1.getByText("4,865,000")), "Xem trước tổng doanh thu = cước 3,500,000 + hỗ trợ dầu 39%");
   await pick(page, s1.getByLabel("Xe (có thể chọn sau)"), "000.01", "51C-000.01");
   check(await visible(s1.getByText("Nguyễn Văn Mẫu")), "Chọn xe tự gợi ý tài xế phụ trách");
   await s1.getByRole("button", { name: "Nhân bản" }).click();
@@ -82,7 +82,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await pick(page, s3.getByLabel("Điểm giao *"), "Cát Lái", "Cảng Cát Lái");
   check(await visible(s3.getByText("Không có bảng giá phù hợp")), "Không có bảng giá thì gợi ý nhập giá thủ công hoặc để trống");
   await s3.getByLabel("Đơn giá (đ)", { exact: true }).fill("2000000");
-  check(await visible(s3.getByText("2.780.000")), "Giá nhập tay vẫn tính hỗ trợ dầu theo quy tắc mặc định");
+  check(await visible(s3.getByText("2,780,000")), "Giá nhập tay vẫn tính hỗ trợ dầu theo quy tắc mặc định");
   await page.getByRole("button", { name: /Lưu 1 chuyến vào đơn/ }).click();
   check(await toast(page, "Đã lưu 1 chuyến"), "Thêm chuyến vào đơn có sẵn");
   check(await urlMatches(page, /\/dieu-phoi\/don-hang\//), "Quay lại trang đơn hàng");
@@ -106,8 +106,8 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await input.fill("4000000");
   await input.press("Enter");
   check(await toast(page, "đã lưu đơn giá"), "Sửa nhanh đơn giá trên bảng");
-  check(await visible(row.getByText("1.560.000")), "Hỗ trợ dầu tự tính lại sau khi sửa đơn giá (39% × 4.000.000)");
-  check(await visible(row.getByText("5.560.000")), "Tổng doanh thu cập nhật ngay trên dòng");
+  check(await visible(row.getByText("1,560,000")), "Hỗ trợ dầu tự tính lại sau khi sửa đơn giá (39% × 4,000,000)");
+  check(await visible(row.getByText("5,560,000")), "Tổng doanh thu cập nhật ngay trên dòng");
 
   const download = page.waitForEvent("download", { timeout: 15000 }).catch(() => null);
   await page.getByRole("button", { name: "Xuất Excel" }).click();

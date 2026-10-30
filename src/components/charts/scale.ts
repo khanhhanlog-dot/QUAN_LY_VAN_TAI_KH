@@ -10,4 +10,4 @@ export function niceTicks(max: number, count = 4): number[] {
   return out;
 }
 
-export const fmt = (n: number) => n.toLocaleString("vi-VN");
+export const fmt = (n: number) => n.toLocaleString("en-US");

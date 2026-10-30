@@ -10,9 +10,9 @@ describe("Định dạng Việt Nam", () => {
     // 17:30 UTC = 00:30 ngày hôm sau ở Việt Nam
     expect(formatDateTime("2026-10-16T17:30:00Z")).toBe("17/10/2026 00:30");
   });
-  it("tiền VND không có số lẻ, phân cách hàng nghìn bằng dấu chấm", () => {
+  it("tiền VND không có số lẻ, phân cách hàng nghìn bằng dấu phẩy", () => {
     const s = formatVND(3500000);
-    expect(s.replace(/\s/g, " ")).toMatch(/^3\.500\.000 ₫$/);
+    expect(s).toBe("3,500,000 ₫");
     expect(formatVND(null)).toBe("");
   });
   it("hôm nay theo giờ VN", () => {

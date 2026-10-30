@@ -210,7 +210,7 @@ export function ReportGrid<T>({
       {filtered.length === 0 ? (
         <p className="px-6 py-10 text-center text-sm text-muted-foreground">{rows.length && (term || adv.length) ? "Không có dòng phù hợp với điều kiện tìm." : emptyText}</p>
       ) : (
-        <div className="max-h-[70vh] overflow-auto">
+        <div className="max-h-[calc(100dvh-12rem)] overflow-auto">
           <table className="border-separate border-spacing-0 text-sm" style={{ width: table.getTotalSize(), tableLayout: "fixed" }}>
             <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
               <tr>

@@ -51,7 +51,7 @@ export function DonutChart({ items, centerLabel }: { items: Item[]; centerLabel:
               <span className="flex-1 truncate text-muted-foreground">{i.label}</span>
               <span className="font-medium tabular-nums">{fmt(i.value)}</span>
               <span className="w-12 text-right text-xs text-muted-foreground tabular-nums">
-                {total ? `${((i.value / total) * 100).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%` : "–"}
+                {total ? `${((i.value / total) * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%` : "–"}
               </span>
             </li>
           ))}
