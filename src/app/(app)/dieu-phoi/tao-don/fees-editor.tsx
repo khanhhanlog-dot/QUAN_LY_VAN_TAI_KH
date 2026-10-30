@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,14 +43,21 @@ export const FEE_KIND_LABEL: Record<FeeKind, string> = { revenue: "Tính doanh t
 export function FeesEditor({ value, onChange, idPrefix }: { value: FeeLine[]; onChange: (lines: FeeLine[]) => void; idPrefix: string }) {
   const set = (key: number, patch: Partial<FeeLine>) => onChange(value.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const { revenue, passThrough } = feeTotals(value);
+  // Danh sách mới nhất: kết quả tra loại phí về sau không được ghi đè số tiền vừa gõ
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
 
   async function pickType(line: FeeLine, id: string, label: string) {
     // Biết loại phí là "chi hộ" hay "tính doanh thu" để cộng tổng đúng (kể cả loại phí vừa thêm nhanh)
     const next = value.map((l) => (l.key === line.key ? { ...l, fee_type_id: id, label, kind: null } : l));
+    latest.current = next;
     onChange(next);
     if (!id) return;
     const { data } = await createClient().from("fee_types").select("fee_kind").eq("id", id).maybeSingle();
-    onChange(next.map((l) => (l.key === line.key ? { ...l, kind: (data?.fee_kind as FeeKind | undefined) ?? "revenue" } : l)));
+    const kind = (data?.fee_kind as FeeKind | undefined) ?? "revenue";
+    onChange(latest.current.map((l) => (l.key === line.key && l.fee_type_id === id ? { ...l, kind } : l)));
   }
 
   return (
