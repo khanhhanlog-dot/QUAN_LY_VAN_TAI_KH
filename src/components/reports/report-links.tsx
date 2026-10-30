@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const LINKS = [
   { tab: "report_freight", label: "Cước vận chuyển" },
@@ -9,17 +8,17 @@ const LINKS = [
   { tab: "report_fee_type", label: "Doanh thu theo loại phí" },
 ];
 
-/** Lối vào nhanh các báo cáo cước phí từ màn hình Điều phối, Quản lý chuyến xe */
+/** Lối vào nhanh các báo cáo cước phí từ màn hình Điều phối, Quản lý chuyến xe (một dòng chữ nhỏ) */
 export function ReportLinks() {
   return (
-    <nav aria-label="Báo cáo cước phí" className="mb-3 flex flex-wrap items-center gap-1.5">
-      <span className="flex items-center gap-1 text-sm text-muted-foreground">
-        <BarChart3 className="size-4" /> Báo cáo:
+    <nav aria-label="Báo cáo cước phí" className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1">
+        <BarChart3 className="size-3.5" /> Báo cáo:
       </span>
       {LINKS.map((l) => (
-        <Button key={l.tab} asChild variant="outline" size="sm">
-          <Link href={`/bao-cao?tab=${l.tab}`}>{l.label}</Link>
-        </Button>
+        <Link key={l.tab} href={`/bao-cao?tab=${l.tab}`} className="text-primary hover:underline">
+          {l.label}
+        </Link>
       ))}
     </nav>
   );

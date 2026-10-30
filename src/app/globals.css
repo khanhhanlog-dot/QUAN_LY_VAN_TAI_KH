@@ -88,3 +88,11 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* Màn hình nhiều dữ liệu (Điều phối, Quản lý chuyến, Báo cáo): chữ và khoảng cách nhỏ lại để thấy nhiều chuyến hơn.
+   Chỉ áp dụng màn hình rộng; điện thoại giữ cỡ chữ thường để dễ bấm và không bị phóng to ô nhập. */
+@media (min-width: 768px) {
+  html:has([data-density="compact"]) {
+    font-size: 87.5%;
+  }
+}

@@ -100,3 +100,6 @@ upgrade nang-cap-loai-phi-thu-khach.sql "Tách cước phí theo loại phí thu
 
 upgrade nang-cap-bao-cao-boc-xep.sql "Báo cáo cước vận chuyển, phí chi hộ, bốc xếp; nhà thầu bốc xếp" "to_regclass('public.report_loading') is not null" \
   supabase/migrations/20261030000030_fee_reports_loading.sql
+
+upgrade nang-cap-ma-khach-bao-cao.sql "Báo cáo hiển thị mã khách hàng" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'report_shipment_profit' and column_name = 'customer_code')" \
+  supabase/migrations/20261030000031_report_customer_code.sql

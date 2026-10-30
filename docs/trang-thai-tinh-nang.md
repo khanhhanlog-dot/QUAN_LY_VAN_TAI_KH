@@ -194,3 +194,10 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 | Nhóm báo cáo chi phí "Bốc xếp, nâng hạ" tách khỏi "Bến bãi, vào cổng"; loại phí thu khách có cờ "Thuộc nhóm bốc xếp" | ✅ | |
 | Nút "Sửa đơn hàng" | ✅ | Sửa khách hàng, khách thanh toán, đơn vị nội bộ, ngày đơn, ghi chú, trường bổ sung của đơn; không đổi khách khi đơn đã có chuyến lập công nợ (kiểm tra cả ở CSDL) |
 | Sửa chuyến đã đóng | ✅ | Chuyến đã đóng vẫn sửa giá, phí, trường bổ sung khi chưa lập công nợ; chuyến đã hủy hoặc đã lập công nợ bị khóa |
+
+## Màn hình gọn, mã khách hàng (migration 0031) – 30/10/2026
+- Điều phối, Quản lý chuyến xe, Báo cáo: trên màn hình rộng (từ 768px) chữ và khoảng cách thu nhỏ còn 87,5% để thấy nhiều chuyến hơn; điện thoại giữ cỡ thường.
+- Lối vào báo cáo cước phí ở Điều phối, Quản lý chuyến thu thành một dòng chữ nhỏ.
+- Cột khách hàng hiển thị mã khách (rê chuột xem tên). Bảng Quản lý chuyến và các báo cáo theo chuyến: cột "Mã KH" hiện mặc định, cột tên khách ẩn, bật lại trong Chọn cột. Tìm kiếm theo cả mã và tên.
+- 0031 thêm `customer_code` vào report_shipment_profit, report_by_customer, report_fee_lines, report_by_fee_type, report_pass_through_fees, report_loading. Tệp nâng cấp: supabase/deploy/nang-cap-ma-khach-bao-cao.sql.
+- Tệp xóa dữ liệu thử (/mnt/project-files/du-lieu-thu/) đã thêm hàng hóa chuyến (shipment_items) và phí thu khách (shipment_fees).

@@ -44,17 +44,21 @@ export function DispatchTable({
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
-              <td className="py-2.5 pr-3 pl-4 whitespace-nowrap">
+              <td className="py-1.5 pr-3 pl-4 whitespace-nowrap">
                 <div className="font-medium">{formatDate(r.pickup_at)}</div>
                 {r.expected_delivery_at && formatDate(r.expected_delivery_at) !== formatDate(r.pickup_at) ? (
                   <div className="text-xs text-muted-foreground">Giao {formatDate(r.expected_delivery_at)}</div>
                 ) : null}
               </td>
-              <td className="max-w-56 px-3 py-2.5">
+              <td className="max-w-56 px-3 py-1.5">
                 <Link href={`/chuyen-xe/${r.id}`} className="font-medium whitespace-nowrap text-primary hover:underline">
                   {r.shipment_code}
                 </Link>
-                {showOrder ? <div className="truncate">{r.customer_name}</div> : null}
+                {showOrder ? (
+                  <div className="truncate" title={r.customer_name ?? undefined}>
+                    {r.customer_code ?? r.customer_name}
+                  </div>
+                ) : null}
                 <div className="truncate text-xs text-muted-foreground">
                   {showOrder ? (
                     <Link href={`/dieu-phoi/don-hang/${r.order_id}`} className="hover:text-primary hover:underline">
@@ -65,7 +69,7 @@ export function DispatchTable({
                   {r.vehicle_type_name}
                 </div>
               </td>
-              <td className="max-w-60 px-3 py-2.5">
+              <td className="max-w-60 px-3 py-1.5">
                 <div className="truncate" title={r.pickup_name ?? undefined}>
                   {r.pickup_name}
                 </div>
@@ -74,7 +78,7 @@ export function DispatchTable({
                   <span className="truncate">{r.delivery_name}</span>
                 </div>
               </td>
-              <td className="px-3 py-2.5 whitespace-nowrap">
+              <td className="px-3 py-1.5 whitespace-nowrap">
                 {r.driver_id ? (
                   <>
                     <div className="font-medium">
@@ -90,14 +94,14 @@ export function DispatchTable({
                   </span>
                 )}
               </td>
-              <td className="px-3 py-2.5">
+              <td className="px-3 py-1.5">
                 <div className="flex flex-wrap gap-1">
                   <StatusBadge status={r.status} />
                   {isLate(r, now) ? <Badge variant="destructive">Trễ giờ giao</Badge> : null}
                 </div>
               </td>
               {canAssign || canCancel ? (
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-1.5">
                   <div className="flex justify-end gap-1">
                     {canAssign && ASSIGNABLE_STATUSES.includes(r.status) ? (
                       <AssignDialog

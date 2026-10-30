@@ -40,6 +40,8 @@ type Col = {
   align?: "right";
   edit?: EditableField;
   custom?: boolean;
+  /** Ẩn khi người dùng chưa lưu cách hiển thị riêng (bật lại trong Chọn cột) */
+  defaultHidden?: boolean;
   render: (r: ShipmentListRow) => ReactNode;
 };
 
@@ -65,7 +67,13 @@ const COLS: Col[] = [
       </Link>
     ),
   },
-  { key: "customer_name", label: "Khách hàng", width: 180, render: (r) => r.customer_name },
+  {
+    key: "customer_code",
+    label: "Mã KH",
+    width: 90,
+    render: (r) => <span title={r.customer_name ?? undefined}>{r.customer_code ?? r.customer_name}</span>,
+  },
+  { key: "customer_name", label: "Khách hàng", width: 180, defaultHidden: true, render: (r) => r.customer_name },
   { key: "pickup_name", label: "Điểm nhận", width: 170, render: (r) => r.pickup_name },
   { key: "delivery_name", label: "Điểm giao", width: 170, render: (r) => r.delivery_name },
   { key: "vehicle_type_name", label: "Loại xe", width: 120, render: (r) => r.vehicle_type_name },
@@ -140,7 +148,9 @@ export function ShipmentGrid({
     setPrevInitial(initial);
     setRows(initial);
   }
-  const [visibility, setVisibility] = useState<VisibilityState>(() => Object.fromEntries((view?.hidden ?? []).map((k) => [k, false])));
+  const [visibility, setVisibility] = useState<VisibilityState>(() =>
+    Object.fromEntries((view?.hidden ?? COLS.filter((c) => c.defaultHidden).map((c) => c.key)).map((k) => [k, false])),
+  );
   const [order, setOrder] = useState<ColumnOrderState>(() => view?.order ?? []);
   const [sizing, setSizing] = useState<ColumnSizingState>(() => view?.widths ?? {});
   const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: view?.pinned ?? DEFAULT_PINNED }));

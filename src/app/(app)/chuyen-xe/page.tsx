@@ -11,6 +11,7 @@ import { TONE_BADGE } from "@/lib/tones";
 import type { ShipmentListRow } from "@/lib/shipments";
 import { advRefLabels, applyShipmentFilters, parseShipmentFilters, shipmentCustomFields, type ShipmentFilters } from "@/lib/shipments-query";
 import { PageHeader } from "@/components/layout/page-header";
+import { CompactDensity } from "@/components/layout/compact-density";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TabLink } from "@/components/dispatch/tab-link";
@@ -81,6 +82,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <>
+      <CompactDensity />
       <PageHeader
         title="Quản lý chuyến xe"
         description="Bảng tổng hợp, mỗi dòng một chuyến. Bấm vào ô có viền chấm để sửa nhanh; mọi thay đổi được ghi vào nhật ký hệ thống."

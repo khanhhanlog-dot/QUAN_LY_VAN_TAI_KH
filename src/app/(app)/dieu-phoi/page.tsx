@@ -12,6 +12,7 @@ import { loadTableView } from "@/lib/entities/server";
 import { advRefLabels, applyShipmentFilters, parseShipmentFilters, shipmentCustomFields } from "@/lib/shipments-query";
 import { loadFreeVehicles } from "@/lib/free-vehicles";
 import { PageHeader } from "@/components/layout/page-header";
+import { CompactDensity } from "@/components/layout/compact-density";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DispatchTable } from "@/components/dispatch/dispatch-table";
@@ -110,6 +111,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
 
   return (
     <>
+      <CompactDensity />
       <PageHeader
         title="Điều phối"
         description={`Chuyến nhận hàng ${rangeText}`}

@@ -99,7 +99,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
 await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/chuyen-xe`);
   check(await visible(page.getByRole("heading", { name: "Quản lý chuyến xe" })), "Bảng tổng hợp chuyến mở được");
-  const row = page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).filter({ hasText: "Công ty Mẫu A" }).first();
+  const row = page.locator("tbody tr").filter({ hasText: "Nguyễn Văn Mẫu" }).filter({ hasText: "KH001" }).first();
   const code = (await row.locator("td").nth(1).innerText()).trim();
   await row.locator("td").nth(11).getByRole("button").click();
   const input = row.getByRole("spinbutton", { name: /Đơn giá/ });

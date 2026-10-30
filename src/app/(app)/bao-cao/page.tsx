@@ -4,6 +4,7 @@ import { Banknote, HandCoins, PiggyBank, Receipt, TrendingUp } from "lucide-reac
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
+import { CompactDensity } from "@/components/layout/compact-density";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart } from "@/components/charts/line-chart";
 import { EntityListSection, resolveEntityTabs } from "@/components/entities/entity-list-section";
@@ -72,6 +73,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <>
+      <CompactDensity />
       <PageHeader
         title="Báo cáo"
         description="Số liệu thật tính trực tiếp từ chuyến, chi phí đã duyệt và phiếu thu chi. Mọi bảng đều tìm kiếm nâng cao, chọn cột và xuất Excel được."
