@@ -12,7 +12,7 @@ import { EntityFormDialog } from "@/components/entities/entity-form-dialog";
 import { VehicleDayConflict, type VehicleDayState } from "@/components/dispatch/vehicle-day-conflict";
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
-import type { FieldDef } from "@/lib/entities/types";
+import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, customerDefaultPayer, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -35,9 +35,14 @@ type Row = {
   fuelSupportRate: string;
   notes: string;
   custom: Record<string, unknown>;
+  /** Trường bổ sung kiểu tiền, %, số, công thức: nhập trong khung Giá */
+  customPrice: Record<string, unknown>;
   /** Kiểm tra xe đã có chuyến cùng ngày: xác nhận vẫn giao và thứ tự chuyến của xe trong ngày */
   vehicleDay?: VehicleDayState;
 };
+
+/** Trường bổ sung kiểu tiền, %, số và công thức nằm trong khung Giá của chuyến */
+const PRICE_FIELD_TYPES: FieldDef["type"][] = ["currency", "percent", "number", "formula"];
 
 let seq = 0;
 const newRow = (from?: Row): Row => ({
@@ -58,6 +63,7 @@ const newRow = (from?: Row): Row => ({
   fuelSupportRate: from?.fuelSupportRate ?? "",
   notes: from?.notes ?? "",
   custom: from?.custom ?? {},
+  customPrice: from?.customPrice ?? {},
 });
 
 /** "2026-10-21T08:00" (giờ VN) -> ISO có múi giờ */
@@ -74,6 +80,8 @@ export function OrderForm({
   orderLayout,
   shipmentLayout,
   canAddField,
+  orderFieldRows,
+  shipmentFieldRows,
 }: {
   order?: { id: string; code: string; customerId: string; customerName: string };
   canCreatePriceList: boolean;
@@ -84,6 +92,8 @@ export function OrderForm({
   orderLayout: string[];
   shipmentLayout: string[];
   canAddField: boolean;
+  orderFieldRows: CustomFieldRow[];
+  shipmentFieldRows: CustomFieldRow[];
 }) {
   const [customer, setCustomer] = useState({ id: order?.customerId ?? "", label: order?.customerName ?? "" });
   const [payer, setPayer] = useState({ id: "", label: "", auto: false });
@@ -132,7 +142,7 @@ export function OrderForm({
           surchargeAmount: num(s.surchargeAmount),
           fuelSupportRate: num(s.fuelSupportRate),
           notes: s.notes,
-          custom: s.custom,
+          custom: { ...s.custom, ...s.customPrice },
           vehicleDayOrder: s.vehicleId ? (s.vehicleDay?.order ?? null) : null,
         })),
         otherOrders: rows.flatMap((s) => (s.vehicleId ? (s.vehicleDay?.others ?? []) : [])),
@@ -194,7 +204,7 @@ export function OrderForm({
                 ),
               }}
             />
-            {canAddField ? <AddFieldButton module="transport_orders" customRows={[]} label="Thêm trường cho đơn hàng" /> : null}
+            {canAddField ? <AddFieldButton module="transport_orders" customRows={orderFieldRows} label="Thêm trường cho đơn hàng" /> : null}
           </CardContent>
         </Card>
       )}
@@ -209,6 +219,7 @@ export function OrderForm({
           shipmentFields={shipmentFields}
           shipmentLayout={shipmentLayout}
           canAddField={canAddField}
+          shipmentFieldRows={shipmentFieldRows}
           canRemove={rows.length > 1}
           sameVehicle={rows
             .map((o, j) =>
@@ -243,6 +254,7 @@ function ShipmentEditor({
   shipmentFields,
   shipmentLayout,
   canAddField,
+  shipmentFieldRows,
   canRemove,
   sameVehicle,
   onChange,
@@ -256,6 +268,7 @@ function ShipmentEditor({
   shipmentFields: FieldDef[];
   shipmentLayout: string[];
   canAddField: boolean;
+  shipmentFieldRows: CustomFieldRow[];
   canRemove: boolean;
   /** Chuyến khác trên biểu mẫu chọn cùng xe, cùng ngày */
   sameVehicle: { label: string; order: number | null; before: boolean }[];
@@ -321,6 +334,17 @@ function ShipmentEditor({
             ? Math.round(((freight + surcharge) * rate) / 100)
             : null;
   const id = (k: string) => `s${row.key}-${k}`;
+  const generalFields = shipmentFields.filter((f) => !PRICE_FIELD_TYPES.includes(f.type));
+  const priceFields = shipmentFields.filter((f) => PRICE_FIELD_TYPES.includes(f.type));
+  const priceContext = {
+    unit_price: unitPrice,
+    quantity: qty,
+    freight_amount: freight,
+    surcharge_amount: surcharge,
+    fuel_support_rate: rate,
+    fuel_support_amount: fuel,
+    total_revenue: fuel === null ? null : freight + surcharge + fuel,
+  };
 
   return (
     <Card>
@@ -339,12 +363,13 @@ function ShipmentEditor({
       </CardHeader>
       <CardContent className="space-y-4">
         <CustomFieldsEditor
-          fields={shipmentFields}
+          fields={generalFields}
           idPrefix={`s${row.key}-cf-`}
           initial={row.custom}
           onChange={(custom) => onChange({ custom })}
           order={shipmentLayout}
           context={{
+            ...row.customPrice,
             unit_price: unitPrice,
             quantity: qty,
             freight_amount: freight,
@@ -427,7 +452,7 @@ function ShipmentEditor({
               ),
           }}
         />
-        {canAddField ? <AddFieldButton module="shipments" customRows={[]} label="Thêm trường cho chuyến" /> : null}
+        {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm trường cho chuyến" /> : null}
 
         <div className="rounded-lg border bg-muted/30 p-3">
           {!canQuote ? (
@@ -522,6 +547,23 @@ function ShipmentEditor({
               ) : null}
             </div>
           )}
+          <div className="mt-3 space-y-2 border-t pt-3">
+            {priceFields.length ? (
+              <CustomFieldsEditor
+                fields={priceFields}
+                idPrefix={`s${row.key}-pf-`}
+                initial={row.customPrice}
+                onChange={(customPrice) => onChange({ customPrice })}
+                order={shipmentLayout}
+                context={{ ...row.custom, ...priceContext }}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Cần thêm phụ thu (vé, hạ trái tuyến…) hoặc công thức giá riêng? Bấm nút dưới. Ví dụ công thức: ROUND(unit_price * (1 + fuel_support_rate / 100), 0) + N(phu_thu_ve).
+              </p>
+            )}
+            {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm phụ thu / công thức giá" /> : null}
+          </div>
         </div>
       </CardContent>
       {canCreatePriceList ? (

@@ -49,7 +49,7 @@ export function CustomFieldsEditor({
     <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-4", className)}>
       {items.map(({ key, field: f }) => {
         if (!f) return <div key={`slot-${key}`} className="contents">{slots?.[key]}</div>;
-        if (!isFieldShown(f, values)) return null;
+        if (!isFieldShown(f, { ...context, ...values })) return null;
         const wide = f.wide || f.type === "textarea" || f.type === "multiselect";
         if (f.type === "formula" || f.readOnly) {
           const v = f.type === "formula" ? computeFormula(f.formula, { ...context, ...values }) : initial?.[f.key];

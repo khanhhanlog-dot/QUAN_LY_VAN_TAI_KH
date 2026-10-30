@@ -49,7 +49,13 @@ await asUser("owner@khanhha.test", desktop, async (page) => {
   const text = (await giaBox.textContent()) ?? "";
   // Bảng giá mẫu BG001: 3.500.000, hỗ trợ dầu 39% => 4.865.000 + 50.000 vé (hạ trái tuyến trống = 0)
   check(/4\.915\.000/.test(text), `Form tạo đơn tính Giá = Đơn giá × (1 + % dầu) + phụ thu (thấy: ${text.replace(/\s+/g, " ").slice(0, 80)})`);
+  check((await s1.locator("div.border-t").filter({ has: page.getByText("Phụ thu vé", { exact: true }) }).count()) > 0, "Phụ thu và công thức giá nằm trong khung Giá");
   await shot(page, "pf-02-tao-don");
+  await s1.getByRole("button", { name: "Thêm phụ thu / công thức giá" }).click();
+  await page.locator("#fd-type").selectOption("formula");
+  const d2 = page.getByRole("dialog");
+  check(await visible(d2.getByRole("button", { name: /Phụ thu vé phu_thu_ve/ })), "Ngay trên form tạo đơn, công thức chọn được phụ thu đã thêm");
+  await page.keyboard.press("Escape");
 });
 
 await finish();

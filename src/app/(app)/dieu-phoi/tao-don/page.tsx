@@ -53,6 +53,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
         orderLayout={layoutOf("transport_orders", orderRows)}
         shipmentLayout={layoutOf("shipments", shipRows)}
         canAddField={canAddField}
+        orderFieldRows={orderRows}
+        shipmentFieldRows={shipRows}
       />
     </>
   );
