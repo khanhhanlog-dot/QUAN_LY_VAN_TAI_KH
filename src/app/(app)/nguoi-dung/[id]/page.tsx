@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ALL_PERMISSIONS, MODULE_LABELS, ACTION_LABELS, type ModuleKey } from "@/lib/permissions";
+import { ALL_PERMISSIONS, MODULE_LABELS, ACTION_LABELS, type ModuleKey, permissionLabel } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/format";
 import { UserRolesForm } from "./user-roles-form";
 import { OverrideForm, RemoveOverrideButton } from "./override-form";
@@ -65,6 +65,11 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
           </>
         }
       />
+      {profile.status === "pending" && !isSelf ? (
+        <p className="mb-4 rounded-md border border-warning/50 bg-warning/10 p-3 text-sm">
+          Tài khoản này đã đăng nhập nhưng chưa được cấp quyền. Tích vai trò bên dưới (ví dụ Kế toán) rồi bấm <b>Lưu vai trò</b>: tài khoản được kích hoạt ngay.
+        </p>
+      ) : null}
       {isSelf ? (
         <p className="mb-4 rounded-md border border-warning/50 bg-warning/10 p-3 text-sm">Bạn không thể tự thay đổi vai trò hoặc quyền của chính mình.</p>
       ) : null}
@@ -72,12 +77,18 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         <Card>
           <CardHeader>
             <CardTitle>Vai trò</CardTitle>
-            <CardDescription>Quyền theo vai trò được cấu hình ở tab “Vai trò và quyền”.</CardDescription>
+            <CardDescription>
+              Tích vai trò theo bộ phận rồi bấm Lưu vai trò; mỗi vai trò đã có sẵn bộ quyền (bấm “Xem quyền có sẵn”). Chỉ dùng Quyền riêng khi cần ngoại lệ.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <UserRolesForm
               userId={profile.id}
-              roles={(roles ?? []).map((r) => ({ ...r, disabled: !canConfigure || (r.code === "super_admin" && !meSuper) }))}
+              roles={(roles ?? []).map((r) => ({
+                ...r,
+                disabled: !canConfigure || (r.code === "super_admin" && !meSuper),
+                perms: (rolePerms ?? []).filter((rp) => rp.role_id === r.id).map((rp) => rp.permission_code as string),
+              }))}
               selected={[...roleIds]}
               canConfigure={canConfigure}
             />
@@ -95,7 +106,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                 <li key={o.permission_code} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
                   <span>
                     <Badge variant={o.effect === "grant" ? "success" : "destructive"}>{o.effect === "grant" ? "Cấp" : "Chặn"}</Badge>{" "}
-                    <code>{o.permission_code}</code>
+                    {permissionLabel(o.permission_code)} <code className="text-xs text-muted-foreground">{o.permission_code}</code>
                     {o.reason ? <span className="block text-xs text-muted-foreground">{o.reason}</span> : null}
                   </span>
                   {canConfigure ? <RemoveOverrideButton userId={profile.id} permission={o.permission_code} /> : null}

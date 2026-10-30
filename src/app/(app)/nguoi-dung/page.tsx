@@ -32,8 +32,14 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const canUpdate = me.permissions.has("users.update");
   const canConfigure = me.permissions.has("users.configure");
 
-  const { data: roles } = await supabase.from("roles").select("id, code, name, description, is_system").order("sort_order");
-  const assignableRoles = (roles ?? []).filter((r) => r.code !== "super_admin" || me.roles.some((x) => x.code === "super_admin"));
+  const [{ data: roles }, { data: rolePerms }] = await Promise.all([
+    supabase.from("roles").select("id, code, name, description, is_system").order("sort_order"),
+    supabase.from("role_permissions").select("role_id, permission_code"),
+  ]);
+  const permsOf = (roleId: string) => (rolePerms ?? []).filter((rp) => rp.role_id === roleId).map((rp) => rp.permission_code as string);
+  const assignableRoles = (roles ?? [])
+    .filter((r) => r.code !== "super_admin" || me.roles.some((x) => x.code === "super_admin"))
+    .map((r) => ({ ...r, perms: permsOf(r.id) }));
 
   let drivers: { id: string; code: string; full_name: string }[] = [];
   if (canCreate && me.permissions.has("drivers.view")) {
@@ -137,8 +143,8 @@ async function UsersTab({ q, canUpdate, meId }: { q?: string; canUpdate: boolean
                 <TableCell className="whitespace-nowrap text-sm">{formatDateTime(u.created_at)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Link href={`/nguoi-dung/${u.id}`} className="text-sm text-primary hover:underline">
-                      Phân quyền
+                    <Link href={`/nguoi-dung/${u.id}`} className={u.status === "pending" ? "text-sm font-medium text-primary underline" : "text-sm text-primary hover:underline"}>
+                      {u.status === "pending" ? "Cấp quyền" : "Phân quyền"}
                     </Link>
                     {canUpdate && u.id !== meId && u.status !== "pending" ? (
                       <UserStatusButton userId={u.id} status={u.status as "active" | "disabled"} />

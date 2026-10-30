@@ -63,7 +63,7 @@ export async function setUserStatus(userId: string, status: "active" | "disabled
   }, status === "active" ? "Đã mở khóa tài khoản." : "Đã khóa tài khoản.");
 }
 
-export async function setUserRoles(userId: string, roleIds: string[]): Promise<ActionResult> {
+export async function setUserRoles(userId: string, roleIds: string[]): Promise<ActionResult<{ activated: boolean }>> {
   return runAction(async () => {
     const me = await requirePermission("users.configure");
     const id = uuid.parse(userId);
@@ -84,8 +84,16 @@ export async function setUserRoles(userId: string, roleIds: string[]): Promise<A
       const { error } = await supabase.from("user_roles").delete().eq("user_id", id).in("role_id", toRemove);
       if (error) throw error;
     }
+    // Tài khoản đã đăng nhập nhưng đang chờ cấp quyền: gán vai trò là kích hoạt luôn
+    let activated = false;
+    if (wanted.size) {
+      const { data, error } = await supabase.from("profiles").update({ status: "active" }).eq("id", id).eq("status", "pending").select("id");
+      if (error) throw error;
+      activated = Boolean(data?.length);
+    }
     revalidatePath(`/nguoi-dung/${id}`);
     revalidatePath("/nguoi-dung");
+    return { activated };
   }, "Đã cập nhật vai trò.");
 }
 

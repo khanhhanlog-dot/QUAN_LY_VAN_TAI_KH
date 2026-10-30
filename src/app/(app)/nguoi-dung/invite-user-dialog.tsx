@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { inviteUser } from "./actions";
+import { RoleSummary } from "./role-summary";
 
 const schema = z.object({
   email: z.email({ message: "Email không hợp lệ" }),
@@ -22,7 +23,7 @@ export function InviteUserDialog({
   roles,
   drivers,
 }: {
-  roles: { id: string; code: string; name: string; description: string | null }[];
+  roles: { id: string; code: string; name: string; description: string | null; perms: string[] }[];
   drivers: { id: string; code: string; full_name: string }[];
 }) {
   const [open, setOpen] = useState(false);
@@ -68,13 +69,18 @@ export function InviteUserDialog({
             <legend className="text-sm font-medium">Vai trò</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {roles.map((r) => (
-                <label key={r.id} className="flex cursor-pointer items-start gap-2 rounded-md border p-2 text-sm hover:bg-muted/50">
-                  <input type="checkbox" value={r.code} className="mt-0.5" {...form.register("roleCodes")} />
-                  <span>
-                    <span className="font-medium">{r.name}</span>
-                    {r.description ? <span className="block text-xs text-muted-foreground">{r.description}</span> : null}
-                  </span>
-                </label>
+                <div key={r.id} className="space-y-1 rounded-md border p-2 text-sm hover:bg-muted/50">
+                  <label className="flex cursor-pointer items-start gap-2">
+                    <input type="checkbox" value={r.code} className="mt-0.5" {...form.register("roleCodes")} />
+                    <span>
+                      <span className="font-medium">{r.name}</span>
+                      {r.description ? <span className="block text-xs text-muted-foreground">{r.description}</span> : null}
+                    </span>
+                  </label>
+                  <div className="pl-6">
+                    <RoleSummary perms={r.perms} all={r.code === "super_admin"} />
+                  </div>
+                </div>
               ))}
             </div>
             {form.formState.errors.roleCodes ? <p className="text-xs text-destructive">{form.formState.errors.roleCodes.message}</p> : null}
