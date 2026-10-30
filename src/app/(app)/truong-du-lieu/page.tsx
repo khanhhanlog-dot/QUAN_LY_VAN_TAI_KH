@@ -11,7 +11,7 @@ import { loadCustomFields, loadFormLayout } from "@/lib/entities/server";
 import { applyLayout } from "@/lib/entities/record";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 import { FieldManager } from "./field-manager";
-import { FormLayoutCard, type LayoutItem } from "./form-layout-card";
+import type { LayoutItem } from "./form-layout-card";
 
 export const metadata: Metadata = { title: "Quản lý trường dữ liệu" };
 
@@ -70,22 +70,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
           systemKeys={(entity?.fields ?? FORM_SYSTEM_FIELDS[mod.module] ?? []).map((f) => f.key)}
           permissions={ALL_PERMISSIONS}
           autoOpen={them === "1"}
-        />
-        <FormLayoutCard
-          key={`${mod.module}:${layout.join()}`}
-          module={mod.module}
-          moduleLabel={mod.label}
-          items={applyLayout(layoutDefaults, layout)}
-          defaults={layoutDefaults}
-          canConfigure={me.permissions.has("fields.configure")}
-          appliesTo={
-            mod.module === "transport_orders"
-              ? "phần Thông tin đơn hàng trên form Tạo đơn hàng (Điều phối)"
-              : mod.module === "shipments"
-                ? "phần Chuyến trên form Tạo đơn hàng (Điều phối)"
-                : `hộp Thêm/Sửa ${mod.label.toLowerCase()}`
-          }
-          note={entity?.createAction ? "Hộp tạo mới của màn hình này giữ cố định ô hệ thống; trường bổ sung hiện theo thứ tự này." : undefined}
+          layout={{
+            resetKey: `${mod.module}:${layout.join()}:${custom.map((r) => `${r.field_key}${r.status}`).join()}`,
+            items: applyLayout(layoutDefaults, layout),
+            defaults: layoutDefaults,
+            appliesTo:
+              mod.module === "transport_orders"
+                ? "phần Thông tin đơn hàng trên form Tạo đơn hàng (Điều phối)"
+                : mod.module === "shipments"
+                  ? "phần Chuyến trên form Tạo đơn hàng (Điều phối)"
+                  : `hộp Thêm/Sửa ${mod.label.toLowerCase()}`,
+            note: entity?.createAction ? "Hộp tạo mới của màn hình này giữ cố định ô hệ thống; trường bổ sung hiện theo thứ tự này." : undefined,
+          }}
         />
         {entity ? (
           <Card>

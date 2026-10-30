@@ -3,13 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
-import { formatDate, formatDateTime, todayVN } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { vehicleTripsOnDay, type VehicleDayTrip } from "@/app/(app)/dieu-phoi/actions";
 import { StatusBadge } from "./status-badge";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const NEW = "new";
-const time = (iso: string) => formatDateTime(iso).slice(11);
 
 /** Kết quả kiểm tra lịch xe gửi lên biểu mẫu cha */
 export type VehicleDayState = {
@@ -145,8 +144,8 @@ export function VehicleDayConflict({
                 {t.shipment_code}
               </a>
               <span>
-                {todayVN(new Date(t.pickup_at)) === day ? time(t.pickup_at) : formatDateTime(t.pickup_at)}
-                {t.expected_delivery_at ? ` → ${formatDate(t.expected_delivery_at) === formatDate(t.pickup_at) ? time(t.expected_delivery_at) : formatDateTime(t.expected_delivery_at)}` : ""}
+                {formatDate(t.pickup_at)}
+                {t.expected_delivery_at && formatDate(t.expected_delivery_at) !== formatDate(t.pickup_at) ? ` → ${formatDate(t.expected_delivery_at)}` : ""}
               </span>
               <span className="inline-flex min-w-0 items-center gap-1 text-muted-foreground">
                 {t.pickup_name} <ArrowRight className="size-3 shrink-0" /> {t.delivery_name}

@@ -114,6 +114,17 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Trình thiết kế biểu mẫu, quy trình (trang đang ghi "Giai đoạn 8") | GĐ8 |
 | Kiểm thử tải, triển khai production | GĐ8 |
 
+## Tạo đơn: ngày, khách thanh toán, giá sau (khách hàng yêu cầu 30/10/2026)
+
+Cần chạy `supabase/deploy/nang-cap-khach-thanh-toan-gia-sau.sql` (migration 0024, 0025) trên CSDL thật trước khi đưa lên main.
+
+| Chức năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Ngày nhận hàng, ngày giao dự kiến chỉ chọn ngày (bỏ giờ) | ✅ | Lưu ngày nhận = 00:00, ngày giao dự kiến = 23:59:59 giờ Việt Nam, nên chuyến chỉ bị tính trễ khi qua hết ngày giao dự kiến. Mọi màn hình hiện dạng dd/mm/yyyy |
+| Sửa, ngừng dùng, xóa trường bổ sung ngay trong khung "Thứ tự trên biểu mẫu" | ✅ | Trường đã có dữ liệu không xóa được, chỉ ngừng dùng |
+| Khách thanh toán mặc định trên hồ sơ khách hàng, tự điền khi tạo đơn | ✅ | Khách hàng và địa điểm → sửa khách hàng → "Khách thanh toán mặc định". Vẫn đổi được trên đơn |
+| Tạo chuyến khi chưa có giá | ✅ | Để trống đơn giá: chuyến ghi "Chưa có giá" (đơn giá 0), nhập sau ở bảng Quản lý chuyến xe hoặc chi tiết chuyến; tiền cước và hỗ trợ dầu tự tính lại |
+
 ## Quy chuẩn màn hình (áp dụng mọi màn hình, 2026-10-21)
 
 | Chức năng | Trạng thái | Ghi chú |

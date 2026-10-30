@@ -115,7 +115,7 @@ const shipmentSchema = z
   })
   .refine((s) => s.pickupLocationId !== s.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
   .refine((s) => !s.expectedDeliveryAt || Date.parse(s.expectedDeliveryAt) >= Date.parse(s.pickupAt), {
-    message: "Giờ giao dự kiến phải sau giờ nhận hàng",
+    message: "Ngày giao dự kiến không được trước ngày nhận hàng",
   });
 
 const orderSchema = z.object({
@@ -241,6 +241,22 @@ export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionRes
     const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id").eq("id", vehicleId).maybeSingle();
     if (error) throw error;
     return { driverId: data?.assigned_driver_id ?? null, vehicleTypeId: data?.vehicle_type_id ?? null };
+  });
+}
+
+/** Khách thanh toán mặc định trong hồ sơ khách hàng, để tự điền vào đơn hàng */
+export async function customerDefaultPayer(customerId: string): Promise<ActionResult<{ id: string; label: string } | null>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.create", "dispatch.update");
+    if (!uuid.safeParse(customerId).success) throw new ActionError("Khách hàng không hợp lệ");
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("customers").select("default_payer_customer_id").eq("id", customerId).maybeSingle();
+    if (error) throw error;
+    const payerId = (data as { default_payer_customer_id?: string | null } | null)?.default_payer_customer_id;
+    if (!payerId) return null;
+    const { data: p, error: e2 } = await supabase.from("customers").select("code, name").eq("id", payerId).maybeSingle();
+    if (e2) throw e2;
+    return p ? { id: payerId, label: `${p.name} – ${p.code}` } : null;
   });
 }
 

@@ -80,8 +80,8 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   const s3 = page.locator("[data-slot=card]").filter({ hasText: "Chuyến 1" });
   await pick(page, s3.getByLabel("Điểm nhận *"), "Long An", "Kho Mẫu Long An");
   await pick(page, s3.getByLabel("Điểm giao *"), "Cát Lái", "Cảng Cát Lái");
-  check(await visible(s3.getByText("Không có bảng giá phù hợp")), "Không có bảng giá thì yêu cầu nhập giá thủ công");
-  await s3.getByLabel("Đơn giá (đ) *").fill("2000000");
+  check(await visible(s3.getByText("Không có bảng giá phù hợp")), "Không có bảng giá thì gợi ý nhập giá thủ công hoặc để trống");
+  await s3.getByLabel("Đơn giá (đ)", { exact: true }).fill("2000000");
   check(await visible(s3.getByText("2.780.000")), "Giá nhập tay vẫn tính hỗ trợ dầu theo quy tắc mặc định");
   await page.getByRole("button", { name: /Lưu 1 chuyến vào đơn/ }).click();
   check(await toast(page, "Đã lưu 1 chuyến"), "Thêm chuyến vào đơn có sẵn");

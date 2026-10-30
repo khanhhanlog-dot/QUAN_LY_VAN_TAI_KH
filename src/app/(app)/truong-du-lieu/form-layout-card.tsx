@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, GripVertical, Loader2, RotateCcw, Save } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Loader2, Pencil, Power, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,16 +11,7 @@ import { saveFormLayout } from "./actions";
 
 export type LayoutItem = { key: string; label: string; system: boolean };
 
-/** Kéo thả (hoặc bấm mũi tên) để sắp thứ tự trường trên biểu mẫu; một thứ tự dùng chung cho mọi người */
-export function FormLayoutCard({
-  module,
-  moduleLabel,
-  items: initial,
-  defaults,
-  canConfigure,
-  note,
-  appliesTo,
-}: {
+export type FormLayoutCardProps = {
   module: string;
   moduleLabel: string;
   items: LayoutItem[];
@@ -30,7 +21,12 @@ export function FormLayoutCard({
   note?: string;
   /** Biểu mẫu nhận thứ tự này, ví dụ "form Tạo đơn hàng ở Điều phối" */
   appliesTo: string;
-}) {
+  /** Sửa / ngừng dùng / xóa trường bổ sung ngay trên dòng */
+  actions?: { onEdit: (key: string) => void; onToggle: (key: string) => void; onDelete: (key: string) => void };
+};
+
+/** Kéo thả (hoặc bấm mũi tên) để sắp thứ tự trường trên biểu mẫu; một thứ tự dùng chung cho mọi người */
+export function FormLayoutCard({ module, moduleLabel, items: initial, defaults, canConfigure, note, appliesTo, actions }: FormLayoutCardProps) {
   const router = useRouter();
   const [items, setItems] = useState(initial);
   const [drag, setDrag] = useState<number | null>(null);
@@ -128,6 +124,19 @@ export function FormLayoutCard({
               <Badge variant={it.system ? "outline" : "secondary"} className="shrink-0 font-normal">
                 {it.system ? "Hệ thống" : "Bổ sung"}
               </Badge>
+              {actions && !it.system ? (
+                <span className="flex shrink-0 border-r pr-1">
+                  <Button variant="ghost" size="icon" className="size-7" title="Sửa trường" aria-label={`Sửa ${it.label}`} onClick={() => actions.onEdit(it.key)}>
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="size-7" title="Ngừng sử dụng (ẩn khỏi biểu mẫu, giữ dữ liệu)" aria-label={`Ngừng dùng ${it.label}`} onClick={() => actions.onToggle(it.key)}>
+                    <Power className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="size-7 text-destructive" title="Xóa trường" aria-label={`Xóa ${it.label}`} onClick={() => actions.onDelete(it.key)}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </span>
+              ) : null}
               {canConfigure ? (
                 <span className="flex shrink-0">
                   <Button variant="ghost" size="icon" className="size-7" aria-label={`Đưa ${it.label} lên`} disabled={i === 0} onClick={() => move(i, i - 1)}>

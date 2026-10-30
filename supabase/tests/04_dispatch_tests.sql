@@ -56,10 +56,7 @@ select public.create_transport_order(
 select tests.assert((select max(sequence_in_order) from public.shipments where order_id = (select (v ->> 'order_id')::uuid from t_ids where k = 'o1')) = 3,
   'Thêm chuyến vào đơn có sẵn: số thứ tự nối tiếp');
 
--- Không có bảng giá: bắt nhập đơn giá
-select tests.assert_fails($$select public.create_transport_order('{"customer_id":"10000000-0000-0000-0000-000000000002"}',
-  '[{"pickup_at":"2026-10-21T08:00:00+07:00","pickup_location_id":"20000000-0000-0000-0000-000000000001","delivery_location_id":"20000000-0000-0000-0000-000000000002"}]')$$,
-  'Không có bảng giá và không nhập đơn giá -> bị chặn');
+-- Không có bảng giá và chưa nhập đơn giá: vẫn tạo được (xem 14_price_later_tests.sql)
 insert into t_ids values ('o2', public.create_transport_order('{"customer_id":"10000000-0000-0000-0000-000000000002"}',
   '[{"pickup_at":"2026-10-21T10:00:00+07:00","pickup_location_id":"20000000-0000-0000-0000-000000000001","delivery_location_id":"20000000-0000-0000-0000-000000000002","unit_price":"2000000"},
     {"pickup_at":"2026-10-21T11:00:00+07:00","pickup_location_id":"20000000-0000-0000-0000-000000000001","delivery_location_id":"20000000-0000-0000-0000-000000000002","unit_price":"2000000","fuel_support_rate":"10"}]'));

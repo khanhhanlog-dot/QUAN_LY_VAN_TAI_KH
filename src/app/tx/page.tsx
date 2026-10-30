@@ -1,6 +1,6 @@
 import { Clock, MapPin, Navigation, Phone, Receipt, Truck } from "lucide-react";
 import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
-import { formatDateTime, formatNumber, formatVND } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { PlateForm } from "./plate-form";
 import { AcceptButton, ChangeVehicleButton, CompleteButton, StartButton } from "./trip-actions";
@@ -104,8 +104,8 @@ export default async function DriverHome() {
                 <div className="mt-3 flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
                   <Clock className="size-4 shrink-0 text-primary" />
                   <span>
-                    Nhận hàng <strong>{formatDateTime(t.pickup_at)}</strong>
-                    {t.expected_delivery_at ? <> · Giao trước {formatDateTime(t.expected_delivery_at)}</> : null}
+                    Nhận hàng ngày <strong>{formatDate(t.pickup_at)}</strong>
+                    {t.expected_delivery_at ? <> · Giao trong ngày {formatDate(t.expected_delivery_at)}</> : null}
                   </span>
                 </div>
 

@@ -27,7 +27,7 @@ import { resetTableView, saveTableView } from "@/lib/entities/actions";
 import type { FieldDef, TableViewConfig } from "@/lib/entities/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatDateTime, formatNumber, formatVND } from "@/lib/format";
+import { formatDate, formatNumber, formatVND } from "@/lib/format";
 import { LOCKED_STATUSES, PRICING_UNITS } from "@/lib/status";
 import { SHIPMENT_ADV_FIELDS, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "@/components/dispatch/status-badge";
@@ -44,7 +44,7 @@ type Col = {
 };
 
 const COLS: Col[] = [
-  { key: "pickup_at", label: "Ngày giờ nhận", width: 140, render: (r) => formatDateTime(r.pickup_at) },
+  { key: "pickup_at", label: "Ngày nhận", width: 110, render: (r) => formatDate(r.pickup_at) },
   {
     key: "shipment_code",
     label: "Mã chuyến",
@@ -73,7 +73,7 @@ const COLS: Col[] = [
   { key: "driver_name", label: "Tài xế", width: 150, render: (r) => r.driver_name },
   { key: "quantity", label: "SL", width: 70, align: "right", edit: "quantity", render: (r) => formatNumber(r.quantity) },
   { key: "pricing_unit", label: "ĐVT", width: 76, render: (r) => PRICING_UNITS[r.pricing_unit] ?? r.pricing_unit },
-  { key: "unit_price", label: "Đơn giá", width: 120, align: "right", edit: "unit_price", render: (r) => formatVND(r.unit_price) },
+  { key: "unit_price", label: "Đơn giá", width: 120, align: "right", edit: "unit_price", render: (r) => (Number(r.unit_price) ? formatVND(r.unit_price) : <span className="text-amber-700">Chưa có giá</span>) },
   { key: "freight_amount", label: "Cước", width: 120, align: "right", render: (r) => formatVND(r.freight_amount) },
   { key: "surcharge_amount", label: "Phụ phí", width: 110, align: "right", edit: "surcharge_amount", render: (r) => formatVND(r.surcharge_amount) },
   {

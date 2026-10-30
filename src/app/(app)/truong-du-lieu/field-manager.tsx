@@ -30,6 +30,7 @@ import {
   type FieldInput,
   type FieldVersion,
 } from "./actions";
+import { FormLayoutCard, type FormLayoutCardProps } from "./form-layout-card";
 
 const typeLabel = (t: string) => FIELD_DATA_TYPES.find((x) => x.value === t)?.label ?? t;
 
@@ -93,6 +94,7 @@ export function FieldManager({
   systemKeys,
   permissions,
   autoOpen = false,
+  layout,
 }: {
   module: string;
   moduleLabel: string;
@@ -103,6 +105,8 @@ export function FieldManager({
   permissions: readonly string[];
   /** Mở sẵn hộp thêm trường (đến từ liên kết "Thêm trường" trong biểu mẫu) */
   autoOpen?: boolean;
+  /** Khung sắp thứ tự trên biểu mẫu, có nút sửa/ngừng dùng/xóa cho trường bổ sung */
+  layout?: Omit<FormLayoutCardProps, "module" | "moduleLabel" | "canConfigure" | "actions"> & { resetKey: string };
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<CustomFieldRow | null>(null);
@@ -111,8 +115,30 @@ export function FieldManager({
   const [deleting, setDeleting] = useState<CustomFieldRow | null>(null);
   const [deleteImpact, setDeleteImpact] = useState<FieldImpact | null>(null);
   const [pending, start] = useTransition();
+  const editRow = (r: CustomFieldRow) => {
+    setEditing(r);
+    setOpen(true);
+  };
+  const toggleRow = (r: CustomFieldRow) =>
+    start(async () => {
+      const res = await setFieldStatus(r.id, r.status === "active" ? "inactive" : "active");
+      if (res.ok) {
+        toast.success(res.message);
+        router.refresh();
+      } else toast.error(res.error);
+    });
+  const deleteRow = (r: CustomFieldRow) => {
+    setDeleting(r);
+    setDeleteImpact(null);
+    getFieldImpact(r.id).then((res) => res.ok && setDeleteImpact(res.data ?? null));
+  };
+  const withRow = (fn: (r: CustomFieldRow) => void) => (key: string) => {
+    const r = rows.find((x) => x.field_key === key);
+    if (r) fn(r);
+  };
 
   return (
+    <>
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
         <div className="text-sm">
@@ -183,10 +209,7 @@ export function FieldManager({
                           className="size-7"
                           title="Sửa"
                           aria-label="Sửa"
-                          onClick={() => {
-                            setEditing(r);
-                            setOpen(true);
-                          }}
+                          onClick={() => editRow(r)}
                         >
                           <Pencil className="size-3.5" />
                         </Button>
@@ -197,15 +220,7 @@ export function FieldManager({
                           title={r.status === "active" ? "Ngừng sử dụng" : "Kích hoạt lại"}
                           aria-label={r.status === "active" ? "Ngừng sử dụng" : "Kích hoạt lại"}
                           disabled={pending}
-                          onClick={() =>
-                            start(async () => {
-                              const res = await setFieldStatus(r.id, r.status === "active" ? "inactive" : "active");
-                              if (res.ok) {
-                                toast.success(res.message);
-                                router.refresh();
-                              } else toast.error(res.error);
-                            })
-                          }
+                          onClick={() => toggleRow(r)}
                         >
                           <Power className="size-3.5" />
                         </Button>
@@ -215,11 +230,7 @@ export function FieldManager({
                           className="size-7 text-destructive"
                           title="Xóa"
                           aria-label="Xóa"
-                          onClick={() => {
-                            setDeleting(r);
-                            setDeleteImpact(null);
-                            getFieldImpact(r.id).then((res) => res.ok && setDeleteImpact(res.data ?? null));
-                          }}
+                          onClick={() => deleteRow(r)}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
@@ -281,6 +292,20 @@ export function FieldManager({
         }
       />
     </Card>
+    {layout ? (
+      <FormLayoutCard
+        key={layout.resetKey}
+        module={module}
+        moduleLabel={moduleLabel}
+        canConfigure={canConfigure}
+        items={layout.items}
+        defaults={layout.defaults}
+        appliesTo={layout.appliesTo}
+        note={layout.note}
+        actions={canConfigure ? { onEdit: withRow(editRow), onToggle: withRow(toggleRow), onDelete: withRow(deleteRow) } : undefined}
+      />
+    ) : null}
+    </>
   );
 }
 

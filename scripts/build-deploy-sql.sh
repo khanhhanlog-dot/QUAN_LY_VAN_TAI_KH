@@ -82,3 +82,6 @@ upgrade nang-cap-an-hien-truong.sql "Hiện/ẩn trường bổ sung theo giá t
 
 upgrade nang-cap-thu-tu-chuyen-xe.sql "Thứ tự chuyến của xe trong ngày (Điều phối)" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'vehicle_day_order')" \
   supabase/migrations/20261029000023_vehicle_day_order.sql
+
+upgrade nang-cap-khach-thanh-toan-gia-sau.sql "Khách thanh toán mặc định, tạo chuyến khi chưa có giá" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'default_payer_customer_id')" \
+  supabase/migrations/20261030000024_customer_default_payer.sql supabase/migrations/20261030000025_price_later.sql

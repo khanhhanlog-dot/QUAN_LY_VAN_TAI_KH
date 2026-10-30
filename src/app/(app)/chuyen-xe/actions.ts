@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
-import { formatDateTime, todayVN } from "@/lib/format";
+import { formatDate, todayVN } from "@/lib/format";
 import { isUuid, splitCustom, validateRecord } from "@/lib/entities/record";
 import { LOCKED_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
 import { formatValue } from "@/lib/entities/record";
@@ -79,13 +79,13 @@ export async function exportShipments(sp: Record<string, string | string[] | und
     const ws = wb.addWorksheet("Chuyến xe");
     const money = "#,##0";
     ws.columns = [
-      { header: "Ngày giờ nhận", key: "pickup_at", width: 17 },
+      { header: "Ngày nhận", key: "pickup_at", width: 12 },
       { header: "Mã chuyến", key: "shipment_code", width: 18 },
       { header: "Mã đơn hàng", key: "order_code", width: 18 },
       { header: "Khách hàng", key: "customer_name", width: 28 },
       { header: "Điểm nhận", key: "pickup_name", width: 26 },
       { header: "Điểm giao", key: "delivery_name", width: 26 },
-      { header: "Giờ giao dự kiến", key: "expected_delivery_at", width: 17 },
+      { header: "Ngày giao dự kiến", key: "expected_delivery_at", width: 14 },
       { header: "Loại xe", key: "vehicle_type_name", width: 18 },
       { header: "Biển số", key: "plate_number", width: 12 },
       { header: "Tài xế", key: "driver_name", width: 22 },
@@ -107,8 +107,8 @@ export async function exportShipments(sp: Record<string, string | string[] | und
       ws.addRow({
         ...r,
         ...Object.fromEntries(custom.defs.map((d) => [`cf_${d.key}`, formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key])])),
-        pickup_at: formatDateTime(r.pickup_at),
-        expected_delivery_at: formatDateTime(r.expected_delivery_at),
+        pickup_at: formatDate(r.pickup_at),
+        expected_delivery_at: r.expected_delivery_at ? formatDate(r.expected_delivery_at) : "",
         quantity: Number(r.quantity),
         pricing_unit: PRICING_UNITS[r.pricing_unit] ?? r.pricing_unit,
         unit_price: Number(r.unit_price),

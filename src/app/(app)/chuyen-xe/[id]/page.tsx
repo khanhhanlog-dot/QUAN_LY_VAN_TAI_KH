@@ -6,7 +6,7 @@ import { ArrowRight, ChevronLeft } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/entities/record";
-import { formatDateTime, formatNumber, formatVND } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
 import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
@@ -66,8 +66,8 @@ const FIELD_LABELS: Record<string, string> = {
   pricing_unit: "Đơn vị tính",
   vehicle_id: "Xe",
   driver_id: "Tài xế",
-  pickup_at: "Giờ nhận hàng",
-  expected_delivery_at: "Giờ giao dự kiến",
+  pickup_at: "Ngày nhận hàng",
+  expected_delivery_at: "Ngày giao dự kiến",
   notes: "Ghi chú",
 };
 const MONEY_FIELDS = new Set(["unit_price", "surcharge_amount", "fuel_support_amount"]);
@@ -102,7 +102,7 @@ const STATUS_FIELD: Record<string, { name: string; label: (v: string) => string 
 function fmtChange(field: string, v: string | null): string {
   if (v === null || v === "") return "(trống)";
   if (MONEY_FIELDS.has(field)) return formatVND(v);
-  if (field === "pickup_at" || field === "expected_delivery_at") return formatDateTime(v);
+  if (field === "pickup_at" || field === "expected_delivery_at") return formatDate(v);
   if (field === "vehicle_id" || field === "driver_id" || field === "price_list_id") return "(đã đổi)";
   if (field === "pricing_unit") return PRICING_UNITS[v] ?? v;
   return /^-?\d+(\.\d+)?$/.test(v) ? formatNumber(v) : v;
@@ -224,8 +224,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 ) : null}
               </Item>
               <Item label="Loại xe">{s.vehicle_type_name ?? "–"}</Item>
-              <Item label="Giờ nhận hàng">{formatDateTime(s.pickup_at)}</Item>
-              <Item label="Giờ giao dự kiến">{s.expected_delivery_at ? formatDateTime(s.expected_delivery_at) : "–"}</Item>
+              <Item label="Ngày nhận hàng">{formatDate(s.pickup_at)}</Item>
+              <Item label="Ngày giao dự kiến">{s.expected_delivery_at ? formatDate(s.expected_delivery_at) : "–"}</Item>
               <Item label="Xe">{s.plate_number ?? "Chưa chọn"}</Item>
               <Item label="Tài xế">{s.driver_name ? `${s.driver_name} (${s.driver_code})` : "Chưa phân công"}</Item>
               {s.notes ? (
@@ -258,7 +258,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   ? `bảng giá ${String(snap.price_list_code)} (mức cụ thể ${String(snap.price_specificity)}, ưu tiên ${String(snap.price_priority)})`
                   : snap.price_source === "manual"
                     ? "nhập tay (không có bảng giá phù hợp)"
-                    : "dữ liệu nhập trước Giai đoạn 4"}
+                    : snap.price_source === "pending"
+                      ? Number(s.unit_price)
+                        ? "nhập sau khi tạo chuyến"
+                        : "chưa có giá. Nhập đơn giá và phụ phí ở bảng Quản lý chuyến xe (bấm vào ô Đơn giá để sửa)"
+                      : "dữ liệu nhập trước Giai đoạn 4"}
               </p>
               {snap.fuel_source ? (
                 <p>

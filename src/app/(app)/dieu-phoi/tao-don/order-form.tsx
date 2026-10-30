@@ -15,11 +15,11 @@ import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { FieldDef } from "@/lib/entities/types";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
-import { createOrder, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
+import { createOrder, customerDefaultPayer, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
 
 type Row = {
   key: number;
-  pickupAt: string; // datetime-local, giờ Việt Nam
+  pickupAt: string; // ngày nhận hàng YYYY-MM-DD (giờ không biết trước nên không nhập)
   expectedDeliveryAt: string;
   pickupLocationId: string;
   deliveryLocationId: string;
@@ -42,7 +42,7 @@ type Row = {
 let seq = 0;
 const newRow = (from?: Row): Row => ({
   key: ++seq,
-  pickupAt: from?.pickupAt ?? `${todayVN()}T08:00`,
+  pickupAt: from?.pickupAt ?? todayVN(),
   expectedDeliveryAt: from?.expectedDeliveryAt ?? "",
   pickupLocationId: from?.pickupLocationId ?? "",
   deliveryLocationId: from?.deliveryLocationId ?? "",
@@ -61,7 +61,9 @@ const newRow = (from?: Row): Row => ({
 });
 
 /** "2026-10-21T08:00" (giờ VN) -> ISO có múi giờ */
-const toIso = (v: string) => (v ? `${v}:00+07:00` : "");
+// Chỉ nhập ngày: nhận hàng tính từ đầu ngày, giao dự kiến tính tới cuối ngày (giao trong ngày đó là đúng hạn)
+const startIso = (v: string) => (v ? `${v.slice(0, 10)}T00:00:00+07:00` : "");
+const endIso = (v: string) => (v ? `${v.slice(0, 10)}T23:59:59+07:00` : "");
 const num = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
 
 export function OrderForm({
@@ -84,7 +86,16 @@ export function OrderForm({
   canAddField: boolean;
 }) {
   const [customer, setCustomer] = useState({ id: order?.customerId ?? "", label: order?.customerName ?? "" });
-  const [payer, setPayer] = useState("");
+  const [payer, setPayer] = useState({ id: "", label: "", auto: false });
+  // Chọn khách hàng: tự điền khách thanh toán mặc định (thiết lập trong hồ sơ khách hàng); chọn tay thì không ghi đè
+  const pickCustomer = (id: string, label: string) => {
+    setCustomer({ id, label });
+    if (payer.id && !payer.auto) return;
+    if (!id) return setPayer({ id: "", label: "", auto: false });
+    customerDefaultPayer(id).then((r) => {
+      if (r.ok) setPayer(r.data ? { ...r.data, auto: true } : { id: "", label: "", auto: false });
+    });
+  };
   const [orderDate, setOrderDate] = useState(todayVN());
   const [notes, setNotes] = useState("");
   const [orderCustom, setOrderCustom] = useState<Record<string, unknown>>({});
@@ -102,13 +113,13 @@ export function OrderForm({
       const r = await createOrder({
         orderId: order?.id,
         customerId: order ? undefined : customer.id,
-        payerCustomerId: payer,
+        payerCustomerId: payer.id,
         orderDate,
         notes,
         custom: orderCustom,
         shipments: rows.map((s) => ({
-          pickupAt: toIso(s.pickupAt),
-          expectedDeliveryAt: toIso(s.expectedDeliveryAt),
+          pickupAt: startIso(s.pickupAt),
+          expectedDeliveryAt: endIso(s.expectedDeliveryAt),
           pickupLocationId: s.pickupLocationId,
           deliveryLocationId: s.deliveryLocationId,
           vehicleTypeId: s.vehicleTypeId,
@@ -149,14 +160,24 @@ export function OrderForm({
                 customer_id: (
                   <div className="space-y-1.5 lg:col-span-2">
                     <Label htmlFor="order-customer">Khách hàng *</Label>
-                    <ReferenceSelect id="order-customer" refKey="customers" value={customer.id} initialLabel={customer.label} onChange={(id, label) => setCustomer({ id, label })} />
+                    <ReferenceSelect id="order-customer" refKey="customers" value={customer.id} initialLabel={customer.label} onChange={pickCustomer} />
                   </div>
                 ),
                 payer_customer_id: (
                   <div className="space-y-1.5">
                     <Label htmlFor="order-payer">Khách thanh toán</Label>
-                    <ReferenceSelect id="order-payer" refKey="customers" value={payer} onChange={(id) => setPayer(id)} allowQuickCreate={false} />
-                    <p className="text-xs text-muted-foreground">Bỏ trống nếu chính khách hàng thanh toán.</p>
+                    <ReferenceSelect
+                      key={payer.auto ? `auto-${payer.id}` : "manual"}
+                      id="order-payer"
+                      refKey="customers"
+                      value={payer.id}
+                      initialLabel={payer.label}
+                      onChange={(id, label) => setPayer({ id, label, auto: false })}
+                      allowQuickCreate={false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {payer.auto ? "Tự điền theo hồ sơ khách hàng, đổi được." : "Bỏ trống nếu chính khách hàng thanh toán. Đặt sẵn trong hồ sơ khách hàng để tự điền."}
+                    </p>
                   </div>
                 ),
                 order_date: (
@@ -335,14 +356,14 @@ function ShipmentEditor({
           slots={{
               pickup_at: (
                 <div className="space-y-1.5">
-                  <Label htmlFor={id("pickup-at")}>Giờ nhận hàng *</Label>
-                  <Input id={id("pickup-at")} type="datetime-local" value={row.pickupAt} onChange={(e) => onChange({ pickupAt: e.target.value })} />
+                  <Label htmlFor={id("pickup-at")}>Ngày nhận hàng *</Label>
+                  <Input id={id("pickup-at")} type="date" value={row.pickupAt.slice(0, 10)} onChange={(e) => onChange({ pickupAt: e.target.value })} />
                 </div>
               ),
               expected_delivery_at: (
                 <div className="space-y-1.5">
-                  <Label htmlFor={id("delivery-at")}>Giờ giao dự kiến</Label>
-                  <Input id={id("delivery-at")} type="datetime-local" value={row.expectedDeliveryAt} onChange={(e) => onChange({ expectedDeliveryAt: e.target.value })} />
+                  <Label htmlFor={id("delivery-at")}>Ngày giao dự kiến</Label>
+                  <Input id={id("delivery-at")} type="date" min={row.pickupAt.slice(0, 10)} value={row.expectedDeliveryAt.slice(0, 10)} onChange={(e) => onChange({ expectedDeliveryAt: e.target.value })} />
                 </div>
               ),
               vehicle_type_id: (
@@ -441,7 +462,7 @@ function ShipmentEditor({
               ) : manual ? (
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
-                    <p className="text-sm text-amber-700">Không có bảng giá phù hợp: nhập đơn giá thủ công cho chuyến này.</p>
+                    <p className="text-sm text-amber-700">Không có bảng giá phù hợp: nhập đơn giá thủ công, hoặc để trống và nhập sau ở Quản lý chuyến xe.</p>
                     {canCreatePriceList ? (
                       <Button type="button" variant="outline" size="sm" onClick={() => setPriceDialog(true)}>
                         <Plus /> Tạo bảng giá cho tuyến này
@@ -449,8 +470,9 @@ function ShipmentEditor({
                     ) : null}
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor={id("price")}>Đơn giá (đ) *</Label>
-                    <Input id={id("price")} type="number" min="0" step="1000" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value })} aria-invalid={!row.unitPrice} />
+                    <Label htmlFor={id("price")}>Đơn giá (đ)</Label>
+                    <Input id={id("price")} type="number" min="0" step="1000" placeholder="Để trống nếu tính giá sau" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value })} />
+                    {!row.unitPrice ? <p className="text-xs text-muted-foreground">Chuyến sẽ ghi “Chưa có giá”; nhập sau ở bảng Quản lý chuyến xe hoặc chi tiết chuyến.</p> : null}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor={id("unit")}>Tính theo</Label>

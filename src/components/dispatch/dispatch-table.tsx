@@ -1,27 +1,26 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES } from "@/lib/status";
 import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
 import { CancelDialog } from "./cancel-dialog";
 
-const time = (iso: string) => formatDateTime(iso).slice(11);
 
 /** Bảng chuyến cho màn hình điều phối và chi tiết đơn hàng */
 export function DispatchTable({
   rows,
   canAssign,
   canCancel,
-  showDate,
   showOrder = true,
   emptyText = "Không có chuyến.",
 }: {
   rows: ShipmentListRow[];
   canAssign: boolean;
   canCancel: boolean;
+  /** Giữ để tương thích: luôn hiện ngày nhận */
   showDate?: boolean;
   showOrder?: boolean;
   emptyText?: string;
@@ -33,7 +32,7 @@ export function DispatchTable({
       <table className="w-full text-sm">
         <thead className="bg-muted/60 text-left text-xs whitespace-nowrap text-muted-foreground">
           <tr>
-            <th className="py-2 pr-3 pl-4 font-medium">{showDate ? "Ngày giờ nhận" : "Giờ nhận"}</th>
+            <th className="py-2 pr-3 pl-4 font-medium">Ngày nhận</th>
             <th className="px-3 py-2 font-medium">{showOrder ? "Chuyến / Khách hàng" : "Mã chuyến"}</th>
             <th className="px-3 py-2 font-medium">Tuyến</th>
             <th className="px-3 py-2 font-medium">Xe / Tài xế</th>
@@ -45,11 +44,9 @@ export function DispatchTable({
           {rows.map((r) => (
             <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
               <td className="py-2.5 pr-3 pl-4 whitespace-nowrap">
-                <div className="font-medium">{showDate ? formatDateTime(r.pickup_at) : time(r.pickup_at)}</div>
-                {r.expected_delivery_at ? (
-                  <div className="text-xs text-muted-foreground">
-                    Giao {formatDate(r.expected_delivery_at) === formatDate(r.pickup_at) ? time(r.expected_delivery_at) : formatDateTime(r.expected_delivery_at)}
-                  </div>
+                <div className="font-medium">{formatDate(r.pickup_at)}</div>
+                {r.expected_delivery_at && formatDate(r.expected_delivery_at) !== formatDate(r.pickup_at) ? (
+                  <div className="text-xs text-muted-foreground">Giao {formatDate(r.expected_delivery_at)}</div>
                 ) : null}
               </td>
               <td className="max-w-56 px-3 py-2.5">

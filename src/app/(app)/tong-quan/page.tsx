@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/bar-chart";
 import { LineChart } from "@/components/charts/line-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
-import { addDaysYMD, formatDate, formatDateTime, formatVND, todayVN } from "@/lib/format";
+import { addDaysYMD, formatDate, formatVND, todayVN } from "@/lib/format";
 import { SHIPMENT_STATUS, shipmentStatus } from "@/lib/status";
 import { TONE_BADGE, toneVar, type Tone } from "@/lib/tones";
 import { cn } from "@/lib/utils";
@@ -222,7 +222,7 @@ export default async function DashboardPage() {
                             <tr key={r.id} className="border-b last:border-0">
                               <td className="px-6 py-2.5 whitespace-nowrap">
                                 <div className="font-medium text-primary">{r.shipment_code}</div>
-                                <div className="text-xs text-muted-foreground">{formatDateTime(r.pickup_at)}</div>
+                                <div className="text-xs text-muted-foreground">{formatDate(r.pickup_at)}</div>
                               </td>
                               <td className="max-w-56 px-3 py-2.5">
                                 <div className="truncate">{r.transport_orders?.customers?.name ?? "—"}</div>
