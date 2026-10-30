@@ -363,7 +363,8 @@ export function formatValue(f: FieldDef, v: unknown, refLabel?: string | null): 
 /** Nhãn của một dòng khi được tham chiếu */
 export function rowLabel(entity: EntityDef, row: Record<string, unknown>): string {
   const parts = entity.labelCols.map((c) => row[c]).filter((x) => x !== null && x !== undefined && x !== "");
-  return parts.map(String).join(" – ");
+  // Bỏ phần lặp (VD địa chỉ ghi giống tên: "Cảng Cát Lái – Cảng Cát Lái")
+  return [...new Set(parts.map((x) => String(x).trim()))].join(" – ");
 }
 
 const ADV_KIND: Partial<Record<FieldDef["type"], AdvFieldKind>> = {
