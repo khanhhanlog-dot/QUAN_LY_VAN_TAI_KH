@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useTransition } from "react";
+import { useEffect, useMemo, useRef, useTransition } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -78,9 +78,24 @@ export function EntityFormDialog({
   // Mở lại hộp thêm mới: điền giá trị mới nhất (chữ vừa gõ, thông tin chuyến)
   useEffect(() => {
     if (open && !record) form.reset(blank());
+    autoNames.current = {};
+    lastAuto.current = "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const values = useWatch({ control: form.control }) as Values;
+  // Tự ghép tên (VD tên tuyến) từ nhãn hai ô tham chiếu; chỉ ghi đè khi ô tên trống hoặc đang là tên tự ghép
+  const autoNames = useRef<Record<string, string>>({});
+  const lastAuto = useRef("");
+  function onRefChange(key: string, label: string) {
+    const an = entity.autoName;
+    if (!an || !an.from.includes(key)) return;
+    autoNames.current[key] = label.split(" – ")[0].trim();
+    const [a, b] = an.from.map((k) => autoNames.current[k] ?? (record ? (refLabels?.[k]?.[String(record[k])] ?? "").split(" – ")[0] : ""));
+    const cur = String(form.getValues(an.target) ?? "");
+    if (!a || !b || (cur && cur !== lastAuto.current)) return;
+    lastAuto.current = `${a}${an.sep ?? " → "}${b}`;
+    form.setValue(an.target, lastAuto.current, { shouldValidate: form.formState.isSubmitted });
+  }
 
   function onSubmit(v: Values) {
     startTransition(async () => {
@@ -181,6 +196,7 @@ export function EntityFormDialog({
                     invalid={Boolean(err)}
                     refLabel={f.type === "reference" && record ? refLabels?.[f.key]?.[String(record[f.key])] : undefined}
                     disabled={readOnly || pending}
+                    onRefChange={(label) => onRefChange(f.key, label)}
                   />
                   {err ? <p className="text-xs text-destructive">{err}</p> : f.help ? <p className="text-xs text-muted-foreground">{f.help}</p> : null}
                 </div>

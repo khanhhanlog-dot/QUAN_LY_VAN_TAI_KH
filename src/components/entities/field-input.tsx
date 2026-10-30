@@ -16,6 +16,7 @@ export function FieldInput({
   refLabel,
   disabled,
   idPrefix = "f_",
+  onRefChange,
 }: {
   field: FieldDef;
   control: Control<Values>;
@@ -25,6 +26,8 @@ export function FieldInput({
   disabled?: boolean;
   /** Tiền tố id của ô nhập (nhiều biểu mẫu trên cùng trang) */
   idPrefix?: string;
+  /** Báo nhãn của mục vừa chọn ở ô tham chiếu */
+  onRefChange?: (label: string) => void;
 }) {
   const id = `${idPrefix}${field.key}`;
   const common = { id, "aria-invalid": invalid || undefined, disabled };
@@ -86,7 +89,10 @@ export function FieldInput({
               refKey={field.ref!}
               value={String(f.value ?? "")}
               initialLabel={refLabel}
-              onChange={(v) => f.onChange(v)}
+              onChange={(v, label) => {
+                f.onChange(v);
+                onRefChange?.(label);
+              }}
               disabled={disabled}
               invalid={invalid}
             />

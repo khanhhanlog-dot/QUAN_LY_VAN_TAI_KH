@@ -83,6 +83,8 @@ export type EntityDef = {
   defaultSort: { key: string; desc?: boolean };
   /** Các cột tạo nhãn khi được tham chiếu */
   labelCols: string[];
+  /** Tự ghép tên từ hai ô tham chiếu (VD tên tuyến = Điểm nhận → Điểm giao); vẫn sửa được */
+  autoName?: { target: string; from: [string, string]; sep?: string };
   /** Hỗ trợ trường động (module trong field_definitions) */
   customModule?: string;
   /** Các trường hiện trong biểu mẫu tạo nhanh từ nút "+" */

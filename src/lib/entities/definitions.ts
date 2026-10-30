@@ -458,10 +458,11 @@ export const ENTITIES: Record<string, EntityDef> = {
     defaultSort: { key: "code" },
     labelCols: ["name", "code"],
     quickFields: ["name", "pickup_location_id", "delivery_location_id", "distance_km"],
+    autoName: { target: "name", from: ["pickup_location_id", "delivery_location_id"] },
     activeFilter: { col: "is_active", value: true },
     fields: [
       code(true),
-      { key: "name", label: "Tên tuyến", type: "text", required: true, list: true, maxLength: 250 },
+      { key: "name", label: "Tên tuyến", type: "text", required: true, list: true, maxLength: 250, help: "Tự ghép khi chọn Điểm nhận và Điểm giao (VD: Cảng Cát Lái → Củ Chi); sửa lại được." },
       { key: "pickup_location_id", label: "Điểm nhận", type: "reference", ref: "locations", required: true, list: true },
       { key: "delivery_location_id", label: "Điểm giao", type: "reference", ref: "locations", required: true, list: true },
       { key: "distance_km", label: "Quãng đường (km)", type: "number", min: 0, list: true },
