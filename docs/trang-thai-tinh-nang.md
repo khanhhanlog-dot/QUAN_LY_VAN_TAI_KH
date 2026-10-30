@@ -125,6 +125,16 @@ Cần chạy `supabase/deploy/nang-cap-khach-thanh-toan-gia-sau.sql` (migration 
 | Khách thanh toán mặc định trên hồ sơ khách hàng, tự điền khi tạo đơn | ✅ | Khách hàng và địa điểm → sửa khách hàng → "Khách thanh toán mặc định". Vẫn đổi được trên đơn |
 | Tạo chuyến khi chưa có giá | ✅ | Để trống đơn giá: chuyến ghi "Chưa có giá" (đơn giá 0), nhập sau ở bảng Quản lý chuyến xe hoặc chi tiết chuyến; tiền cước và hỗ trợ dầu tự tính lại |
 
+## Điều phối làm thay tài xế (khách hàng yêu cầu 30/10/2026)
+
+Cần chạy `supabase/deploy/nang-cap-dieu-phoi-lam-thay.sql` (migration 0026) trên CSDL thật trước khi đưa lên main.
+
+| Chức năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Điều phối bấm thay tài xế: Nhận đơn, Bắt đầu chạy, Hoàn thành chuyến | ✅ | Chi tiết chuyến → mục "Giao hàng và chứng từ". Cần quyền dispatch.update. Lịch sử ghi tên người làm thay |
+| Hoàn thành thay khi chưa có ảnh/phiếu ký nhận: bắt buộc ghi lý do | ✅ | Chỉ điều phối; tài xế trên điện thoại vẫn bắt buộc ảnh. Chứng từ giữ "Thiếu", trang chi tiết nhắc bổ sung; tải ảnh bằng nút Chứng từ thì tự chuyển "Đã nộp" và bỏ nhắc |
+| Nhập chi phí thay tài xế | ✅ | Nút "Nhập chi phí" có sẵn ở mục Chi phí chuyến, hóa đơn không bắt buộc |
+
 ## Quy chuẩn màn hình (áp dụng mọi màn hình, 2026-10-21)
 
 | Chức năng | Trạng thái | Ghi chú |

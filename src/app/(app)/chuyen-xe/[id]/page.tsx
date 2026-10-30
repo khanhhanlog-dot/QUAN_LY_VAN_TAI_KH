@@ -19,6 +19,7 @@ import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
 import { formulaVars } from "@/lib/entities/definitions";
 import { ShipmentExpenseButton } from "./expense-button";
+import { ActForDriver } from "./act-for-driver";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
 import { TONE_BADGE } from "@/lib/tones";
@@ -27,6 +28,8 @@ import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
 
 type Extra = {
+  photo_skip_reason: string | null;
+  vehicle: { ownership_type: string } | null;
   pricing_snapshot: Record<string, unknown>;
   cancel_reason: string | null;
   cancelled_at: string | null;
@@ -120,7 +123,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase
       .from("shipments")
       .select(
-        "pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at",
+        "pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, vehicle:vehicles(ownership_type)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -158,6 +161,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const canAssign = me.permissions.has("dispatch.update") && ASSIGNABLE_STATUSES.includes(s.status);
   const canCancel = (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) && CANCELLABLE_STATUSES.includes(s.status);
   const unit = PRICING_UNITS[s.pricing_unit] ?? s.pricing_unit;
+  const canActForDriver = me.permissions.has("dispatch.update") && Boolean(s.driver_id) && ["assigned", "accepted", "in_transit"].includes(s.status);
 
   return (
     <>
@@ -402,6 +406,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             />
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            {canActForDriver ? (
+              <ActForDriver
+                shipmentId={s.id}
+                code={s.shipment_code}
+                status={s.status}
+                driverName={s.driver_name ?? ""}
+                outsourced={x.vehicle?.ownership_type === "outsourced"}
+                canUpload={me.permissions.has("documents.create")}
+              />
+            ) : null}
+            {x.photo_skip_reason ? (
+              <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                Hoàn thành khi chưa có ảnh, chứng từ. Lý do: <b>{x.photo_skip_reason}</b>. Bấm nút Chứng từ ở trên để tải bổ sung.
+              </p>
+            ) : null}
             {x.completed_at ? (
               <>
                 <Line label="Hoàn thành lúc" value={formatDateTime(x.completed_at)} />

@@ -85,3 +85,6 @@ upgrade nang-cap-thu-tu-chuyen-xe.sql "Thứ tự chuyến của xe trong ngày 
 
 upgrade nang-cap-khach-thanh-toan-gia-sau.sql "Khách thanh toán mặc định, tạo chuyến khi chưa có giá" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'default_payer_customer_id')" \
   supabase/migrations/20261030000024_customer_default_payer.sql supabase/migrations/20261030000025_price_later.sql
+
+upgrade nang-cap-dieu-phoi-lam-thay.sql "Điều phối làm thay tài xế, bỏ qua ảnh có lý do" "to_regprocedure('public.dispatch_act_for_driver(uuid,text,text,text,boolean,text)') is not null" \
+  supabase/migrations/20261030000026_dispatch_act_for_driver.sql

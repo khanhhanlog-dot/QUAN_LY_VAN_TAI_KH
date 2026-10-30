@@ -232,6 +232,38 @@ export async function cancelShipment(input: z.input<typeof cancelSchema>): Promi
   }, "Đã hủy chuyến.");
 }
 
+const actSchema = z.object({
+  shipmentId: uuid,
+  step: z.enum(["accept", "start", "complete"]),
+  result: z.enum(["full", "partial", "failed"]).optional(),
+  note: z.string().max(500, "Ghi chú tối đa 500 ký tự").optional(),
+  noExpense: z.boolean().nullable().optional(),
+  photoSkipReason: z.string().max(500, "Lý do tối đa 500 ký tự").optional(),
+});
+
+/** Điều phối làm thay tài xế: nhận đơn, bắt đầu chạy, hoàn thành (bỏ qua ảnh khi có lý do) */
+export async function actForDriver(input: z.input<typeof actSchema>): Promise<ActionResult> {
+  const p = actSchema.safeParse(input);
+  const msg = { accept: "Đã nhận chuyến thay tài xế.", start: "Đã bắt đầu chạy thay tài xế.", complete: "Đã hoàn thành chuyến thay tài xế." };
+  return runAction(async () => {
+    await requirePermission("dispatch.update");
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const d = p.data;
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("dispatch_act_for_driver", {
+      p_shipment_id: d.shipmentId,
+      p_step: d.step,
+      p_result: d.result ?? null,
+      p_note: d.note?.trim() || null,
+      p_no_expense: d.noExpense ?? null,
+      p_photo_skip_reason: d.photoSkipReason?.trim() || null,
+    });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+  }, p.success ? msg[p.data.step] : undefined);
+}
+
 /** Xe đang hoạt động kèm tài xế phụ trách, để gợi ý tài xế khi chọn xe */
 export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionResult<{ driverId: string | null; vehicleTypeId: string | null }>> {
   return runAction(async () => {
