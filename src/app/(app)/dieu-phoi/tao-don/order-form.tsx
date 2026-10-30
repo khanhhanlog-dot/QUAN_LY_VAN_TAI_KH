@@ -14,6 +14,7 @@ import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
 import { PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
+import { ItemsEditor, itemsPayload, newItem, type ItemLine } from "./items-editor";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, customerDefaultPayer, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -38,6 +39,8 @@ type Row = {
   custom: Record<string, unknown>;
   /** Trường bổ sung kiểu tiền, %, số, công thức: nhập trong khung Giá */
   customPrice: Record<string, unknown>;
+  /** Hàng hóa (mã hàng) của chuyến */
+  items: ItemLine[];
   /** Kiểm tra xe đã có chuyến cùng ngày: xác nhận vẫn giao và thứ tự chuyến của xe trong ngày */
   vehicleDay?: VehicleDayState;
 };
@@ -65,6 +68,7 @@ const newRow = (from?: Row): Row => ({
   notes: from?.notes ?? "",
   custom: from?.custom ?? {},
   customPrice: from?.customPrice ?? {},
+  items: (from?.items ?? []).map((l) => newItem(l)),
 });
 
 /** "2026-10-21T08:00" (giờ VN) -> ISO có múi giờ */
@@ -83,6 +87,9 @@ export function OrderForm({
   canAddField,
   orderFieldRows,
   shipmentFieldRows,
+  itemFields,
+  itemLayout,
+  itemFieldRows,
 }: {
   order?: { id: string; code: string; customerId: string; customerName: string };
   canCreatePriceList: boolean;
@@ -95,6 +102,9 @@ export function OrderForm({
   canAddField: boolean;
   orderFieldRows: CustomFieldRow[];
   shipmentFieldRows: CustomFieldRow[];
+  itemFields: FieldDef[];
+  itemLayout: string[];
+  itemFieldRows: CustomFieldRow[];
 }) {
   const [customer, setCustomer] = useState({ id: order?.customerId ?? "", label: order?.customerName ?? "" });
   const [payer, setPayer] = useState({ id: "", label: "", auto: false });
@@ -144,12 +154,14 @@ export function OrderForm({
           fuelSupportRate: num(s.fuelSupportRate),
           notes: s.notes,
           custom: { ...s.custom, ...s.customPrice },
+          items: itemsPayload(s.items),
           vehicleDayOrder: s.vehicleId ? (s.vehicleDay?.order ?? null) : null,
         })),
         otherOrders: rows.flatMap((s) => (s.vehicleId ? (s.vehicleDay?.others ?? []) : [])),
       });
       if (!r.ok || !r.data) return void toast.error(r.ok ? "Không lưu được đơn hàng" : r.error);
       toast.success(`Đã lưu ${r.data.shipments.length} chuyến vào đơn ${r.data.order_code}.`);
+      if (r.data.itemsError) toast.warning(r.data.itemsError, { duration: 15000 });
       router.push(`/dieu-phoi/don-hang/${r.data.order_id}`);
     });
   }
@@ -221,6 +233,9 @@ export function OrderForm({
           shipmentLayout={shipmentLayout}
           canAddField={canAddField}
           shipmentFieldRows={shipmentFieldRows}
+          itemFields={itemFields}
+          itemLayout={itemLayout}
+          itemFieldRows={itemFieldRows}
           canRemove={rows.length > 1}
           sameVehicle={rows
             .map((o, j) =>
@@ -256,6 +271,9 @@ function ShipmentEditor({
   shipmentLayout,
   canAddField,
   shipmentFieldRows,
+  itemFields,
+  itemLayout,
+  itemFieldRows,
   canRemove,
   sameVehicle,
   onChange,
@@ -270,6 +288,9 @@ function ShipmentEditor({
   shipmentLayout: string[];
   canAddField: boolean;
   shipmentFieldRows: CustomFieldRow[];
+  itemFields: FieldDef[];
+  itemLayout: string[];
+  itemFieldRows: CustomFieldRow[];
   canRemove: boolean;
   /** Chuyến khác trên biểu mẫu chọn cùng xe, cùng ngày */
   sameVehicle: { label: string; order: number | null; before: boolean }[];
@@ -457,6 +478,16 @@ function ShipmentEditor({
           }}
         />
         {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm trường cho chuyến" /> : null}
+
+        <ItemsEditor
+          value={row.items}
+          onChange={(items) => onChange({ items })}
+          fields={itemFields}
+          layout={itemLayout}
+          canAddField={canAddField}
+          fieldRows={itemFieldRows}
+          idPrefix={`s${row.key}-it-`}
+        />
 
         <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
           {!canQuote ? (

@@ -15,7 +15,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
   const me = await requirePagePermission("dispatch.create");
   const { don } = await searchParams;
   const sb = await createClient();
-  const [orderRows, shipRows] = await Promise.all([loadCustomFields(sb, "transport_orders"), loadCustomFields(sb, "shipments")]);
+  const [orderRows, shipRows, itemRows] = await Promise.all([loadCustomFields(sb, "transport_orders"), loadCustomFields(sb, "shipments"), loadCustomFields(sb, "shipment_items")]);
   const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions);
   const shipmentFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
   const canAddField = me.permissions.has("fields.configure");
@@ -55,6 +55,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
         canAddField={canAddField}
         orderFieldRows={orderRows}
         shipmentFieldRows={shipRows}
+        itemFields={moduleCustomFields("shipment_items", visibleCustomRows(itemRows, me.permissions), me.permissions)}
+        itemLayout={layoutOf("shipment_items", itemRows)}
+        itemFieldRows={itemRows}
       />
     </>
   );

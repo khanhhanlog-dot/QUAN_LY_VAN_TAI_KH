@@ -135,6 +135,17 @@ Cần chạy `supabase/deploy/nang-cap-dieu-phoi-lam-thay.sql` (migration 0026) 
 | Hoàn thành thay khi chưa có ảnh/phiếu ký nhận: bắt buộc ghi lý do | ✅ | Chỉ điều phối; tài xế trên điện thoại vẫn bắt buộc ảnh. Chứng từ giữ "Thiếu", trang chi tiết nhắc bổ sung; tải ảnh bằng nút Chứng từ thì tự chuyển "Đã nộp" và bỏ nhắc |
 | Nhập chi phí thay tài xế | ✅ | Nút "Nhập chi phí" có sẵn ở mục Chi phí chuyến, hóa đơn không bắt buộc |
 
+## Hàng hóa nhiều mã hàng của chuyến (khách hàng yêu cầu 30/10/2026)
+
+Cần chạy `supabase/deploy/nang-cap-hang-hoa-chuyen.sql` (migration 0027) trên CSDL thật trước khi đưa lên main.
+
+| Chức năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Bảng hàng hóa trên mỗi chuyến khi tạo đơn: Mã hàng, Tên hàng, Số lượng, ĐVT, Ghi chú; nút Thêm dòng, Xóa dòng, Dán từ Excel | ✅ | Không bắt buộc; tối đa 500 dòng/chuyến; tổng số lượng ở cuối bảng |
+| Cột bổ sung và cột công thức cho bảng hàng hóa (VD Thành tiền = quantity * N(don_gia_hang)) | ✅ | Quản lý trường dữ liệu → "Hàng hóa của chuyến (mã hàng)"; sắp thứ tự cột ở "Thứ tự trên biểu mẫu"; cộng tổng cột số và cột công thức |
+| Xem, sửa hàng hóa ở chi tiết chuyến | ✅ | Sửa cần quyền điều phối; chuyến đã đóng/hủy không sửa |
+| Hàng hóa trên app tài xế, xuất Excel bảng chuyến | Chưa làm | Làm khi người dùng cần |
+
 ## Quy chuẩn màn hình (áp dụng mọi màn hình, 2026-10-21)
 
 | Chức năng | Trạng thái | Ghi chú |

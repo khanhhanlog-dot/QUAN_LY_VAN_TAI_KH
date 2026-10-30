@@ -88,3 +88,6 @@ upgrade nang-cap-khach-thanh-toan-gia-sau.sql "Khách thanh toán mặc định,
 
 upgrade nang-cap-dieu-phoi-lam-thay.sql "Điều phối làm thay tài xế, bỏ qua ảnh có lý do" "to_regprocedure('public.dispatch_act_for_driver(uuid,text,text,text,boolean,text)') is not null" \
   supabase/migrations/20261030000026_dispatch_act_for_driver.sql
+
+upgrade nang-cap-hang-hoa-chuyen.sql "Hàng hóa (nhiều mã hàng) của chuyến" "to_regclass('public.shipment_items') is not null" \
+  supabase/migrations/20261030000027_shipment_items.sql

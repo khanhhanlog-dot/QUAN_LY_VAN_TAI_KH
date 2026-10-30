@@ -1358,6 +1358,13 @@ export const FORM_SYSTEM_FIELDS: Record<string, { key: string; label: string }[]
     { key: "surcharge_amount", label: "Phụ phí (khung Giá)" },
     { key: "fuel_support_rate", label: "Tỷ lệ hỗ trợ dầu (khung Giá)" },
   ],
+  shipment_items: [
+    { key: "item_code", label: "Mã hàng" },
+    { key: "item_name", label: "Tên hàng" },
+    { key: "quantity", label: "Số lượng" },
+    { key: "unit", label: "ĐVT" },
+    { key: "note", label: "Ghi chú" },
+  ],
 };
 
 /** Ô hệ thống nằm trong khung Giá của form chuyến (sắp xếp cùng trường tiền, %, số, công thức) */
@@ -1365,6 +1372,7 @@ export const PRICE_SYSTEM_KEYS = ["unit_price", "pricing_unit", "surcharge_amoun
 
 /** Số liệu hệ thống của biểu mẫu viết riêng mà công thức của trường bổ sung dùng được */
 export const FORMULA_SYSTEM_FIELDS: Record<string, { key: string; label: string }[]> = {
+  shipment_items: [{ key: "quantity", label: "Số lượng" }],
   shipments: [
     { key: "unit_price", label: "Đơn giá" },
     { key: "quantity", label: "Số lượng" },
@@ -1390,6 +1398,7 @@ export const CUSTOM_FIELD_MODULES: { module: string; label: string; entity?: str
   { module: "locations", label: "Địa điểm", entity: "locations" },
   { module: "transport_orders", label: "Đơn hàng (Điều phối)" },
   { module: "shipments", label: "Chuyến xe (Điều phối)" },
+  { module: "shipment_items", label: "Hàng hóa của chuyến (mã hàng)" },
   { module: "vehicle_types", label: "Loại xe", entity: "vehicle_types" },
   { module: "routes", label: "Tuyến đường", entity: "routes" },
   { module: "price_lists", label: "Bảng giá", entity: "price_lists" },

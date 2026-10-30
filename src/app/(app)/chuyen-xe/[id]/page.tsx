@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { isUuid } from "@/lib/entities/record";
+import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
 import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
 import { isLate, type ShipmentListRow } from "@/lib/shipments";
@@ -20,6 +20,7 @@ import { CustomFieldsCard } from "./custom-fields-card";
 import { formulaVars } from "@/lib/entities/definitions";
 import { ShipmentExpenseButton } from "./expense-button";
 import { ActForDriver } from "./act-for-driver";
+import { ItemsCard, type ShipmentItem } from "./items-card";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
 import { TONE_BADGE } from "@/lib/tones";
@@ -117,7 +118,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
   const canExpenses = me.permissions.has("expenses.view");
-  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields] = await Promise.all([
+  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows] = await Promise.all([
     shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -139,6 +140,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       : Promise.resolve({ data: [], error: null }),
     supabase.from("documents").select("id", { count: "exact", head: true }).eq("entity_type", "shipment").eq("entity_id", id).is("archived_at", null),
     loadCustomFields(supabase, "expenses"),
+    supabase.from("shipment_items").select("line_no, item_code, item_name, quantity, unit, note, custom_fields").eq("shipment_id", id).order("line_no"),
+    loadCustomFields(supabase, "shipment_items"),
   ]);
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
@@ -438,6 +441,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <Line label="Ảnh, chứng từ đã nộp" value={`${docCount} tệp`} />
           </CardContent>
         </Card>
+
+        <ItemsCard
+          shipmentId={s.id}
+          items={(itemRes.data ?? []) as ShipmentItem[]}
+          fields={moduleCustomFields("shipment_items", visibleCustomRows(itemFieldRows, me.permissions), me.permissions)}
+          layout={layoutOf("shipment_items", itemFieldRows)}
+          fieldRows={itemFieldRows}
+          canEdit={(me.permissions.has("dispatch.update") || me.permissions.has("dispatch.create")) && !["closed", "cancelled"].includes(s.status)}
+          canAddField={me.permissions.has("fields.configure")}
+        />
 
         {canExpenses ? (
           <Card className="lg:col-span-3">

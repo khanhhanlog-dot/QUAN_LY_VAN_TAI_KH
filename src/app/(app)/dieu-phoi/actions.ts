@@ -3,9 +3,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysYMD, startOfDayVN } from "@/lib/format";
-import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
+import { ActionError, requirePermission, runAction, toUserMessage, type ActionResult } from "@/lib/auth/action";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
-import { moduleCustomFields, splitCustom, validateRecord } from "@/lib/entities/record";
+import { moduleCustomFields, parseNumberVN, splitCustom, validateRecord } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 
 /** Kiểm tra và chuẩn hóa giá trị trường bổ sung (cùng quy tắc với biểu mẫu danh mục) */
@@ -94,6 +94,32 @@ async function setDayOrders(supabase: Awaited<ReturnType<typeof createClient>>, 
 
 const dateTime = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "Thời gian không hợp lệ");
 
+const itemSchema = z.object({
+  item_code: z.string().max(100, "Mã hàng tối đa 100 ký tự").optional(),
+  item_name: z.string().max(300, "Tên hàng tối đa 300 ký tự").optional(),
+  quantity: z.union([z.number(), z.string()]).optional(),
+  unit: z.string().max(30, "Đơn vị tính tối đa 30 ký tự").optional(),
+  note: z.string().max(500, "Ghi chú hàng hóa tối đa 500 ký tự").optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
+});
+const itemsSchema = z.array(itemSchema).max(500, "Mỗi chuyến tối đa 500 dòng hàng hóa");
+
+/** Chuẩn hóa dòng hàng hóa: số lượng theo kiểu Việt Nam, kiểm tra cột bổ sung */
+function itemRows(items: z.infer<typeof itemsSchema>, fields: FieldDef[], prefix: string) {
+  return items.map((it, j) => {
+    const q = it.quantity === undefined || it.quantity === "" ? null : parseNumberVN(it.quantity);
+    if (q !== null && (Number.isNaN(q) || q < 0)) throw new ActionError(`${prefix}dòng hàng ${j + 1}: số lượng không hợp lệ`);
+    return {
+      item_code: it.item_code ?? "",
+      item_name: it.item_name ?? "",
+      quantity: q ?? "",
+      unit: it.unit ?? "",
+      note: it.note ?? "",
+      custom_fields: customValues(fields, it.custom, `${prefix}dòng hàng ${j + 1}: `),
+    };
+  });
+}
+
 const shipmentSchema = z
   .object({
     pickupAt: dateTime,
@@ -111,6 +137,7 @@ const shipmentSchema = z
     fuelSupportRate: optNum("Tỷ lệ hỗ trợ dầu", { min: 0, max: 100 }),
     notes: z.string().max(1000).optional(),
     custom: z.record(z.string(), z.unknown()).optional(),
+    items: itemsSchema.optional(),
     vehicleDayOrder: dayOrder.nullable().optional(),
   })
   .refine((s) => s.pickupLocationId !== s.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
@@ -133,7 +160,9 @@ const orderSchema = z.object({
 export type CreateOrderInput = z.input<typeof orderSchema>;
 
 /** Tạo đơn hàng gồm nhiều chuyến (hoặc thêm chuyến vào đơn có sẵn) trong một giao dịch */
-export async function createOrder(input: CreateOrderInput): Promise<ActionResult<{ order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[] }>> {
+export async function createOrder(
+  input: CreateOrderInput,
+): Promise<ActionResult<{ order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[]; itemsError?: string }>> {
   return runAction(async () => {
     const me = await requirePermission("dispatch.create");
     const p = orderSchema.safeParse(input);
@@ -145,7 +174,13 @@ export async function createOrder(input: CreateOrderInput): Promise<ActionResult
     const d = p.data;
     if (!d.orderId && !d.customerId) throw new ActionError("Vui lòng chọn khách hàng.");
     const supabase = await createClient();
-    const [orderRows, shipRows] = await Promise.all([loadCustomFields(supabase, "transport_orders"), loadCustomFields(supabase, "shipments")]);
+    const [orderRows, shipRows, itemFieldRows] = await Promise.all([
+      loadCustomFields(supabase, "transport_orders"),
+      loadCustomFields(supabase, "shipments"),
+      loadCustomFields(supabase, "shipment_items"),
+    ]);
+    const itemFields = moduleCustomFields("shipment_items", visibleCustomRows(itemFieldRows, me.permissions), me.permissions);
+    const items = d.shipments.map((s, i) => itemRows(s.items ?? [], itemFields, `Chuyến ${i + 1}, `));
     const orderCustom = d.orderId ? {} : customValues(moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions), d.custom, "Đơn hàng: ");
     const shipFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
     const order = d.orderId
@@ -170,7 +205,13 @@ export async function createOrder(input: CreateOrderInput): Promise<ActionResult
     }));
     const { data, error } = await supabase.rpc("create_transport_order", { p_order: order, p_shipments: shipments });
     if (error) throw error;
-    const created = data as { order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[] };
+    const created = data as { order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[]; itemsError?: string };
+    // Hàng hóa từng chuyến: lỗi ở bước này không làm mất đơn đã tạo, báo lại để nhập ở chi tiết chuyến
+    for (const [i, rows] of items.entries()) {
+      if (!rows.length || !created.shipments[i]) continue;
+      const r = await supabase.rpc("set_shipment_items", { p_shipment_id: created.shipments[i].id, p_items: rows });
+      if (r.error) created.itemsError = `Chưa lưu được hàng hóa của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
+    }
     // Thứ tự chuyến của xe trong ngày (khi xe chạy nhiều chuyến cùng ngày); chuyến trả về theo đúng thứ tự gửi lên
     await setDayOrders(supabase, [
       ...(d.otherOrders ?? []),
@@ -329,4 +370,21 @@ export async function vehicleTripsOnDay(input: z.input<typeof dayTripsSchema>): 
     if (error) throw error;
     return (data ?? []) as VehicleDayTrip[];
   });
+}
+
+const itemsInput = z.object({ shipmentId: uuid, items: itemsSchema });
+
+/** Sửa hàng hóa (mã hàng) của chuyến ở trang chi tiết */
+export async function saveShipmentItems(input: z.input<typeof itemsInput>): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    const me = await requirePermission("dispatch.create", "dispatch.update");
+    const p = itemsInput.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const fields = moduleCustomFields("shipment_items", visibleCustomRows(await loadCustomFields(supabase, "shipment_items"), me.permissions), me.permissions);
+    const { data, error } = await supabase.rpc("set_shipment_items", { p_shipment_id: p.data.shipmentId, p_items: itemRows(p.data.items, fields, "") });
+    if (error) throw error;
+    revalidatePath(`/chuyen-xe/${p.data.shipmentId}`);
+    return data as number;
+  }, "Đã lưu hàng hóa của chuyến.");
 }
