@@ -56,5 +56,27 @@ set role anon;
 select tests.assert_fails($$select count(*) from public.report_loading$$, 'Người ngoài không đọc được báo cáo bốc xếp');
 reset role;
 
+-- Sửa chuyến đã đóng (chưa lập công nợ) và sửa đầu đơn hàng
+reset role;
+create temp table t_ord as select s.id as sid, s.order_id as oid, (select id from public.customers order by created_at desc limit 1) as other_cust
+  from public.shipments s where s.status <> 'cancelled' and not exists (select 1 from public.shipments x where x.order_id = s.order_id and x.receivable_id is not null) order by s.created_at limit 1;
+grant select on t_ord to authenticated;
+select tests.login('00000000-0000-0000-0000-0000000000d1'); -- điều phối
+set role authenticated;
+update public.transport_orders set payer_customer_id = (select other_cust from t_ord), notes = 'Sửa khách thanh toán' where id = (select oid from t_ord);
+select tests.assert((select payer_customer_id = (select other_cust from t_ord) from public.transport_orders where id = (select oid from t_ord)), 'Điều phối sửa được khách thanh toán của đơn');
+select tests.assert_fails($$update public.transport_orders set order_code = 'X' where id = (select oid from t_ord)$$, 'Không đổi được mã đơn hàng');
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000c1'); -- kế toán
+set role authenticated;
+update public.transport_orders set notes = 'kt' where id = (select oid from t_ord);
+select tests.assert((select notes from public.transport_orders where id = (select oid from t_ord)) = 'Sửa khách thanh toán', 'Kế toán không có quyền điều phối thì không sửa được đơn');
+reset role;
+select tests.login('00000000-0000-0000-0000-0000000000a2'); -- admin
+set role authenticated;
+select tests.assert_fails($$update public.transport_orders set customer_id = (select other_cust from t_ord) where id = (select order_id from public.shipments where receivable_id is not null limit 1)$$,
+  'Đơn có chuyến đã lập công nợ thì không đổi khách hàng');
+reset role;
+
 \o
 \echo 'TẤT CẢ KIỂM THỬ BÁO CÁO CƯỚC, CHI HỘ, BỐC XẾP ĐỀU ĐẠT'

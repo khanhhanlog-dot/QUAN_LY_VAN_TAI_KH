@@ -159,7 +159,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (feeRes.error) throw feeRes.error;
   const fees = (feeRes.data ?? []) as unknown as ShipmentFee[];
   const canEditFees =
-    (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && !["closed", "cancelled"].includes(s.status) && !x.receivable_id;
+    (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && s.status !== "cancelled" && !x.receivable_id;
   const approvedCost = expenses.filter((e) => e.status === "approved").reduce((a, e) => a + Number(e.amount), 0);
   const pendingCost = expenses.filter((e) => e.status === "pending").reduce((a, e) => a + Number(e.amount), 0);
 
@@ -191,7 +191,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         }
         actions={
           <>
-            {(me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && !["closed", "cancelled"].includes(s.status) ? <EditShipmentDialog s={s} /> : null}
+            {(me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && s.status !== "cancelled" ? <EditShipmentDialog s={s} /> : null}
             {canAssign ? (
               <AssignDialog
                 shipmentId={s.id}

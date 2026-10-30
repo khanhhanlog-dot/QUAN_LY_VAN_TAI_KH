@@ -10,6 +10,9 @@ import { formatDate, formatDateTime, formatVND } from "@/lib/format";
 import type { ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
 import { CancelOrderDialog } from "./cancel-order-dialog";
+import { EditOrderDialog } from "./edit-order-dialog";
+import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
+import { formatValue, moduleCustomFields } from "@/lib/entities/record";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +36,8 @@ type Order = {
   customer: { id: string; name: string; code: string } | null;
   payer: { id: string; name: string; code: string } | null;
   dispatcher_id: string | null;
+  custom_fields: Record<string, unknown> | null;
+  company: { id: string; name: string } | null;
 };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -40,15 +45,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
-  const [orderRes, shipRes] = await Promise.all([
+  const [orderRes, shipRes, orderFieldRows, billedRes] = await Promise.all([
     supabase
       .from("transport_orders")
       .select(
-        "id, order_code, order_date, status, notes, created_at, customer:customers!transport_orders_customer_id_fkey(id, name, code), payer:customers!transport_orders_payer_customer_id_fkey(id, name, code), dispatcher_id",
+        "id, order_code, order_date, status, notes, created_at, customer:customers!transport_orders_customer_id_fkey(id, name, code), payer:customers!transport_orders_payer_customer_id_fkey(id, name, code), dispatcher_id, custom_fields, company:company_entities(id, name)",
       )
       .eq("id", id)
       .maybeSingle(),
     supabase.from("shipment_list").select("*").eq("order_id", id).order("sequence_in_order"),
+    loadCustomFields(supabase, "transport_orders"),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("order_id", id).not("receivable_id", "is", null),
   ]);
   if (orderRes.error) throw orderRes.error;
   if (shipRes.error) throw shipRes.error;
@@ -61,6 +68,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const revenue = live.reduce((s, r) => s + Number(r.total_revenue), 0);
   const st = ORDER_STATUS[order.status] ?? { label: order.status, variant: "info" as const };
   const canAdd = order.status === "open" && me.permissions.has("dispatch.create");
+  const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderFieldRows, me.permissions), me.permissions);
+  const canEditOrder = order.status !== "cancelled" && me.permissions.has("dispatch.update");
 
   return (
     <>
@@ -72,6 +81,22 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         description={<Badge variant={st.variant}>{st.label}</Badge>}
         actions={
           <>
+            {canEditOrder ? (
+              <EditOrderDialog
+                fields={orderFields.filter((f) => !f.readOnly && f.type !== "formula")}
+                billed={(billedRes.count ?? 0) > 0}
+                init={{
+                  id: order.id,
+                  code: order.order_code,
+                  orderDate: order.order_date,
+                  customer: { id: order.customer?.id ?? "", label: order.customer?.name ?? "" },
+                  payer: { id: order.payer?.id ?? "", label: order.payer?.name ?? "" },
+                  company: { id: order.company?.id ?? "", label: order.company?.name ?? "" },
+                  notes: order.notes ?? "",
+                  custom: order.custom_fields ?? {},
+                }}
+              />
+            ) : null}
             {order.status !== "cancelled" && (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) && !rows.some((r) => ["driver_completed", "closed"].includes(r.status)) ? (
               <CancelOrderDialog orderId={order.id} orderCode={order.order_code} tripCount={live.length} />
             ) : null}
@@ -91,6 +116,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <Item label="Khách hàng">{order.customer ? `${order.customer.name} (${order.customer.code})` : "–"}</Item>
             <Item label="Khách thanh toán">{order.payer ? `${order.payer.name} (${order.payer.code})` : "–"}</Item>
             <Item label="Ngày đơn hàng">{formatDate(order.order_date)}</Item>
+            {order.company ? <Item label="Đơn vị nội bộ">{order.company.name}</Item> : null}
             <Item label="Người tạo">
               {creator ?? "–"}
               <span className="block text-xs text-muted-foreground">{formatDateTime(order.created_at)}</span>
@@ -102,6 +128,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <Item label="Doanh thu dự kiến (không tính chuyến hủy)">
               <span className="font-semibold">{formatVND(revenue)}</span>
             </Item>
+            {orderFields
+              .filter((f) => order.custom_fields?.[f.key] !== undefined && order.custom_fields?.[f.key] !== null && order.custom_fields?.[f.key] !== "")
+              .map((f) => (
+                <Item key={f.key} label={f.label}>
+                  {formatValue(f, order.custom_fields?.[f.key])}
+                </Item>
+              ))}
             {order.notes ? (
               <div className="sm:col-span-2">
                 <Item label="Ghi chú">{order.notes}</Item>

@@ -429,6 +429,52 @@ export async function saveShipmentFees(input: z.input<typeof feesInput>): Promis
   }, "Đã lưu phí thu khách của chuyến.");
 }
 
+const orderHeaderSchema = z.object({
+  orderId: uuid,
+  customerId: uuid,
+  payerCustomerId: uuid.nullable().optional(),
+  companyEntityId: uuid.nullable().optional(),
+  orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày đơn hàng không hợp lệ"),
+  notes: z.string().max(2000).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
+});
+
+/** Sửa phần đầu đơn hàng tạo sai (khách hàng, khách thanh toán, đơn vị nội bộ, ngày, ghi chú, trường bổ sung) */
+export async function updateOrderHeader(input: z.input<typeof orderHeaderSchema>): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const me = await requirePermission("dispatch.update");
+    const p = orderHeaderSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const d = p.data;
+    const supabase = await createClient();
+    const { data: cur, error: curErr } = await supabase.from("transport_orders").select("status, custom_fields").eq("id", d.orderId).maybeSingle();
+    if (curErr) throw curErr;
+    if (!cur) throw new ActionError("Không tìm thấy đơn hàng.");
+    if (cur.status === "cancelled") throw new ActionError("Đơn hàng đã hủy, không sửa được.");
+    const fields = moduleCustomFields("transport_orders", visibleCustomRows(await loadCustomFields(supabase, "transport_orders"), me.permissions), me.permissions);
+    // Giữ nguyên giá trị các trường người sửa không được xem
+    const custom = { ...((cur.custom_fields as Record<string, unknown>) ?? {}), ...customValues(fields, d.custom, "Đơn hàng: ") };
+    const { data, error } = await supabase
+      .from("transport_orders")
+      .update({
+        customer_id: d.customerId,
+        payer_customer_id: d.payerCustomerId ?? d.customerId,
+        company_entity_id: d.companyEntityId ?? null,
+        order_date: d.orderDate,
+        notes: d.notes?.trim() || null,
+        custom_fields: custom,
+      })
+      .eq("id", d.orderId)
+      .select("id");
+    if (error) throw error;
+    if (!data?.length) throw new ActionError("Bạn không có quyền sửa đơn hàng này.");
+    revalidatePath(`/dieu-phoi/don-hang/${d.orderId}`);
+    revalidatePath("/dieu-phoi");
+    revalidatePath("/chuyen-xe");
+    return null;
+  }, "Đã lưu thay đổi của đơn hàng.");
+}
+
 const cancelOrderSchema = z.object({ orderId: uuid, reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy đơn hàng").max(500) });
 
 /** Hủy cả đơn hàng tạo sai: hủy mọi chuyến chưa hoàn thành, không xóa dữ liệu */

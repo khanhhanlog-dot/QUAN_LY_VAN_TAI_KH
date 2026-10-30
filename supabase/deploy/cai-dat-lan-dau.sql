@@ -8983,4 +8983,130 @@ where coalesce(fl.amount, 0) > 0 or coalesce(ex.driver_paid, 0) + coalesce(ex.co
 revoke all on public.report_pass_through_fees, public.report_loading from anon;
 grant select on public.report_pass_through_fees, public.report_loading to authenticated;
 
+-- Sửa chuyến đã đóng: chỉ khóa chuyến đã hủy và chuyến đã lập công nợ
+create or replace function private.shipments_before_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if new.shipment_code <> old.shipment_code then
+    raise exception 'Mã Shipment không được thay đổi' using errcode = '42501';
+  end if;
+  if new.order_id <> old.order_id then
+    raise exception 'Không được chuyển Shipment sang đơn hàng khác' using errcode = '42501';
+  end if;
+  if not private.shipment_transition_allowed(old.status, new.status) then
+    raise exception 'Không thể chuyển trạng thái chuyến từ % sang %', old.status, new.status using errcode = '22023';
+  end if;
+  -- Chuyến đã hủy: khóa dữ liệu giá. Chuyến đã đóng vẫn sửa được giá khi chưa lập công nợ
+  -- (chuyến đã lập công nợ bị khóa ở trigger guard_billed_shipment)
+  if old.status = 'cancelled' and (
+       new.unit_price, new.quantity, new.surcharge_amount, new.fuel_support_amount, new.price_list_id
+     ) is distinct from (
+       old.unit_price, old.quantity, old.surcharge_amount, old.fuel_support_amount, old.price_list_id
+     ) then
+    raise exception 'Chuyến đã hủy, không được sửa giá' using errcode = '42501';
+  end if;
+  if new.status = 'cancelled' and old.status <> 'cancelled' then
+    new.cancelled_at := now();
+    new.cancelled_by := auth.uid();
+  end if;
+  new.version := old.version + 1;
+  return new;
+end;
+$function$;
+
+create or replace function public.set_shipment_fees(p_shipment_id uuid, p_fees jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  s public.shipments;
+  it jsonb;
+  ft public.fee_types;
+  n int := 0;
+  v_amount numeric;
+  v_note text;
+  v_type uuid;
+  v_extra numeric := 0;
+  v_pass numeric := 0;
+begin
+  if not (private.has_perm('dispatch.create') or private.has_perm('dispatch.update') or private.has_perm('shipments.update')) then
+    raise exception 'Bạn không có quyền nhập phí của chuyến' using errcode = '42501';
+  end if;
+  select * into s from public.shipments where id = p_shipment_id for update;
+  if s.id is null then
+    raise exception 'Không tìm thấy chuyến' using errcode = '22023';
+  end if;
+  if s.status = 'cancelled' then
+    raise exception 'Chuyến đã hủy, không sửa phí' using errcode = '22023';
+  end if;
+  if s.receivable_id is not null then
+    raise exception 'Chuyến đã lập công nợ, không được sửa phí. Hủy phiếu công nợ trước.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(coalesce(p_fees, '[]'::jsonb)) <> 'array' then
+    raise exception 'Danh sách phí không hợp lệ' using errcode = '22023';
+  end if;
+  if jsonb_array_length(coalesce(p_fees, '[]'::jsonb)) > 100 then
+    raise exception 'Mỗi chuyến tối đa 100 dòng phí' using errcode = '22023';
+  end if;
+  delete from public.shipment_fees where shipment_id = s.id;
+  for it in select * from jsonb_array_elements(coalesce(p_fees, '[]'::jsonb)) loop
+    v_amount := nullif(trim(coalesce(it ->> 'amount', '')), '')::numeric;
+    v_note := nullif(trim(coalesce(it ->> 'note', '')), '');
+    v_type := nullif(trim(coalesce(it ->> 'fee_type_id', '')), '')::uuid;
+    continue when v_amount is null and v_type is null and v_note is null;
+    if v_type is null then
+      raise exception 'Dòng phí % chưa chọn loại phí', n + 1 using errcode = '22023';
+    end if;
+    if v_amount is null or v_amount < 0 then
+      raise exception 'Dòng phí % chưa nhập số tiền hợp lệ', n + 1 using errcode = '22023';
+    end if;
+    select * into ft from public.fee_types where id = v_type;
+    if ft.id is null then
+      raise exception 'Loại phí không tồn tại' using errcode = '22023';
+    end if;
+    n := n + 1;
+    insert into public.shipment_fees (shipment_id, line_no, fee_type_id, fee_kind, amount, note)
+    values (s.id, n, ft.id, ft.fee_kind, round(v_amount, 0), v_note);
+    if ft.fee_kind = 'pass_through' then v_pass := v_pass + round(v_amount, 0); else v_extra := v_extra + round(v_amount, 0); end if;
+  end loop;
+  update public.shipments set extra_fee_amount = v_extra, pass_through_amount = v_pass
+  where id = s.id and (extra_fee_amount, pass_through_amount) is distinct from (v_extra, v_pass);
+  return n;
+exception
+  when invalid_text_representation then
+    raise exception 'Số tiền hoặc loại phí không hợp lệ' using errcode = '22023';
+end;
+$$;
+
+-- Sửa phần đầu đơn hàng: không đổi khách hàng, khách thanh toán, pháp nhân khi đã có chuyến lập công nợ hoặc đơn đã hủy
+create or replace function private.guard_order_change()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.order_code <> old.order_code then
+    raise exception 'Mã đơn hàng không được thay đổi' using errcode = '42501';
+  end if;
+  if (new.customer_id, new.payer_customer_id, new.company_entity_id) is distinct from (old.customer_id, old.payer_customer_id, old.company_entity_id) then
+    if old.status = 'cancelled' then
+      raise exception 'Đơn hàng đã hủy, không sửa được' using errcode = '22023';
+    end if;
+    if exists (select 1 from public.shipments where order_id = old.id and receivable_id is not null) then
+      raise exception 'Đơn hàng đã có chuyến lập công nợ, không đổi khách hàng được. Hủy phiếu công nợ trước.' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists trg_transport_orders_guard on public.transport_orders;
+create trigger trg_transport_orders_guard before update on public.transport_orders
+  for each row execute function private.guard_order_change();
+
 commit;

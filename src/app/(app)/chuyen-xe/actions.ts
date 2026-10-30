@@ -38,7 +38,7 @@ export async function updateShipmentField(
     const { data: cur, error: curErr } = await supabase.from("shipments").select("status, fuel_support_base").eq("id", id).maybeSingle();
     if (curErr) throw curErr;
     if (!cur) throw new ActionError("Không tìm thấy chuyến.");
-    if (field !== "notes" && LOCKED_STATUSES.includes(cur.status)) throw new ActionError("Chuyến đã đóng hoặc đã hủy, không sửa được giá.");
+    if (field !== "notes" && LOCKED_STATUSES.includes(cur.status)) throw new ActionError("Chuyến đã hủy, không sửa được giá.");
     const patch: Record<string, unknown> = { [field]: parsed.data };
     // Nhập tỷ lệ hỗ trợ dầu cho chuyến chưa có cơ sở tính: mặc định tính trên doanh thu cước
     if (field === "fuel_support_rate") {
@@ -190,7 +190,7 @@ export async function updateShipmentCore(input: z.input<typeof coreSchema>): Pro
     const { data: cur, error: curErr } = await supabase.from("shipments").select("status, fuel_support_base").eq("id", d.id).maybeSingle();
     if (curErr) throw curErr;
     if (!cur) throw new ActionError("Không tìm thấy chuyến.");
-    if (LOCKED_STATUSES.includes(cur.status)) throw new ActionError("Chuyến đã đóng hoặc đã hủy, không sửa được.");
+    if (LOCKED_STATUSES.includes(cur.status)) throw new ActionError("Chuyến đã hủy, không sửa được.");
     const patch: Record<string, unknown> = {
       pickup_at: `${d.pickupDate}T00:00:00+07:00`,
       expected_delivery_at: d.expectedDeliveryDate ? `${d.expectedDeliveryDate}T23:59:59+07:00` : null,

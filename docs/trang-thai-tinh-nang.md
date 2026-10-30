@@ -192,3 +192,5 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 | Báo cáo Bốc xếp | ✅ | Từng chuyến: thu khách bốc xếp, chi tài xế trả (hoàn vào lương), chi công ty/nhà thầu trả, chênh lệch, chi chờ duyệt, nhà thầu |
 | Nhà thầu nhận tiền khi nhập chi phí công ty trả | ✅ | Thêm nhanh nhà thầu ngay trong ô chọn; lập công nợ phải trả nhà thầu vẫn làm ở Công nợ (chưa tự động) |
 | Nhóm báo cáo chi phí "Bốc xếp, nâng hạ" tách khỏi "Bến bãi, vào cổng"; loại phí thu khách có cờ "Thuộc nhóm bốc xếp" | ✅ | |
+| Nút "Sửa đơn hàng" | ✅ | Sửa khách hàng, khách thanh toán, đơn vị nội bộ, ngày đơn, ghi chú, trường bổ sung của đơn; không đổi khách khi đơn đã có chuyến lập công nợ (kiểm tra cả ở CSDL) |
+| Sửa chuyến đã đóng | ✅ | Chuyến đã đóng vẫn sửa giá, phí, trường bổ sung khi chưa lập công nợ; chuyến đã hủy hoặc đã lập công nợ bị khóa |

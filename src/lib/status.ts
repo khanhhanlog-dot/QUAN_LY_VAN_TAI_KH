@@ -32,7 +32,8 @@ export const ASSIGNABLE_STATUSES = ["draft", "assigned", "accepted"];
 /** Trạng thái cho phép hủy chuyến */
 export const CANCELLABLE_STATUSES = ["draft", "assigned", "accepted", "in_transit"];
 /** Trạng thái đã khóa giá */
-export const LOCKED_STATUSES = ["closed", "cancelled"];
+/** Chuyến đã hủy thì khóa sửa; chuyến đã đóng vẫn sửa được khi chưa lập công nợ (CSDL chặn chuyến đã lập công nợ) */
+export const LOCKED_STATUSES = ["cancelled"];
 
 export const PRICING_UNITS: Record<string, string> = { trip: "chuyến", km: "km", ton: "tấn", other: "khác" };
 
