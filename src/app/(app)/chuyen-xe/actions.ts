@@ -158,3 +158,58 @@ export async function updateShipmentCustom(id: string, values: Record<string, un
     revalidatePath(`/chuyen-xe/${id}`);
   }, "Đã lưu trường bổ sung.");
 }
+
+const optNumber = (msg: string, max = 100_000_000_000) => z.number().min(0, msg).max(max).nullable();
+const coreSchema = z
+  .object({
+    id: z.uuid(),
+    version: z.number().int(),
+    pickupDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Chọn ngày nhận hàng"),
+    expectedDeliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+    pickupLocationId: z.uuid("Chọn điểm nhận"),
+    deliveryLocationId: z.uuid("Chọn điểm giao"),
+    vehicleTypeId: z.uuid().nullable(),
+    quantity: z.number().positive("Số lượng phải lớn hơn 0").max(1_000_000),
+    unitPrice: z.number().min(0, "Đơn giá không được âm").max(100_000_000_000),
+    pricingUnit: z.enum(["trip", "km", "ton", "other"]),
+    surchargeAmount: z.number().min(0, "Phụ phí không được âm").max(100_000_000_000),
+    fuelSupportRate: optNumber("Tỷ lệ hỗ trợ dầu từ 0 đến 100", 100),
+    notes: z.string().trim().max(1000).nullable(),
+  })
+  .refine((v) => v.pickupLocationId !== v.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
+  .refine((v) => !v.expectedDeliveryDate || v.expectedDeliveryDate >= v.pickupDate, { message: "Ngày giao dự kiến không được trước ngày nhận hàng" });
+
+/** Sửa thông tin chuyến tạo sai (ngày, điểm nhận/giao, loại xe, số lượng, giá, ghi chú) khi chuyến chưa đóng/hủy */
+export async function updateShipmentCore(input: z.input<typeof coreSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("shipments.update", "dispatch.update");
+    const p = coreSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.");
+    const d = p.data;
+    const supabase = await createClient();
+    const { data: cur, error: curErr } = await supabase.from("shipments").select("status, fuel_support_base").eq("id", d.id).maybeSingle();
+    if (curErr) throw curErr;
+    if (!cur) throw new ActionError("Không tìm thấy chuyến.");
+    if (LOCKED_STATUSES.includes(cur.status)) throw new ActionError("Chuyến đã đóng hoặc đã hủy, không sửa được.");
+    const patch: Record<string, unknown> = {
+      pickup_at: `${d.pickupDate}T00:00:00+07:00`,
+      expected_delivery_at: d.expectedDeliveryDate ? `${d.expectedDeliveryDate}T23:59:59+07:00` : null,
+      pickup_location_id: d.pickupLocationId,
+      delivery_location_id: d.deliveryLocationId,
+      vehicle_type_id: d.vehicleTypeId,
+      quantity: d.quantity,
+      unit_price: d.unitPrice,
+      pricing_unit: d.pricingUnit,
+      surcharge_amount: d.surchargeAmount,
+      fuel_support_rate: d.fuelSupportRate,
+      notes: d.notes || null,
+    };
+    if (d.fuelSupportRate === null) Object.assign(patch, { fuel_support_base: null, fuel_support_amount: 0 });
+    else if (!cur.fuel_support_base) patch.fuel_support_base = "freight_revenue";
+    const { data, error } = await supabase.from("shipments").update(patch).eq("id", d.id).eq("version", d.version).select("id");
+    if (error) throw error;
+    if (!data?.length) throw new ActionError("Chuyến vừa được người khác sửa. Vui lòng tải lại trang rồi thử lại.");
+    revalidatePath(`/chuyen-xe/${d.id}`);
+    revalidatePath("/dieu-phoi", "layout");
+  }, "Đã lưu thay đổi của chuyến.");
+}

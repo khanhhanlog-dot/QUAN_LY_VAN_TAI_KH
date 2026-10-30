@@ -48,3 +48,14 @@ export function slugifyKey(label: string): string {
     .slice(0, 50);
   return /^[a-z]/.test(s) ? s : `f_${s}`;
 }
+
+/** Đổi kiểu khi trường đã có dữ liệu: chỉ cho các kiểu tương thích (khớp private.field_type_compatible) */
+export function fieldTypeCompatible(from: string, to: string): boolean {
+  const num = ["integer", "decimal", "currency", "percent"];
+  const text = ["short_text", "long_text"];
+  if (from === to) return true;
+  if (num.includes(from) && ["decimal", "currency", "percent"].includes(to)) return true;
+  if (["short_text", "long_text", "email", "phone", "url"].includes(from) && text.includes(to)) return true;
+  if ([...num, "date", "datetime", "single_select"].includes(from) && text.includes(to)) return true;
+  return from === "date" && to === "datetime";
+}

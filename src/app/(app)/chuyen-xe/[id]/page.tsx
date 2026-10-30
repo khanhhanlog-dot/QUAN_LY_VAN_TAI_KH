@@ -20,6 +20,7 @@ import { CustomFieldsCard } from "./custom-fields-card";
 import { formulaVars } from "@/lib/entities/definitions";
 import { ShipmentExpenseButton } from "./expense-button";
 import { ActForDriver } from "./act-for-driver";
+import { EditShipmentDialog } from "./edit-shipment-dialog";
 import { ItemsCard, type ShipmentItem } from "./items-card";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
@@ -183,6 +184,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         }
         actions={
           <>
+            {(me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && !["closed", "cancelled"].includes(s.status) ? <EditShipmentDialog s={s} /> : null}
             {canAssign ? (
               <AssignDialog
                 shipmentId={s.id}

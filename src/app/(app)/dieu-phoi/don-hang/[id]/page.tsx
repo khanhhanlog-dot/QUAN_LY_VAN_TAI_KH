@@ -9,6 +9,7 @@ import { isUuid } from "@/lib/entities/record";
 import { formatDate, formatDateTime, formatVND } from "@/lib/format";
 import type { ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
+import { CancelOrderDialog } from "./cancel-order-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,13 +71,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         title={`Đơn hàng ${order.order_code}`}
         description={<Badge variant={st.variant}>{st.label}</Badge>}
         actions={
-          canAdd ? (
-            <Button asChild>
-              <Link href={`/dieu-phoi/tao-don?don=${order.id}`}>
-                <Plus /> Thêm chuyến
-              </Link>
-            </Button>
-          ) : null
+          <>
+            {order.status !== "cancelled" && (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) && !rows.some((r) => ["driver_completed", "closed"].includes(r.status)) ? (
+              <CancelOrderDialog orderId={order.id} orderCode={order.order_code} tripCount={live.length} />
+            ) : null}
+            {canAdd ? (
+              <Button asChild>
+                <Link href={`/dieu-phoi/tao-don?don=${order.id}`}>
+                  <Plus /> Thêm chuyến
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       <Card className="mb-4">

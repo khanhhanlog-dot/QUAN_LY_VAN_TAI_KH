@@ -91,3 +91,6 @@ upgrade nang-cap-dieu-phoi-lam-thay.sql "Điều phối làm thay tài xế, b�
 
 upgrade nang-cap-hang-hoa-chuyen.sql "Hàng hóa (nhiều mã hàng) của chuyến" "to_regclass('public.shipment_items') is not null" \
   supabase/migrations/20261030000027_shipment_items.sql
+
+upgrade nang-cap-sua-huy-don.sql "Đổi kiểu trường tương thích, hủy đơn hàng" "to_regprocedure('public.cancel_transport_order(uuid,text)') is not null" \
+  supabase/migrations/20261030000028_field_type_compat.sql

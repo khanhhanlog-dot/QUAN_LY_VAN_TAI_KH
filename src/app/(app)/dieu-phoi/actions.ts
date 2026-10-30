@@ -388,3 +388,20 @@ export async function saveShipmentItems(input: z.input<typeof itemsInput>): Prom
     return data as number;
   }, "Đã lưu hàng hóa của chuyến.");
 }
+
+const cancelOrderSchema = z.object({ orderId: uuid, reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy đơn hàng").max(500) });
+
+/** Hủy cả đơn hàng tạo sai: hủy mọi chuyến chưa hoàn thành, không xóa dữ liệu */
+export async function cancelOrder(input: z.input<typeof cancelOrderSchema>): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.delete", "shipments.delete");
+    const p = cancelOrderSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("cancel_transport_order", { p_order_id: p.data.orderId, p_reason: p.data.reason });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    return data as number;
+  }, "Đã hủy đơn hàng.");
+}

@@ -12,7 +12,7 @@ import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConfirmDialog } from "@/components/entities/confirm-dialog";
 import { ENTITIES } from "@/lib/entities/definitions";
-import { FIELD_DATA_TYPES, REFERENCE_TARGETS, slugifyKey } from "@/lib/entities/field-types";
+import { FIELD_DATA_TYPES, REFERENCE_TARGETS, fieldTypeCompatible, slugifyKey } from "@/lib/entities/field-types";
 import type { CustomFieldRow } from "@/lib/entities/types";
 import { parseVisibility } from "@/lib/entities/record";
 import { conditionSources } from "@/lib/entities/visibility";
@@ -391,7 +391,7 @@ export function FieldEditor({
               <b>Phân tích ảnh hưởng:</b> {impact.records_with_value} bản ghi đang có dữ liệu ở trường này
               {impact.used_in_formulas.length ? `; được dùng trong công thức: ${impact.used_in_formulas.map((f) => f.label).join(", ")}` : "; không công thức nào dùng trường này"}
               {impact.used_in_visibility.length ? `; là điều kiện hiện của: ${impact.used_in_visibility.map((f) => f.label).join(", ")} (đổi lựa chọn có thể làm các trường đó không hiện nữa)` : ""}.
-              {impact.records_with_value > 0 ? " Không thể đổi kiểu dữ liệu khi đã có dữ liệu." : ""} Báo cáo và quy trình dùng trường động sẽ được kiểm tra khi các module đó hoàn thiện (GĐ6–7).
+              {impact.records_with_value > 0 ? " Đã có dữ liệu: chỉ đổi được sang kiểu tương thích (Số ↔ Tiền ↔ Phần trăm, Văn bản ngắn ↔ dài, hoặc sang Văn bản)." : ""}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -429,7 +429,13 @@ export function FieldEditor({
                   </option>
                 ))}
               </NativeSelect>
-              {typeChanged && impact && impact.records_with_value > 0 ? <p className="text-xs text-destructive">Đã có dữ liệu: hệ thống sẽ từ chối đổi kiểu.</p> : null}
+              {typeChanged && row && impact && impact.records_with_value > 0 ? (
+                fieldTypeCompatible(row.data_type, v.data_type ?? "") ? (
+                  <p className="text-xs text-muted-foreground">Đổi được: dữ liệu cũ được giữ nguyên và hiển thị theo kiểu mới.</p>
+                ) : (
+                  <p className="text-xs text-destructive">Không đổi được vì đã có dữ liệu. Hãy tạo trường mới đúng kiểu rồi chuyển trường này sang Ngừng sử dụng.</p>
+                )
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="fd-order">Thứ tự hiển thị</Label>

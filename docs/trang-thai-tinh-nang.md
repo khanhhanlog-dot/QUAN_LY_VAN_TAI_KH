@@ -158,3 +158,13 @@ Cần chạy `supabase/deploy/nang-cap-hang-hoa-chuyen.sql` (migration 0027) tr�
 | Tìm kiếm nâng cao: người dùng tự thêm điều kiện theo trường (kể cả trường bổ sung) | ✅ | Mọi bảng danh mục và bảng chuyến; xuất Excel theo đúng điều kiện |
 | Chọn cột hiển thị, kéo đổi thứ tự cột, kéo giãn cột, kéo giãn dòng, cố định cột, lưu cấu hình theo người dùng | ✅ | Mọi bảng danh mục và bảng chuyến |
 | Danh sách trạng thái cố định (trạng thái chuyến, chứng từ, quyết toán) | Không thêm tại ô | Đây là trạng thái quy trình của hệ thống, thêm giá trị mới sẽ làm sai quy trình |
+
+## Sửa chuyến, hủy đơn hàng, đổi kiểu trường khi đã có dữ liệu (khách hàng yêu cầu 30/10/2026)
+
+Cần chạy `supabase/deploy/nang-cap-sua-huy-don.sql` (migration 0028) trên CSDL thật trước khi đưa lên main.
+
+| Tính năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Nút "Sửa chuyến" trên trang chi tiết chuyến | ✅ | Sửa ngày nhận/giao, điểm nhận/giao, loại xe, số lượng, đơn giá, phụ phí, % hỗ trợ dầu, ghi chú; khóa khi tài xế đã hoàn thành hoặc đã đóng chuyến; nhật ký ghi lại thay đổi |
+| Nút "Hủy đơn hàng" | ✅ | Hủy cả đơn và mọi chuyến chưa hoàn thành, bắt buộc lý do; không xóa cứng; không hủy được khi đã có chuyến hoàn thành |
+| Đổi kiểu trường khi đã có dữ liệu | ✅ | Chỉ cho đổi kiểu tương thích (số → tiền/thập phân/%, chữ ngắn ↔ chữ dài, ngày → ngày giờ, mọi kiểu → văn bản); kiểu khác vẫn bị từ chối ở cả giao diện và CSDL |
