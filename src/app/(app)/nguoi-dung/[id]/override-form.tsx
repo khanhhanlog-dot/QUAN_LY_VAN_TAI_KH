@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
+import { ACTION_LABELS, MODULE_LABELS, type ModuleKey } from "@/lib/permissions";
 import { setPermissionOverride } from "../actions";
 
 export function OverrideForm({ userId, permissions }: { userId: string; permissions: string[] }) {
@@ -26,10 +27,16 @@ export function OverrideForm({ userId, permissions }: { userId: string; permissi
     >
       <div className="grid gap-2 sm:grid-cols-2">
         <NativeSelect value={permission} onChange={(e) => setPermission(e.target.value)} aria-label="Quyền">
-          {permissions.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
+          {[...new Set(permissions.map((p) => p.split(".")[0]))].map((m) => (
+            <optgroup key={m} label={MODULE_LABELS[m as ModuleKey] ?? m}>
+              {permissions
+                .filter((p) => p.startsWith(`${m}.`))
+                .map((p) => (
+                  <option key={p} value={p}>
+                    {ACTION_LABELS[p.split(".")[1]] ?? p} – {MODULE_LABELS[m as ModuleKey] ?? m}
+                  </option>
+                ))}
+            </optgroup>
           ))}
         </NativeSelect>
         <NativeSelect value={effect} onChange={(e) => setEffect(e.target.value as "grant" | "deny")} aria-label="Loại">
