@@ -22,6 +22,7 @@ await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
 
   const oid = sql(`select order_id from public.shipments where id = '${sid}'`);
   await page.goto(`${BASE}/dieu-phoi/don-hang/${oid}`);
+  check(await visible(page.getByRole("button", { name: "Sửa", exact: true }).first()), "Bảng chuyến có nút Sửa ở cột Thao tác");
   await page.getByRole("button", { name: "Hủy đơn hàng" }).click();
   await page.getByLabel("Lý do hủy").fill("Tạo trùng đơn");
   await page.getByRole("button", { name: "Xác nhận hủy đơn" }).click();

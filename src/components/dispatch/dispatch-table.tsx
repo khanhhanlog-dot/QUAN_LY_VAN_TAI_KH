@@ -2,11 +2,12 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
-import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES } from "@/lib/status";
+import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES } from "@/lib/status";
 import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
 import { CancelDialog } from "./cancel-dialog";
+import { EditShipmentDialog } from "@/app/(app)/chuyen-xe/[id]/edit-shipment-dialog";
 
 
 /** Bảng chuyến cho màn hình điều phối và chi tiết đơn hàng */
@@ -110,6 +111,7 @@ export function DispatchTable({
                         pickupAt={r.pickup_at}
                       />
                     ) : null}
+                    {canAssign && !LOCKED_STATUSES.includes(r.status) ? <EditShipmentDialog compact s={r} /> : null}
                     {canCancel && CANCELLABLE_STATUSES.includes(r.status) ? <CancelDialog compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
                   </div>
                 </td>

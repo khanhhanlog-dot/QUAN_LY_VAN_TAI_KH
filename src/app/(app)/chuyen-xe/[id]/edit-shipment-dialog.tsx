@@ -14,7 +14,7 @@ import type { ShipmentListRow } from "@/lib/shipments";
 const ymd = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }) : "");
 
 /** Sửa chuyến tạo sai: ngày, điểm nhận/giao, loại xe, số lượng, giá, ghi chú */
-export function EditShipmentDialog({ s }: { s: ShipmentListRow }) {
+export function EditShipmentDialog({ s, compact }: { s: ShipmentListRow; compact?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -62,14 +62,16 @@ export function EditShipmentDialog({ s }: { s: ShipmentListRow }) {
   return (
     <>
       <Button
-        variant="outline"
+        variant={compact ? "ghost" : "outline"}
         size="sm"
+        className={compact ? "h-7 px-2" : undefined}
+        title={`Sửa chuyến ${s.shipment_code}`}
         onClick={() => {
           setV(init());
           setOpen(true);
         }}
       >
-        <Pencil /> Sửa chuyến
+        <Pencil /> {compact ? "Sửa" : "Sửa chuyến"}
       </Button>
       <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
         <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto">
