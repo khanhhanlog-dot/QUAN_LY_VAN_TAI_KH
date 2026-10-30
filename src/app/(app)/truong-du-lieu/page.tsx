@@ -80,7 +80,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
                 : mod.module === "shipments"
                   ? "phần Chuyến trên form Tạo đơn hàng (Điều phối)"
                   : `hộp Thêm/Sửa ${mod.label.toLowerCase()}`,
-            note: entity?.createAction ? "Hộp tạo mới của màn hình này giữ cố định ô hệ thống; trường bổ sung hiện theo thứ tự này." : undefined,
+            note: entity?.createAction
+              ? "Hộp tạo mới của màn hình này giữ cố định ô hệ thống; trường bổ sung hiện theo thứ tự này."
+              : mod.module === "shipments"
+                ? "Các mục “(khung Giá)” cùng trường kiểu tiền, %, số, công thức hiện trong khung Giá của chuyến, theo đúng thứ tự trong danh sách này."
+                : undefined,
           }}
         />
         {entity ? (

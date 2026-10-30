@@ -13,6 +13,7 @@ import { VehicleDayConflict, type VehicleDayState } from "@/components/dispatch/
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
+import { PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, customerDefaultPayer, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -109,7 +110,7 @@ export function OrderForm({
   const [orderDate, setOrderDate] = useState(todayVN());
   const [notes, setNotes] = useState("");
   const [orderCustom, setOrderCustom] = useState<Record<string, unknown>>({});
-  const [rows, setRows] = useState<Row[]>(() => [newRow()]);
+  const [rows, setRows] = useState<Row[]>(() => [{ ...newRow(), key: 0 }]) // khóa cố định để máy chủ và trình duyệt sinh cùng id;
   const [pending, start] = useTransition();
   const router = useRouter();
 
@@ -336,6 +337,9 @@ function ShipmentEditor({
   const id = (k: string) => `s${row.key}-${k}`;
   const generalFields = shipmentFields.filter((f) => !PRICE_FIELD_TYPES.includes(f.type));
   const priceFields = shipmentFields.filter((f) => PRICE_FIELD_TYPES.includes(f.type));
+  const quoteReady = canQuote && !(loading && !quote) && !quoteError;
+  // Ô hệ thống của khung Giá chưa có trong thứ tự đã lưu thì đứng trước trường bổ sung
+  const priceOrder = [...PRICE_SYSTEM_KEYS.filter((k) => !shipmentLayout.includes(k)), ...shipmentLayout];
   const priceContext = {
     unit_price: unitPrice,
     quantity: qty,
@@ -454,9 +458,9 @@ function ShipmentEditor({
         />
         {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm trường cho chuyến" /> : null}
 
-        <div className="rounded-lg border bg-muted/30 p-3">
+        <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
           {!canQuote ? (
-            <p className="text-sm text-muted-foreground">Chọn điểm nhận, điểm giao và giờ nhận hàng để hệ thống tìm bảng giá.</p>
+            <p className="text-sm text-muted-foreground">Chọn điểm nhận, điểm giao và ngày nhận hàng để hệ thống tìm bảng giá.</p>
           ) : loading && !quote ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Đang tìm bảng giá…
@@ -465,9 +469,7 @@ function ShipmentEditor({
             <Alert variant="destructive">
               <AlertDescription>{quoteError}</AlertDescription>
             </Alert>
-          ) : (
-            <div className="space-y-3">
-              {ambiguous ? (
+          ) : ambiguous ? (
                 <div className="space-y-1.5">
                   <Label htmlFor={id("pl")}>Có {tied.length} bảng giá ngang nhau, vui lòng chọn *</Label>
                   <NativeSelect id={id("pl")} value={row.priceListId} onChange={(e) => onChange({ priceListId: e.target.value })} aria-invalid={!row.priceListId}>
@@ -479,14 +481,13 @@ function ShipmentEditor({
                     ))}
                   </NativeSelect>
                 </div>
-              ) : chosen ? (
+          ) : chosen ? (
                 <p className="text-sm">
                   Bảng giá áp dụng <b>{chosen.code}</b>: {formatVND(chosen.unit_price)}/{PRICING_UNITS[chosen.pricing_unit] ?? chosen.pricing_unit_label}
                   {shownQuote?.route ? <span className="text-muted-foreground"> · tuyến {shownQuote.route.name}</span> : null}
                 </p>
-              ) : manual ? (
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
+          ) : manual ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm text-amber-700">Không có bảng giá phù hợp: nhập đơn giá thủ công, hoặc để trống và nhập sau ở Quản lý chuyến xe.</p>
                     {canCreatePriceList ? (
                       <Button type="button" variant="outline" size="sm" onClick={() => setPriceDialog(true)}>
@@ -494,11 +495,23 @@ function ShipmentEditor({
                       </Button>
                     ) : null}
                   </div>
+          ) : null}
+          <CustomFieldsEditor
+            fields={priceFields}
+            idPrefix={`s${row.key}-pf-`}
+            initial={row.customPrice}
+            onChange={(customPrice) => onChange({ customPrice })}
+            order={priceOrder}
+            context={{ ...row.custom, ...priceContext }}
+            slots={{
+              unit_price: manual ? (
                   <div className="space-y-1.5">
                     <Label htmlFor={id("price")}>Đơn giá (đ)</Label>
                     <Input id={id("price")} type="number" min="0" step="1000" placeholder="Để trống nếu tính giá sau" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value })} />
                     {!row.unitPrice ? <p className="text-xs text-muted-foreground">Chuyến sẽ ghi “Chưa có giá”; nhập sau ở bảng Quản lý chuyến xe hoặc chi tiết chuyến.</p> : null}
                   </div>
+              ) : null,
+              pricing_unit: manual ? (
                   <div className="space-y-1.5">
                     <Label htmlFor={id("unit")}>Tính theo</Label>
                     <NativeSelect id={id("unit")} value={row.pricingUnit} onChange={(e) => onChange({ pricingUnit: e.target.value as Row["pricingUnit"] })}>
@@ -507,9 +520,8 @@ function ShipmentEditor({
                       <option value="ton">Tấn</option>
                     </NativeSelect>
                   </div>
-                </div>
-              ) : null}
-              <div className="grid gap-3 sm:grid-cols-2">
+              ) : null,
+              surcharge_amount: quoteReady ? (
                 <div className="space-y-1.5">
                   <Label htmlFor={id("surcharge")}>Phụ phí (đ)</Label>
                   <Input
@@ -522,6 +534,8 @@ function ShipmentEditor({
                     onChange={(e) => onChange({ surchargeAmount: e.target.value })}
                   />
                 </div>
+              ) : null,
+              fuel_support_rate: quoteReady ? (
                 <div className="space-y-1.5">
                   <Label htmlFor={id("fuel")}>Tỷ lệ hỗ trợ dầu (%)</Label>
                   <Input
@@ -536,34 +550,23 @@ function ShipmentEditor({
                   />
                   <p className="text-xs text-muted-foreground">Bỏ trống để dùng tỷ lệ tự động{rateSource && manualRate === undefined ? ` (${rateSource})` : ""}.</p>
                 </div>
-              </div>
-              {chosen || manual ? (
-                <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              ) : null,
+            }}
+          />
+          {quoteReady && (chosen || manual) ? (
+            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                   <Money label={`Cước (${formatNumber(qty)} × ${formatVND(unitPrice)})`} value={freight} />
                   <Money label="Phụ phí" value={surcharge} />
                   <Money label={rate !== null ? `Hỗ trợ dầu ${formatNumber(rate)}%` : "Hỗ trợ dầu"} value={fuel} note={fuel === null ? "Tính theo định mức khi lưu" : undefined} />
                   <Money label="Tổng doanh thu dự kiến" value={fuel === null ? null : freight + surcharge + fuel} strong />
                 </dl>
-              ) : null}
-            </div>
-          )}
-          <div className="mt-3 space-y-2 border-t pt-3">
-            {priceFields.length ? (
-              <CustomFieldsEditor
-                fields={priceFields}
-                idPrefix={`s${row.key}-pf-`}
-                initial={row.customPrice}
-                onChange={(customPrice) => onChange({ customPrice })}
-                order={shipmentLayout}
-                context={{ ...row.custom, ...priceContext }}
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Cần thêm phụ thu (vé, hạ trái tuyến…) hoặc công thức giá riêng? Bấm nút dưới. Ví dụ công thức: ROUND(unit_price * (1 + fuel_support_rate / 100), 0) + N(phu_thu_ve).
-              </p>
-            )}
-            {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm phụ thu / công thức giá" /> : null}
-          </div>
+          ) : null}
+          {!priceFields.length ? (
+            <p className="text-xs text-muted-foreground">
+              Cần thêm phụ thu (vé, hạ trái tuyến…) hoặc công thức giá riêng? Bấm nút dưới. Ví dụ công thức: ROUND(unit_price * (1 + fuel_support_rate / 100), 0) + N(phu_thu_ve).
+            </p>
+          ) : null}
+          {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm phụ thu / công thức giá" /> : null}
         </div>
       </CardContent>
       {canCreatePriceList ? (
