@@ -56,6 +56,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     searchParams: sp,
     tabs: [
       { key: "report_shipments" },
+      { key: "report_fee_type" },
+      { key: "report_fee_lines" },
       { key: "report_monthly" },
       { key: "report_vehicle" },
       { key: "report_driver" },
@@ -81,7 +83,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       <Card className="mt-4">
         <CardHeader>
           <CardTitle className="text-base">Doanh thu, chi phí, lợi nhuận 6 tháng gần đây</CardTitle>
-          <CardDescription>Đơn vị: triệu đồng. Doanh thu gồm cước, phụ thu và hỗ trợ dầu.</CardDescription>
+          <CardDescription>Đơn vị: triệu đồng. Doanh thu gồm cước, phụ phí, hỗ trợ dầu và phí khác; không gồm tiền chi hộ.</CardDescription>
         </CardHeader>
         <CardContent>
           {chart.length ? (

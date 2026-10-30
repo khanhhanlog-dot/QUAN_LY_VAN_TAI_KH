@@ -345,6 +345,7 @@ export type BillingShipment = {
   completed_at: string | null;
   pickup_name: string | null;
   delivery_name: string | null;
+  /** Số khách phải trả của chuyến: cước, phụ phí, hỗ trợ dầu, phí khác và chi hộ */
   total_revenue: number;
 };
 
@@ -356,7 +357,7 @@ export async function listBillingShipments(customerId: string): Promise<ActionRe
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("billing_shipment_list")
-      .select("id, shipment_code, completed_at, pickup_name, delivery_name, total_revenue")
+      .select("id, shipment_code, completed_at, pickup_name, delivery_name, total_revenue:amount_due")
       .eq("customer_id", customerId)
       .order("completed_at")
       .limit(500);

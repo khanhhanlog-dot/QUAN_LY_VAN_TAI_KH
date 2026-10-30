@@ -22,6 +22,7 @@ import { ShipmentExpenseButton } from "./expense-button";
 import { ActForDriver } from "./act-for-driver";
 import { EditShipmentDialog } from "./edit-shipment-dialog";
 import { ItemsCard, type ShipmentItem } from "./items-card";
+import { FeesDialog, type ShipmentFee } from "./fees-dialog";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
 import { TONE_BADGE } from "@/lib/tones";
@@ -30,6 +31,7 @@ import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
 
 type Extra = {
+  receivable_id: string | null;
   photo_skip_reason: string | null;
   vehicle: { ownership_type: string } | null;
   pricing_snapshot: Record<string, unknown>;
@@ -119,13 +121,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
   const canExpenses = me.permissions.has("expenses.view");
-  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows] = await Promise.all([
+  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows, feeRes] = await Promise.all([
     shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("shipments")
       .select(
-        "pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, vehicle:vehicles(ownership_type)",
+        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, vehicle:vehicles(ownership_type)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -143,6 +145,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     loadCustomFields(supabase, "expenses"),
     supabase.from("shipment_items").select("line_no, item_code, item_name, quantity, unit, note, custom_fields").eq("shipment_id", id).order("line_no"),
     loadCustomFields(supabase, "shipment_items"),
+    supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, fee_type:fee_types(name)").eq("shipment_id", id).order("line_no"),
   ]);
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
@@ -153,6 +156,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const changes = (changeRes.data ?? []) as Change[];
   const expenses = (expRes.data ?? []) as Expense[];
   const docCount = docRes.count ?? 0;
+  if (feeRes.error) throw feeRes.error;
+  const fees = (feeRes.data ?? []) as unknown as ShipmentFee[];
+  const canEditFees =
+    (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && !["closed", "cancelled"].includes(s.status) && !x.receivable_id;
   const approvedCost = expenses.filter((e) => e.status === "approved").reduce((a, e) => a + Number(e.amount), 0);
   const pendingCost = expenses.filter((e) => e.status === "pending").reduce((a, e) => a + Number(e.amount), 0);
 
@@ -257,9 +264,25 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <Line label={`Cước (${formatNumber(s.quantity)} ${unit} × ${formatVND(s.unit_price)})`} value={formatVND(s.freight_amount)} />
             <Line label="Phụ phí" value={formatVND(s.surcharge_amount)} />
             <Line label={s.fuel_support_rate !== null ? `Hỗ trợ dầu ${formatNumber(s.fuel_support_rate)}%` : "Hỗ trợ dầu"} value={formatVND(s.fuel_support_amount)} />
+            {fees
+              .filter((f) => f.fee_kind === "revenue")
+              .map((f) => (
+                <Line key={f.line_no} label={`${f.fee_type?.name ?? "Phí"}${f.note ? ` (${f.note})` : ""}`} value={formatVND(f.amount)} />
+              ))}
             <div className="border-t pt-2">
               <Line label="Tổng doanh thu" value={<b className="text-primary">{formatVND(s.total_revenue)}</b>} />
             </div>
+            {Number(s.pass_through_amount) > 0 ? (
+              <div className="space-y-2 border-t pt-2">
+                {fees
+                  .filter((f) => f.fee_kind === "pass_through")
+                  .map((f) => (
+                    <Line key={f.line_no} label={`${f.fee_type?.name ?? "Chi hộ"} (chi hộ${f.note ? `, ${f.note}` : ""})`} value={formatVND(f.amount)} />
+                  ))}
+                <Line label="Khách phải trả" value={<b>{formatVND(s.amount_due)}</b>} />
+              </div>
+            ) : null}
+            {canEditFees ? <FeesDialog shipmentId={s.id} code={s.shipment_code} fees={fees} /> : null}
             <div className="space-y-1 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
               <p>
                 Giá:{" "}

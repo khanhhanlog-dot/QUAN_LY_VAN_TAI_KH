@@ -34,6 +34,9 @@ export type ShipmentListRow = {
   fuel_support_base: string | null;
   fuel_support_amount: number;
   total_revenue: number;
+  extra_fee_amount: number;
+  pass_through_amount: number;
+  amount_due: number;
   status: string;
   document_status: string;
   settlement_status: string;
@@ -72,7 +75,10 @@ export const SHIPMENT_ADV_FIELDS: AdvField[] = [
   { key: "surcharge_amount", label: "Phụ phí", kind: "number" },
   { key: "fuel_support_rate", label: "% hỗ trợ dầu", kind: "number" },
   { key: "fuel_support_amount", label: "Hỗ trợ dầu", kind: "number" },
+  { key: "extra_fee_amount", label: "Phí khác (tính doanh thu)", kind: "number" },
   { key: "total_revenue", label: "Tổng doanh thu", kind: "number" },
+  { key: "pass_through_amount", label: "Chi hộ", kind: "number" },
+  { key: "amount_due", label: "Khách phải trả", kind: "number" },
   { key: "status", label: "Trạng thái", kind: "select", options: opts(SHIPMENT_STATUS) },
   { key: "document_status", label: "Chứng từ", kind: "select", options: opts(DOCUMENT_STATUS) },
   { key: "settlement_status", label: "Quyết toán", kind: "select", options: opts(SETTLEMENT_STATUS) },

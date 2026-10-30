@@ -168,3 +168,15 @@ Cần chạy `supabase/deploy/nang-cap-sua-huy-don.sql` (migration 0028) trên C
 | Nút "Sửa chuyến" trên trang chi tiết chuyến | ✅ | Sửa ngày nhận/giao, điểm nhận/giao, loại xe, số lượng, đơn giá, phụ phí, % hỗ trợ dầu, ghi chú; khóa khi tài xế đã hoàn thành hoặc đã đóng chuyến; nhật ký ghi lại thay đổi |
 | Nút "Hủy đơn hàng" | ✅ | Hủy cả đơn và mọi chuyến chưa hoàn thành, bắt buộc lý do; không xóa cứng; không hủy được khi đã có chuyến hoàn thành |
 | Đổi kiểu trường khi đã có dữ liệu | ✅ | Chỉ cho đổi kiểu tương thích (số → tiền/thập phân/%, chữ ngắn ↔ chữ dài, ngày → ngày giờ, mọi kiểu → văn bản); kiểu khác vẫn bị từ chối ở cả giao diện và CSDL |
+
+## Tách cước phí theo loại phí thu khách (khách hàng yêu cầu 30/10/2026)
+
+Cần chạy `supabase/deploy/nang-cap-loai-phi-thu-khach.sql` (migration 0029) trên CSDL thật trước khi đưa lên main.
+
+| Tính năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Danh mục "Loại phí thu khách" | ✅ | Danh mục hệ thống → Loại phí thu khách; có sẵn Phí bốc xếp, Phí chi hộ; Cách tính: Tính doanh thu hoặc Chi hộ (không tính doanh thu); thêm nhanh ngay trong ô chọn (cần quyền danh mục) |
+| Nhập nhiều dòng phí cho mỗi chuyến | ✅ | Form tạo đơn (khung Giá → "Phí khác thu khách") và chi tiết chuyến ("Thêm/Sửa phí thu khách"); khóa khi chuyến đã lập công nợ, đã đóng hoặc đã hủy |
+| Doanh thu, công nợ | ✅ | Doanh thu = cước + phụ phí + hỗ trợ dầu + phí tính doanh thu; công nợ phải thu cộng thêm tiền chi hộ ("Khách phải trả") |
+| Báo cáo | ✅ | Báo cáo → "Doanh thu theo loại phí" (tháng × khách hàng × loại phí) và "Cước phí từng chuyến" (mỗi khoản một dòng); Lợi nhuận từng chuyến thêm cột Phụ phí, Phí khác, Chi hộ, Khách phải trả |
+| Bảng chéo mỗi loại phí một cột trên từng chuyến | Chưa làm | Hiện xem theo dòng; xuất Excel rồi dùng Pivot nếu cần dạng cột |

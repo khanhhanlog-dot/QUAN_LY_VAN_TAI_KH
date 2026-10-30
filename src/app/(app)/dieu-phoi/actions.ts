@@ -120,6 +120,22 @@ function itemRows(items: z.infer<typeof itemsSchema>, fields: FieldDef[], prefix
   });
 }
 
+const feeSchema = z.object({
+  fee_type_id: z.string().max(40).optional(),
+  amount: z.union([z.number(), z.string()]).optional(),
+  note: z.string().max(500, "Ghi chú phí tối đa 500 ký tự").optional(),
+});
+const feesSchema = z.array(feeSchema).max(100, "Mỗi chuyến tối đa 100 dòng phí");
+
+/** Chuẩn hóa dòng phí thu khách: số tiền theo kiểu Việt Nam (1.200.000) */
+function feeRows(fees: z.infer<typeof feesSchema>, prefix: string) {
+  return fees.map((f, j) => {
+    const a = f.amount === undefined || f.amount === "" ? null : parseNumberVN(f.amount, true);
+    if (a !== null && (Number.isNaN(a) || a < 0)) throw new ActionError(`${prefix}dòng phí ${j + 1}: số tiền không hợp lệ`);
+    return { fee_type_id: f.fee_type_id ?? "", amount: a ?? "", note: f.note ?? "" };
+  });
+}
+
 const shipmentSchema = z
   .object({
     pickupAt: dateTime,
@@ -138,6 +154,7 @@ const shipmentSchema = z
     notes: z.string().max(1000).optional(),
     custom: z.record(z.string(), z.unknown()).optional(),
     items: itemsSchema.optional(),
+    fees: feesSchema.optional(),
     vehicleDayOrder: dayOrder.nullable().optional(),
   })
   .refine((s) => s.pickupLocationId !== s.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
@@ -181,6 +198,7 @@ export async function createOrder(
     ]);
     const itemFields = moduleCustomFields("shipment_items", visibleCustomRows(itemFieldRows, me.permissions), me.permissions);
     const items = d.shipments.map((s, i) => itemRows(s.items ?? [], itemFields, `Chuyến ${i + 1}, `));
+    const fees = d.shipments.map((s, i) => feeRows(s.fees ?? [], `Chuyến ${i + 1}, `));
     const orderCustom = d.orderId ? {} : customValues(moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions), d.custom, "Đơn hàng: ");
     const shipFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
     const order = d.orderId
@@ -211,6 +229,11 @@ export async function createOrder(
       if (!rows.length || !created.shipments[i]) continue;
       const r = await supabase.rpc("set_shipment_items", { p_shipment_id: created.shipments[i].id, p_items: rows });
       if (r.error) created.itemsError = `Chưa lưu được hàng hóa của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
+    }
+    for (const [i, rows] of fees.entries()) {
+      if (!rows.length || !created.shipments[i]) continue;
+      const r = await supabase.rpc("set_shipment_fees", { p_shipment_id: created.shipments[i].id, p_fees: rows });
+      if (r.error) created.itemsError = `Chưa lưu được phí thu khách của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
     }
     // Thứ tự chuyến của xe trong ngày (khi xe chạy nhiều chuyến cùng ngày); chuyến trả về theo đúng thứ tự gửi lên
     await setDayOrders(supabase, [
@@ -387,6 +410,23 @@ export async function saveShipmentItems(input: z.input<typeof itemsInput>): Prom
     revalidatePath(`/chuyen-xe/${p.data.shipmentId}`);
     return data as number;
   }, "Đã lưu hàng hóa của chuyến.");
+}
+
+const feesInput = z.object({ shipmentId: uuid, fees: feesSchema });
+
+/** Sửa các khoản phí thu khách của chuyến ở trang chi tiết */
+export async function saveShipmentFees(input: z.input<typeof feesInput>): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.create", "dispatch.update", "shipments.update");
+    const p = feesInput.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("set_shipment_fees", { p_shipment_id: p.data.shipmentId, p_fees: feeRows(p.data.fees, "") });
+    if (error) throw error;
+    revalidatePath(`/chuyen-xe/${p.data.shipmentId}`);
+    revalidatePath("/chuyen-xe");
+    return data as number;
+  }, "Đã lưu phí thu khách của chuyến.");
 }
 
 const cancelOrderSchema = z.object({ orderId: uuid, reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy đơn hàng").max(500) });

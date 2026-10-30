@@ -15,6 +15,7 @@ import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
 import { PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
 import { ItemsEditor, itemsPayload, newItem, type ItemLine } from "./items-editor";
+import { FeesEditor, feeTotals, feesPayload, newFee, type FeeLine } from "./fees-editor";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, customerDefaultPayer, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -41,6 +42,8 @@ type Row = {
   customPrice: Record<string, unknown>;
   /** Hàng hóa (mã hàng) của chuyến */
   items: ItemLine[];
+  /** Phí khác thu khách (bốc xếp, chi hộ…) */
+  fees: FeeLine[];
   /** Kiểm tra xe đã có chuyến cùng ngày: xác nhận vẫn giao và thứ tự chuyến của xe trong ngày */
   vehicleDay?: VehicleDayState;
 };
@@ -69,6 +72,7 @@ const newRow = (from?: Row): Row => ({
   custom: from?.custom ?? {},
   customPrice: from?.customPrice ?? {},
   items: (from?.items ?? []).map((l) => newItem(l)),
+  fees: (from?.fees ?? []).map((l) => newFee(l)),
 });
 
 /** "2026-10-21T08:00" (giờ VN) -> ISO có múi giờ */
@@ -155,6 +159,7 @@ export function OrderForm({
           notes: s.notes,
           custom: { ...s.custom, ...s.customPrice },
           items: itemsPayload(s.items),
+          fees: feesPayload(s.fees),
           vehicleDayOrder: s.vehicleId ? (s.vehicleDay?.order ?? null) : null,
         })),
         otherOrders: rows.flatMap((s) => (s.vehicleId ? (s.vehicleDay?.others ?? []) : [])),
@@ -355,6 +360,7 @@ function ShipmentEditor({
           : base === "total_revenue"
             ? Math.round(((freight + surcharge) * rate) / 100)
             : null;
+  const fees = feeTotals(row.fees);
   const id = (k: string) => `s${row.key}-${k}`;
   const generalFields = shipmentFields.filter((f) => !PRICE_FIELD_TYPES.includes(f.type));
   const priceFields = shipmentFields.filter((f) => PRICE_FIELD_TYPES.includes(f.type));
@@ -584,12 +590,16 @@ function ShipmentEditor({
               ) : null,
             }}
           />
+          <FeesEditor value={row.fees} onChange={(fees) => onChange({ fees })} idPrefix={`s${row.key}-fee-`} />
           {quoteReady && (chosen || manual) ? (
             <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                   <Money label={`Cước (${formatNumber(qty)} × ${formatVND(unitPrice)})`} value={freight} />
                   <Money label="Phụ phí" value={surcharge} />
                   <Money label={rate !== null ? `Hỗ trợ dầu ${formatNumber(rate)}%` : "Hỗ trợ dầu"} value={fuel} note={fuel === null ? "Tính theo định mức khi lưu" : undefined} />
-                  <Money label="Tổng doanh thu dự kiến" value={fuel === null ? null : freight + surcharge + fuel} strong />
+                  {fees.revenue ? <Money label="Phí khác (tính doanh thu)" value={fees.revenue} /> : null}
+                  <Money label="Tổng doanh thu dự kiến" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue} strong />
+                  {fees.passThrough ? <Money label="Chi hộ (không tính doanh thu)" value={fees.passThrough} /> : null}
+                  {fees.passThrough ? <Money label="Khách phải trả" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue + fees.passThrough} strong /> : null}
                 </dl>
           ) : null}
           {!priceFields.length ? (

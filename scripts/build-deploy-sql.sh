@@ -94,3 +94,6 @@ upgrade nang-cap-hang-hoa-chuyen.sql "Hàng hóa (nhiều mã hàng) của chuy�
 
 upgrade nang-cap-sua-huy-don.sql "Đổi kiểu trường tương thích, hủy đơn hàng" "to_regprocedure('public.cancel_transport_order(uuid,text)') is not null" \
   supabase/migrations/20261030000028_field_type_compat.sql
+
+upgrade nang-cap-loai-phi-thu-khach.sql "Tách cước phí theo loại phí thu khách (bốc xếp, chi hộ...)" "to_regclass('public.shipment_fees') is not null" \
+  supabase/migrations/20261030000029_customer_fees.sql

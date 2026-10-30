@@ -85,7 +85,10 @@ const COLS: Col[] = [
     render: (r) => (r.fuel_support_rate === null ? "–" : `${formatNumber(r.fuel_support_rate)}%`),
   },
   { key: "fuel_support_amount", label: "Hỗ trợ dầu", width: 115, align: "right", render: (r) => formatVND(r.fuel_support_amount) },
+  { key: "extra_fee_amount", label: "Phí khác", width: 115, align: "right", render: (r) => formatVND(r.extra_fee_amount) },
   { key: "total_revenue", label: "Tổng doanh thu", width: 130, align: "right", render: (r) => <b>{formatVND(r.total_revenue)}</b> },
+  { key: "pass_through_amount", label: "Chi hộ", width: 115, align: "right", render: (r) => formatVND(r.pass_through_amount) },
+  { key: "amount_due", label: "Khách phải trả", width: 130, align: "right", render: (r) => formatVND(r.amount_due) },
   {
     key: "status",
     label: "Trạng thái",
