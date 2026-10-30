@@ -103,3 +103,6 @@ upgrade nang-cap-bao-cao-boc-xep.sql "Báo cáo cước vận chuyển, phí chi
 
 upgrade nang-cap-ma-khach-bao-cao.sql "Báo cáo hiển thị mã khách hàng; xóa dữ liệu thử trong ứng dụng" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'report_shipment_profit' and column_name = 'customer_code')" \
   supabase/migrations/20261030000031_report_customer_code.sql
+
+upgrade nang-cap-tach-boc-xep-chi-ho.sql "Tách phí bốc xếp khỏi báo cáo phí chi hộ" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'report_fee_lines' and column_name = 'is_loading')" \
+  supabase/migrations/20261030000032_loading_fee_split.sql

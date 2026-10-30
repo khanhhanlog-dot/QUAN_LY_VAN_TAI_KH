@@ -686,7 +686,7 @@ export const ENTITIES: Record<string, EntityDef> = {
         ],
         help: "Chi hộ: tiền công ty trả hộ khách (phí cảng, lưu bãi…), khách trả lại đúng số đó. Có trong công nợ phải thu nhưng không tính vào doanh thu, lợi nhuận.",
       },
-      { key: "is_loading", label: "Thuộc nhóm bốc xếp", type: "boolean", defaultValue: false, list: true, help: "Bật cho Phí bốc xếp, Phí nâng hạ… để đưa vào Báo cáo bốc xếp, so với chi phí bốc xếp trả tài xế hoặc nhà thầu." },
+      { key: "is_loading", label: "Thuộc nhóm bốc xếp", type: "boolean", defaultValue: false, list: true, help: "Bật cho phí bốc xếp (chi hộ không xuất hóa đơn): tách khỏi báo cáo Phí chi hộ, chỉ hiện ở báo cáo Bốc xếp để so với tiền bốc xếp trả tài xế hoặc nhà thầu. Phí nâng, hạ, cược cont (chi hộ có hóa đơn) để tắt." },
       { key: "description", label: "Mô tả", type: "textarea", maxLength: 500, wide: true },
       sortOrder,
       isActive,

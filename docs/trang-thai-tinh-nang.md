@@ -204,3 +204,8 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Xóa dữ liệu thử trong ứng dụng (cũng trong 0031): Cấu hình → Xóa dữ liệu thử. Chỉ Super Admin/Admin. Mật khẩu xóa dữ liệu riêng (bcrypt trong private.admin_secrets, đặt/đổi bằng set_purge_password), sai 5 lần/15 phút thì khóa, mỗi lần sai ghi audit 'test_data.password_failed'. test_data_counts(p_password) xem trước, purge_test_data(p_password, 'XOA DU LIEU') xóa và ghi audit 'test_data.purge'. App đăng nhập bằng Google nên không dùng mật khẩu đăng nhập.
 - Định dạng số: dấu phẩy phân cách hàng nghìn, dấu chấm thập phân (3,500,000 ₫; 39.5). parseNumberVN: "1,500" = 1500, "1.5" = 1.5; "1.500.000" (nhiều dấu chấm) và tiền "500.000" vẫn hiểu là hàng nghìn; "39,5" hiểu là 39.5.
 - Tiêu đề bảng cố định khi cuộn (Điều phối, Quản lý chuyến, Báo cáo, danh mục): bảng cuộn trong khung cao tối đa màn hình trừ 12rem.
+
+## Tách phí bốc xếp khỏi chi hộ (migration 0032) – 30/10/2026
+- Phí bốc xếp bản chất là chi hộ nhưng không xuất hóa đơn; phí nâng, hạ, cược cont là chi hộ có hóa đơn. Loại phí bật "Thuộc nhóm bốc xếp" không còn hiện ở báo cáo Phí chi hộ, chỉ ở báo cáo Bốc xếp. Khách phải trả vẫn gồm mọi khoản chi hộ.
+- report_fee_lines thêm cột is_loading; report_pass_through_fees lọc `not is_loading`. Tệp nâng cấp: supabase/deploy/nang-cap-tach-boc-xep-chi-ho.sql.
+- Chi bốc xếp: tài xế tự bốc thì tài xế nhập (Tài xế trả, hoàn qua lương); 3PL/nhà thầu thuê công nhân trả tiền mặt thì văn phòng nhập ở chuyến (Công ty trả + Nhà thầu nhận tiền), áp dụng cả chuyến xe 3PL.
