@@ -97,3 +97,6 @@ upgrade nang-cap-sua-huy-don.sql "Đổi kiểu trường tương thích, hủy 
 
 upgrade nang-cap-loai-phi-thu-khach.sql "Tách cước phí theo loại phí thu khách (bốc xếp, chi hộ...)" "to_regclass('public.shipment_fees') is not null" \
   supabase/migrations/20261030000029_customer_fees.sql
+
+upgrade nang-cap-bao-cao-boc-xep.sql "Báo cáo cước vận chuyển, phí chi hộ, bốc xếp; nhà thầu bốc xếp" "to_regclass('public.report_loading') is not null" \
+  supabase/migrations/20261030000030_fee_reports_loading.sql

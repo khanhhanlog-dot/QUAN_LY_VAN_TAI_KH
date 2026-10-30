@@ -180,3 +180,15 @@ Cần chạy `supabase/deploy/nang-cap-loai-phi-thu-khach.sql` (migration 0029) 
 | Doanh thu, công nợ | ✅ | Doanh thu = cước + phụ phí + hỗ trợ dầu + phí tính doanh thu; công nợ phải thu cộng thêm tiền chi hộ ("Khách phải trả") |
 | Báo cáo | ✅ | Báo cáo → "Doanh thu theo loại phí" (tháng × khách hàng × loại phí) và "Cước phí từng chuyến" (mỗi khoản một dòng); Lợi nhuận từng chuyến thêm cột Phụ phí, Phí khác, Chi hộ, Khách phải trả |
 | Bảng chéo mỗi loại phí một cột trên từng chuyến | Chưa làm | Hiện xem theo dòng; xuất Excel rồi dùng Pivot nếu cần dạng cột |
+
+## Báo cáo riêng Cước vận chuyển, Phí chi hộ, Bốc xếp; trả bốc xếp (khách hàng yêu cầu 30/10/2026)
+
+Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) trên CSDL thật trước khi đưa lên main.
+
+| Tính năng | Trạng thái | Ghi chú |
+|---|---|---|
+| Báo cáo Cước vận chuyển | ✅ | Từng chuyến: số lượng, đơn giá, cước, phụ phí, hỗ trợ dầu, tổng cước |
+| Báo cáo Phí chi hộ | ✅ | Mỗi khoản chi hộ một dòng |
+| Báo cáo Bốc xếp | ✅ | Từng chuyến: thu khách bốc xếp, chi tài xế trả (hoàn vào lương), chi công ty/nhà thầu trả, chênh lệch, chi chờ duyệt, nhà thầu |
+| Nhà thầu nhận tiền khi nhập chi phí công ty trả | ✅ | Thêm nhanh nhà thầu ngay trong ô chọn; lập công nợ phải trả nhà thầu vẫn làm ở Công nợ (chưa tự động) |
+| Nhóm báo cáo chi phí "Bốc xếp, nâng hạ" tách khỏi "Bến bãi, vào cổng"; loại phí thu khách có cờ "Thuộc nhóm bốc xếp" | ✅ | |

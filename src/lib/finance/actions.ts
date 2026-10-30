@@ -63,6 +63,7 @@ const expenseSchema = z.object({
   amount: money("số tiền"),
   incurredAt: z.string().optional(),
   paidBy: z.enum(["driver", "company"]),
+  supplierId: uuid.optional(),
   driverId: uuid.optional(),
   note: z.string().max(1000).optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
@@ -85,6 +86,7 @@ export async function createExpense(input: z.input<typeof expenseSchema>): Promi
       p_driver_id: d.driverId ?? null,
       p_custom: custom,
       p_client_request_id: d.clientRequestId,
+      p_supplier_id: d.paidBy === "company" ? (d.supplierId ?? null) : null,
     });
     if (error) throw error;
     refreshFinance();

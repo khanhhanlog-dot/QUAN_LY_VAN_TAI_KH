@@ -120,6 +120,7 @@ export function CreateExpenseDialog({ open, onOpenChange, customRows, canAddFiel
   const [date, setDate] = useState("");
   const [paidBy, setPaidBy] = useState<"driver" | "company">("company");
   const [driver, setDriver] = useState(shipment?.driverId ?? "");
+  const [supplier, setSupplier] = useState("");
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [custom, setCustom] = useState<Record<string, unknown>>({});
@@ -157,6 +158,11 @@ export function CreateExpenseDialog({ open, onOpenChange, customRows, canAddFiel
               <option value="driver">Tài xế tự trả</option>
             </NativeSelect>
           </Field>
+          {paidBy === "company" ? (
+            <Field label="Nhà thầu nhận tiền" htmlFor="exp-supplier" help="Không bắt buộc. Ví dụ tổ bốc xếp, bãi nâng hạ; dùng để đối chiếu và lập công nợ phải trả nhà thầu">
+              <ReferenceSelect id="exp-supplier" refKey="suppliers" value={supplier} onChange={(v) => setSupplier(v)} />
+            </Field>
+          ) : null}
           <Field label="Tài xế" htmlFor="exp-driver" help="Để trống là tài xế của chuyến">
             <ReferenceSelect id="exp-driver" refKey="drivers" value={driver} initialLabel={shipment?.driverLabel ?? undefined} onChange={(v) => setDriver(v)} />
           </Field>
@@ -203,6 +209,7 @@ export function CreateExpenseDialog({ open, onOpenChange, customRows, canAddFiel
                   amount,
                   incurredAt: date || undefined,
                   paidBy,
+                  supplierId: paidBy === "company" && supplier ? supplier : undefined,
                   driverId: driver || undefined,
                   note: note.trim() || undefined,
                   custom,

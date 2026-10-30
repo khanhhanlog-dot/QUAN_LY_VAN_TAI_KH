@@ -56,6 +56,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     searchParams: sp,
     tabs: [
       { key: "report_shipments" },
+      { key: "report_freight" },
+      { key: "report_pass_through" },
+      { key: "report_loading" },
       { key: "report_fee_type" },
       { key: "report_fee_lines" },
       { key: "report_monthly" },
