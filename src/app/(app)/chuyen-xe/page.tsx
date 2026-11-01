@@ -68,7 +68,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   ]);
   if (listRes.error) throw listRes.error;
   if (sumRes.error) throw sumRes.error;
-  const rows = (listRes.data ?? []) as ShipmentListRow[];
+  const listRows = (listRes.data ?? []) as ShipmentListRow[];
+  // Lời/lỗ từng chuyến của trang đang xem (chỉ người có quyền xem chi phí hoặc báo cáo)
+  const canSeeProfit = me.permissions.has("expenses.view") || me.permissions.has("reports.view");
+  const profitRes =
+    canSeeProfit && listRows.length
+      ? await supabase.from("shipment_profit").select("shipment_id, trip_cost, vehicle_cost, profit").in("shipment_id", listRows.map((r) => r.id))
+      : { data: [] };
+  const profits = new Map(((profitRes.data ?? []) as { shipment_id: string; trip_cost: number; vehicle_cost: number; profit: number }[]).map((p) => [p.shipment_id, p]));
+  const rows = listRows.map((r) => {
+    const p = profits.get(r.id);
+    return p ? { ...r, trip_cost: p.trip_cost, vehicle_cost: p.vehicle_cost, profit: p.profit } : r;
+  });
   const total = listRes.count ?? rows.length;
   const summary = sumRes.data as Summary;
   const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, summary.by_status[s.value]?.count ?? 0]));
@@ -130,7 +141,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
             <TabLink key={s.value} href={href({ tt: s.value, trang: 1 })} active={f.tt === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
           ))}
         </div>
-        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} />
+        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
           <span>
             {total === 0 ? "Không có chuyến phù hợp" : `Dòng ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total} chuyến`}
@@ -154,9 +165,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
           ) : null}
         </div>
       </Card>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Cột tạm ứng, chi phí tài xế/Admin/khác và lợi nhuận dự kiến sẽ được thêm ở Giai đoạn 6 (chi phí, ứng tiền, quyết toán).
-      </p>
+      {canSeeProfit ? <p className="mt-3 text-xs text-muted-foreground">
+        Cột Lời/lỗ = doanh thu − chi phí chuyến đã duyệt − chi phí xe (sửa chữa, bảo hiểm...) chia đều theo số chuyến của xe trong tháng. Chỉ tính chuyến đang chạy hoặc đã hoàn thành.
+      </p> : null}
     </>
   );
 }

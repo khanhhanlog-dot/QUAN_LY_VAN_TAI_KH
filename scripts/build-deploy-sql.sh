@@ -116,3 +116,5 @@ upgrade nang-cap-tong-theo-nhom-phi.sql "Phí vận chuyển, chi hộ, tờ kha
   supabase/migrations/20261101000037_shipment_fee_role_totals.sql
 upgrade nang-cap-so-hoa-don-phi.sql "Số hóa đơn, số chứng từ, số lượng × đơn giá cho dòng phí của chuyến" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipment_fees' and column_name = 'ref_no')" \
   supabase/migrations/20261101000038_shipment_fee_ref_qty.sql
+upgrade nang-cap-loi-lo-chuyen.sql "Lời/lỗ từng chuyến, chia chi phí xe theo chuyến trong tháng" "to_regclass('public.shipment_profit') is not null" \
+  supabase/migrations/20261101000039_trip_profit.sql

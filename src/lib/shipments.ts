@@ -58,6 +58,10 @@ export type ShipmentListRow = {
   declaration_fee?: number;
   loading_fee?: number;
   other_fee?: number;
+  /** Lời/lỗ (view shipment_profit, ghép ở trang khi người xem có quyền chi phí/báo cáo) */
+  trip_cost?: number | null;
+  vehicle_cost?: number | null;
+  profit?: number | null;
 };
 
 /** Chuyến đang trễ: quá giờ giao dự kiến mà chưa giao xong */

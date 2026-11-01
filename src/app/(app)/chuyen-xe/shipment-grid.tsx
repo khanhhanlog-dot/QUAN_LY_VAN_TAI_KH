@@ -42,6 +42,8 @@ type Col = {
   custom?: boolean;
   /** Ẩn khi người dùng chưa lưu cách hiển thị riêng (bật lại trong Chọn cột) */
   defaultHidden?: boolean;
+  /** Cột lời/lỗ: chỉ hiện với người có quyền xem chi phí hoặc báo cáo */
+  profit?: boolean;
   render: (r: ShipmentListRow) => ReactNode;
 };
 
@@ -107,6 +109,26 @@ const COLS: Col[] = [
   { key: "total_revenue", label: "Doanh thu", width: 130, align: "right", render: (r) => formatVND(r.total_revenue) },
   { key: "pass_through_amount", label: "Không tính doanh thu (chi hộ + bốc xếp)", width: 115, align: "right", defaultHidden: true, render: (r) => formatVND(r.pass_through_amount) },
   { key: "amount_due", label: "Khách phải trả", width: 130, align: "right", render: (r) => <b>{formatVND(r.amount_due)}</b> },
+  { key: "trip_cost", label: "Chi phí chuyến", width: 120, align: "right", profit: true, render: (r) => (r.trip_cost == null ? "" : formatVND(r.trip_cost)) },
+  { key: "vehicle_cost", label: "Chi phí xe chia về", width: 120, align: "right", profit: true, defaultHidden: true, render: (r) => (r.vehicle_cost == null ? "" : formatVND(r.vehicle_cost)) },
+  {
+    key: "profit",
+    label: "Lời/lỗ",
+    width: 125,
+    align: "right",
+    profit: true,
+    render: (r) =>
+      r.profit == null ? (
+        ""
+      ) : (
+        <b
+          className={Number(r.profit) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}
+          title="Doanh thu − chi phí chuyến đã duyệt − chi phí xe chia về"
+        >
+          {formatVND(r.profit)}
+        </b>
+      ),
+  },
   {
     key: "status",
     label: "Trạng thái",
@@ -142,6 +164,7 @@ export function ShipmentGrid({
   customDefs,
   customAdv,
   canAddField = false,
+  canSeeProfit = false,
 }: {
   rows: ShipmentListRow[];
   canEdit: boolean;
@@ -152,6 +175,7 @@ export function ShipmentGrid({
   customDefs: FieldDef[];
   customAdv: AdvField[];
   canAddField?: boolean;
+  canSeeProfit?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -178,7 +202,7 @@ export function ShipmentGrid({
   const advConds = useMemo(() => parseConditions(adv, advFields), [adv, advFields]);
   const allCols = useMemo<Col[]>(
     () => [
-      ...COLS,
+      ...COLS.filter((c) => canSeeProfit || !c.profit),
       ...customDefs.map((d) => ({
         key: `cf_${d.key}`,
         label: d.label,
@@ -188,7 +212,7 @@ export function ShipmentGrid({
         render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key]),
       })),
     ],
-    [customDefs],
+    [customDefs, canSeeProfit],
   );
 
   const columns = useMemo<ColumnDef<ShipmentListRow>[]>(

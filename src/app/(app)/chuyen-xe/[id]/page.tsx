@@ -24,6 +24,7 @@ import { ActForDriver } from "./act-for-driver";
 import { EditShipmentDialog } from "./edit-shipment-dialog";
 import { ItemsCard, type ShipmentItem } from "./items-card";
 import { FeesDialog, type ShipmentFee } from "./fees-dialog";
+import { ProfitCard, type ShipmentProfit } from "./profit-card";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
 import { TONE_BADGE } from "@/lib/tones";
@@ -125,7 +126,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
   const canExpenses = me.permissions.has("expenses.view");
-  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows, feeRes] = await Promise.all([
+  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows, feeRes, profitRes] = await Promise.all([
     shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -150,6 +151,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("shipment_items").select("line_no, item_code, item_name, quantity, unit, note, custom_fields").eq("shipment_id", id).order("line_no"),
     loadCustomFields(supabase, "shipment_items"),
     supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
+    canExpenses ? supabase.from("shipment_profit").select("*").eq("shipment_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
@@ -182,6 +184,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && s.status !== "cancelled" && !x.receivable_id;
   const approvedCost = expenses.filter((e) => e.status === "approved").reduce((a, e) => a + Number(e.amount), 0);
   const pendingCost = expenses.filter((e) => e.status === "pending").reduce((a, e) => a + Number(e.amount), 0);
+  const profit = (profitRes.data ?? null) as ShipmentProfit | null;
+  // Chi phí chuyến đã duyệt cộng theo hạng mục
+  const costLines = [...expenses.filter((e) => e.status === "approved").reduce((m, e) => m.set(e.category_name, (m.get(e.category_name) ?? 0) + Number(e.amount)), new Map<string, number>())]
+    .map(([name, amount]) => ({ name, amount }));
 
   const actorIds = [...new Set([x.created_by, ...history.map((h) => h.changed_by), ...assignments.map((a) => a.assigned_by), x.dispatch_approved_by].filter((v): v is string => Boolean(v)))];
   const { data: nameRows } = actorIds.length ? await supabase.rpc("user_display_names", { p_ids: actorIds }) : { data: [] };
@@ -368,11 +374,38 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <div className="space-y-2 border-t pt-2">
                 <Line label="Chi phí đã duyệt" value={formatVND(approvedCost)} />
                 {pendingCost ? <Line label="Chi phí chờ duyệt (chưa tính)" value={formatVND(pendingCost)} /> : null}
-                <Line label="Lợi nhuận gộp" value={<b>{formatVND(Number(s.total_revenue) - approvedCost)}</b>} />
+                <Line
+                  label="Lời/lỗ (xem chi tiết bên dưới)"
+                  value={
+                    <a href="#loi-lo" className="font-semibold hover:underline">
+                      {formatVND(profit ? Number(profit.profit) : Number(s.total_revenue) - approvedCost)}
+                    </a>
+                  }
+                />
               </div>
             ) : null}
           </CardContent>
         </Card>
+
+        {canExpenses ? (
+          <ProfitCard
+            profit={profit}
+            revenue={Number(s.total_revenue)}
+            costLines={costLines}
+            plate={s.plate_number}
+            vehicleId={s.vehicle_id}
+            outsourced={x.vehicle?.ownership_type === "outsourced"}
+            addExpense={
+              me.permissions.has("expenses.create") && s.status !== "cancelled" ? (
+                <ShipmentExpenseButton
+                  shipment={{ id: s.id, label: s.shipment_code, driverId: s.driver_id, driverLabel: s.driver_name }}
+                  customRows={visibleCustomRows(expenseFields, me.permissions)}
+                  canAddField={me.permissions.has("fields.configure")}
+                />
+              ) : null
+            }
+          />
+        ) : null}
 
         <CustomFieldsCard
           shipmentId={s.id}
