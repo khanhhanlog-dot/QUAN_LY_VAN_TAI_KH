@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Pencil, Plus } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/entities/record";
@@ -10,7 +10,6 @@ import { formatDate, formatDateTime, formatVND } from "@/lib/format";
 import type { ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
 import { CancelOrderDialog } from "./cancel-order-dialog";
-import { EditOrderDialog } from "./edit-order-dialog";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { formatValue, moduleCustomFields } from "@/lib/entities/record";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +44,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
-  const [orderRes, shipRes, orderFieldRows, billedRes] = await Promise.all([
+  const [orderRes, shipRes, orderFieldRows] = await Promise.all([
     supabase
       .from("transport_orders")
       .select(
@@ -55,7 +54,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       .maybeSingle(),
     supabase.from("shipment_list").select("*").eq("order_id", id).order("sequence_in_order"),
     loadCustomFields(supabase, "transport_orders"),
-    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("order_id", id).not("receivable_id", "is", null),
   ]);
   if (orderRes.error) throw orderRes.error;
   if (shipRes.error) throw shipRes.error;
@@ -66,7 +64,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const creator = (names as { display_name: string }[] | null)?.[0]?.display_name;
   const live = rows.filter((r) => r.status !== "cancelled");
   const revenue = live.reduce((s, r) => s + Number(r.total_revenue), 0);
-  const st = ORDER_STATUS[order.status] ?? { label: order.status, variant: "info" as const };
+  const st = ORDER_STATUS[order.status] ?? {
+    label: order.status,
+    variant: "info" as const,
+  };
   const canAdd = order.status === "open" && me.permissions.has("dispatch.create");
   const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderFieldRows, me.permissions), me.permissions);
   const canEditOrder = order.status !== "cancelled" && me.permissions.has("dispatch.update");
@@ -82,22 +83,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         actions={
           <>
             {canEditOrder ? (
-              <EditOrderDialog
-                fields={orderFields.filter((f) => !f.readOnly && f.type !== "formula")}
-                billed={(billedRes.count ?? 0) > 0}
-                init={{
-                  id: order.id,
-                  code: order.order_code,
-                  orderDate: order.order_date,
-                  customer: { id: order.customer?.id ?? "", label: order.customer?.name ?? "" },
-                  payer: { id: order.payer?.id ?? "", label: order.payer?.name ?? "" },
-                  company: { id: order.company?.id ?? "", label: order.company?.name ?? "" },
-                  notes: order.notes ?? "",
-                  custom: order.custom_fields ?? {},
-                }}
-              />
+              <Button asChild variant="outline">
+                <Link href={`/dieu-phoi/don-hang/${order.id}/sua`}>
+                  <Pencil /> Sửa toàn bộ đơn
+                </Link>
+              </Button>
             ) : null}
-            {order.status !== "cancelled" && (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) && !rows.some((r) => ["driver_completed", "closed"].includes(r.status)) ? (
+            {order.status !== "cancelled" &&
+            (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) &&
+            !rows.some((r) => ["driver_completed", "closed"].includes(r.status)) ? (
               <CancelOrderDialog orderId={order.id} orderCode={order.order_code} tripCount={live.length} />
             ) : null}
             {canAdd ? (

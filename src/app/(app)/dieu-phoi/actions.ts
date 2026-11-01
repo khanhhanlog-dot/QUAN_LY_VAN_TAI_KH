@@ -32,7 +32,10 @@ const optNum = (label: string, opts: { min?: number; max?: number; positive?: bo
         return z.NEVER;
       }
       if ((opts.positive && n <= 0) || (opts.min !== undefined && n < opts.min) || (opts.max !== undefined && n > opts.max)) {
-        ctx.addIssue({ code: "custom", message: `${label} nằm ngoài giới hạn cho phép` });
+        ctx.addIssue({
+          code: "custom",
+          message: `${label} nằm ngoài giới hạn cho phép`,
+        });
         return z.NEVER;
       }
       return n;
@@ -51,7 +54,12 @@ export type QuoteResult = {
     specificity: number;
     priority: number;
   }[];
-  fuel_rule: { id: string; scope_type: string; rate_percent: number | null; calculation_base: string } | null;
+  fuel_rule: {
+    id: string;
+    scope_type: string;
+    rate_percent: number | null;
+    calculation_base: string;
+  } | null;
 };
 
 const quoteSchema = z.object({
@@ -82,12 +90,18 @@ export async function quoteShipment(input: z.input<typeof quoteSchema>): Promise
 }
 
 const dayOrder = z.number().int().min(1, "Thứ tự chuyến của xe phải từ 1").max(99, "Thứ tự chuyến của xe tối đa 99");
-const otherOrders = z.array(z.object({ shipmentId: uuid, order: dayOrder })).max(50).optional();
+const otherOrders = z
+  .array(z.object({ shipmentId: uuid, order: dayOrder }))
+  .max(50)
+  .optional();
 
 /** Ghi thứ tự chuyến của xe trong ngày (null = bỏ thứ tự) */
 async function setDayOrders(supabase: Awaited<ReturnType<typeof createClient>>, list: { shipmentId: string; order: number | null }[]) {
   for (const x of list) {
-    const { error } = await supabase.rpc("set_vehicle_day_order", { p_shipment_id: x.shipmentId, p_order: x.order });
+    const { error } = await supabase.rpc("set_vehicle_day_order", {
+      p_shipment_id: x.shipmentId,
+      p_order: x.order,
+    });
     if (error) throw error;
   }
 }
@@ -133,41 +147,116 @@ function feeRows(fees: z.infer<typeof feesSchema>, prefix: string) {
   return fees.map((f, j) => {
     const a = f.amount === undefined || f.amount === "" ? null : parseNumberVN(f.amount, true);
     if (a !== null && (Number.isNaN(a) || a < 0)) throw new ActionError(`${prefix}dòng phí ${j + 1}: số tiền không hợp lệ`);
-    return { fee_type_id: f.fee_type_id ?? "", amount: a ?? "", note: f.note ?? "", declaration_type_id: f.declaration_type_id ?? "" };
+    return {
+      fee_type_id: f.fee_type_id ?? "",
+      amount: a ?? "",
+      note: f.note ?? "",
+      declaration_type_id: f.declaration_type_id ?? "",
+    };
   });
 }
 
-const shipmentSchema = z
-  .object({
-    pickupAt: dateTime,
-    expectedDeliveryAt: dateTime.optional().or(z.literal("").transform(() => undefined)),
-    pickupLocationId: uuid,
-    deliveryLocationId: uuid,
-    vehicleTypeId: optUuid,
-    vehicleId: optUuid,
-    driverId: optUuid,
-    priceListId: optUuid,
-    unitPrice: optNum("Đơn giá", { min: 0 }),
-    pricingUnit: z.enum(["trip", "km", "ton"]).optional(),
-    quantity: optNum("Số lượng", { positive: true }),
-    surchargeAmount: optNum("Phụ phí", { min: 0 }),
-    fuelSupportRate: optNum("Tỷ lệ hỗ trợ dầu", { min: 0, max: 100 }),
-    notes: z.string().max(1000).optional(),
-    custom: z.record(z.string(), z.unknown()).optional(),
-    items: itemsSchema.optional(),
-    fees: feesSchema.optional(),
-    vehicleDayOrder: dayOrder.nullable().optional(),
-  })
-  .refine((s) => s.pickupLocationId !== s.deliveryLocationId, { message: "Điểm nhận và điểm giao phải khác nhau" })
-  .refine((s) => !s.expectedDeliveryAt || Date.parse(s.expectedDeliveryAt) >= Date.parse(s.pickupAt), {
-    message: "Ngày giao dự kiến không được trước ngày nhận hàng",
+const shipmentBase = z.object({
+  pickupAt: dateTime,
+  expectedDeliveryAt: dateTime.optional().or(z.literal("").transform(() => undefined)),
+  pickupLocationId: uuid,
+  deliveryLocationId: uuid,
+  vehicleTypeId: optUuid,
+  vehicleId: optUuid,
+  driverId: optUuid,
+  priceListId: optUuid,
+  unitPrice: optNum("Đơn giá", { min: 0 }),
+  pricingUnit: z.enum(["trip", "km", "ton"]).optional(),
+  quantity: optNum("Số lượng", { positive: true }),
+  surchargeAmount: optNum("Phụ phí", { min: 0 }),
+  fuelSupportRate: optNum("Tỷ lệ hỗ trợ dầu", { min: 0, max: 100 }),
+  notes: z.string().max(1000).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
+  items: itemsSchema.optional(),
+  fees: feesSchema.optional(),
+  vehicleDayOrder: dayOrder.nullable().optional(),
+});
+type ShipmentInput = z.infer<typeof shipmentBase>;
+const checkShipment = <T extends z.ZodType<Pick<ShipmentInput, "pickupAt" | "expectedDeliveryAt" | "pickupLocationId" | "deliveryLocationId">>>(schema: T) =>
+  schema
+    .refine((s) => s.pickupLocationId !== s.deliveryLocationId, {
+      message: "Điểm nhận và điểm giao phải khác nhau",
+    })
+    .refine((s) => !s.expectedDeliveryAt || Date.parse(s.expectedDeliveryAt) >= Date.parse(s.pickupAt), {
+      message: "Ngày giao dự kiến không được trước ngày nhận hàng",
+    });
+const shipmentSchema = checkShipment(shipmentBase);
+
+type Sb = Awaited<ReturnType<typeof createClient>>;
+type Created = {
+  order_id: string;
+  order_code: string;
+  shipments: { id: string; shipment_code: string }[];
+  itemsError?: string;
+};
+
+/** Tạo chuyến mới (đơn mới hoặc thêm vào đơn có sẵn) kèm hàng hóa, phí thu khách; label(i) là tên chuyến trong thông báo lỗi */
+async function insertShipments(
+  supabase: Sb,
+  order: Record<string, unknown>,
+  list: ShipmentInput[],
+  shipFields: FieldDef[],
+  itemFields: FieldDef[],
+  label: (i: number) => string,
+): Promise<Created> {
+  const items = list.map((s, i) => itemRows(s.items ?? [], itemFields, `${label(i)}, `));
+  const fees = list.map((s, i) => feeRows(s.fees ?? [], `${label(i)}, `));
+  const shipments = list.map((s, i) => ({
+    pickup_at: new Date(s.pickupAt).toISOString(),
+    expected_delivery_at: s.expectedDeliveryAt ? new Date(s.expectedDeliveryAt).toISOString() : "",
+    pickup_location_id: s.pickupLocationId,
+    delivery_location_id: s.deliveryLocationId,
+    vehicle_type_id: s.vehicleTypeId ?? "",
+    vehicle_id: s.vehicleId ?? "",
+    driver_id: s.driverId ?? "",
+    price_list_id: s.priceListId ?? "",
+    unit_price: s.unitPrice ?? "",
+    pricing_unit: s.pricingUnit ?? "",
+    quantity: s.quantity ?? "",
+    surcharge_amount: s.surchargeAmount ?? "",
+    fuel_support_rate: s.fuelSupportRate ?? "",
+    notes: s.notes ?? "",
+    custom_fields: customValues(shipFields, s.custom, `${label(i)}: `),
+  }));
+  const { data, error } = await supabase.rpc("create_transport_order", {
+    p_order: order,
+    p_shipments: shipments,
   });
+  if (error) throw error;
+  const created = data as Created;
+  // Hàng hóa từng chuyến: lỗi ở bước này không làm mất đơn đã tạo, báo lại để nhập ở chi tiết chuyến
+  for (const [i, rows] of items.entries()) {
+    if (!rows.length || !created.shipments[i]) continue;
+    const r = await supabase.rpc("set_shipment_items", {
+      p_shipment_id: created.shipments[i].id,
+      p_items: rows,
+    });
+    if (r.error) created.itemsError = `Chưa lưu được hàng hóa của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
+  }
+  for (const [i, rows] of fees.entries()) {
+    if (!rows.length || !created.shipments[i]) continue;
+    const r = await supabase.rpc("set_shipment_fees", {
+      p_shipment_id: created.shipments[i].id,
+      p_fees: rows,
+    });
+    if (r.error) created.itemsError = `Chưa lưu được phí thu khách của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
+  }
+  return created;
+}
 
 const orderSchema = z.object({
   orderId: optUuid,
   customerId: optUuid,
   payerCustomerId: optUuid,
-  orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  orderDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   notes: z.string().max(2000).optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
   shipments: z.array(shipmentSchema).min(1, "Đơn hàng phải có ít nhất một chuyến").max(100, "Mỗi lần tạo tối đa 100 chuyến"),
@@ -178,9 +267,14 @@ const orderSchema = z.object({
 export type CreateOrderInput = z.input<typeof orderSchema>;
 
 /** Tạo đơn hàng gồm nhiều chuyến (hoặc thêm chuyến vào đơn có sẵn) trong một giao dịch */
-export async function createOrder(
-  input: CreateOrderInput,
-): Promise<ActionResult<{ order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[]; itemsError?: string }>> {
+export async function createOrder(input: CreateOrderInput): Promise<
+  ActionResult<{
+    order_id: string;
+    order_code: string;
+    shipments: { id: string; shipment_code: string }[];
+    itemsError?: string;
+  }>
+> {
   return runAction(async () => {
     const me = await requirePermission("dispatch.create");
     const p = orderSchema.safeParse(input);
@@ -198,44 +292,18 @@ export async function createOrder(
       loadCustomFields(supabase, "shipment_items"),
     ]);
     const itemFields = moduleCustomFields("shipment_items", visibleCustomRows(itemFieldRows, me.permissions), me.permissions);
-    const items = d.shipments.map((s, i) => itemRows(s.items ?? [], itemFields, `Chuyến ${i + 1}, `));
-    const fees = d.shipments.map((s, i) => feeRows(s.fees ?? [], `Chuyến ${i + 1}, `));
     const orderCustom = d.orderId ? {} : customValues(moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions), d.custom, "Đơn hàng: ");
     const shipFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
     const order = d.orderId
       ? { id: d.orderId }
-      : { customer_id: d.customerId, payer_customer_id: d.payerCustomerId ?? "", order_date: d.orderDate, notes: d.notes ?? "", custom_fields: orderCustom };
-    const shipments = d.shipments.map((s, i) => ({
-      pickup_at: new Date(s.pickupAt).toISOString(),
-      expected_delivery_at: s.expectedDeliveryAt ? new Date(s.expectedDeliveryAt).toISOString() : "",
-      pickup_location_id: s.pickupLocationId,
-      delivery_location_id: s.deliveryLocationId,
-      vehicle_type_id: s.vehicleTypeId ?? "",
-      vehicle_id: s.vehicleId ?? "",
-      driver_id: s.driverId ?? "",
-      price_list_id: s.priceListId ?? "",
-      unit_price: s.unitPrice ?? "",
-      pricing_unit: s.pricingUnit ?? "",
-      quantity: s.quantity ?? "",
-      surcharge_amount: s.surchargeAmount ?? "",
-      fuel_support_rate: s.fuelSupportRate ?? "",
-      notes: s.notes ?? "",
-      custom_fields: customValues(shipFields, s.custom, `Chuyến ${i + 1}: `),
-    }));
-    const { data, error } = await supabase.rpc("create_transport_order", { p_order: order, p_shipments: shipments });
-    if (error) throw error;
-    const created = data as { order_id: string; order_code: string; shipments: { id: string; shipment_code: string }[]; itemsError?: string };
-    // Hàng hóa từng chuyến: lỗi ở bước này không làm mất đơn đã tạo, báo lại để nhập ở chi tiết chuyến
-    for (const [i, rows] of items.entries()) {
-      if (!rows.length || !created.shipments[i]) continue;
-      const r = await supabase.rpc("set_shipment_items", { p_shipment_id: created.shipments[i].id, p_items: rows });
-      if (r.error) created.itemsError = `Chưa lưu được hàng hóa của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
-    }
-    for (const [i, rows] of fees.entries()) {
-      if (!rows.length || !created.shipments[i]) continue;
-      const r = await supabase.rpc("set_shipment_fees", { p_shipment_id: created.shipments[i].id, p_fees: rows });
-      if (r.error) created.itemsError = `Chưa lưu được phí thu khách của chuyến ${created.shipments[i].shipment_code}: ${toUserMessage(r.error)}. Mở chi tiết chuyến để nhập lại.`;
-    }
+      : {
+          customer_id: d.customerId,
+          payer_customer_id: d.payerCustomerId ?? "",
+          order_date: d.orderDate,
+          notes: d.notes ?? "",
+          custom_fields: orderCustom,
+        };
+    const created = await insertShipments(supabase, order, d.shipments, shipFields, itemFields, (i) => `Chuyến ${i + 1}`);
     // Thứ tự chuyến của xe trong ngày (khi xe chạy nhiều chuyến cùng ngày); chuyến trả về theo đúng thứ tự gửi lên
     await setDayOrders(supabase, [
       ...(d.otherOrders ?? []),
@@ -281,7 +349,10 @@ export async function assignShipment(input: z.input<typeof assignSchema>): Promi
   );
 }
 
-const cancelSchema = z.object({ shipmentId: uuid, reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy (ít nhất 3 ký tự)").max(500) });
+const cancelSchema = z.object({
+  shipmentId: uuid,
+  reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy (ít nhất 3 ký tự)").max(500),
+});
 
 /** Hủy chuyến: bắt buộc lý do, không xóa dữ liệu */
 export async function cancelShipment(input: z.input<typeof cancelSchema>): Promise<ActionResult> {
@@ -290,7 +361,10 @@ export async function cancelShipment(input: z.input<typeof cancelSchema>): Promi
     const p = cancelSchema.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
-    const { error } = await supabase.rpc("cancel_shipment", { p_shipment_id: p.data.shipmentId, p_reason: p.data.reason });
+    const { error } = await supabase.rpc("cancel_shipment", {
+      p_shipment_id: p.data.shipmentId,
+      p_reason: p.data.reason,
+    });
     if (error) throw error;
     revalidatePath("/dieu-phoi", "layout");
     revalidatePath("/chuyen-xe", "layout");
@@ -309,24 +383,31 @@ const actSchema = z.object({
 /** Điều phối làm thay tài xế: nhận đơn, bắt đầu chạy, hoàn thành (bỏ qua ảnh khi có lý do) */
 export async function actForDriver(input: z.input<typeof actSchema>): Promise<ActionResult> {
   const p = actSchema.safeParse(input);
-  const msg = { accept: "Đã nhận chuyến thay tài xế.", start: "Đã bắt đầu chạy thay tài xế.", complete: "Đã hoàn thành chuyến thay tài xế." };
-  return runAction(async () => {
-    await requirePermission("dispatch.update");
-    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
-    const d = p.data;
-    const supabase = await createClient();
-    const { error } = await supabase.rpc("dispatch_act_for_driver", {
-      p_shipment_id: d.shipmentId,
-      p_step: d.step,
-      p_result: d.result ?? null,
-      p_note: d.note?.trim() || null,
-      p_no_expense: d.noExpense ?? null,
-      p_photo_skip_reason: d.photoSkipReason?.trim() || null,
-    });
-    if (error) throw error;
-    revalidatePath("/dieu-phoi", "layout");
-    revalidatePath("/chuyen-xe", "layout");
-  }, p.success ? msg[p.data.step] : undefined);
+  const msg = {
+    accept: "Đã nhận chuyến thay tài xế.",
+    start: "Đã bắt đầu chạy thay tài xế.",
+    complete: "Đã hoàn thành chuyến thay tài xế.",
+  };
+  return runAction(
+    async () => {
+      await requirePermission("dispatch.update");
+      if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+      const d = p.data;
+      const supabase = await createClient();
+      const { error } = await supabase.rpc("dispatch_act_for_driver", {
+        p_shipment_id: d.shipmentId,
+        p_step: d.step,
+        p_result: d.result ?? null,
+        p_note: d.note?.trim() || null,
+        p_no_expense: d.noExpense ?? null,
+        p_photo_skip_reason: d.photoSkipReason?.trim() || null,
+      });
+      if (error) throw error;
+      revalidatePath("/dieu-phoi", "layout");
+      revalidatePath("/chuyen-xe", "layout");
+    },
+    p.success ? msg[p.data.step] : undefined,
+  );
 }
 
 /** Xe đang hoạt động kèm tài xế phụ trách, để gợi ý tài xế khi chọn xe */
@@ -337,7 +418,10 @@ export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionRes
     const supabase = await createClient();
     const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id").eq("id", vehicleId).maybeSingle();
     if (error) throw error;
-    return { driverId: data?.assigned_driver_id ?? null, vehicleTypeId: data?.vehicle_type_id ?? null };
+    return {
+      driverId: data?.assigned_driver_id ?? null,
+      vehicleTypeId: data?.vehicle_type_id ?? null,
+    };
   });
 }
 
@@ -370,7 +454,11 @@ export type VehicleDayTrip = {
   vehicle_day_order: number | null;
 };
 
-const dayTripsSchema = z.object({ vehicleId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), excludeShipmentId: optUuid });
+const dayTripsSchema = z.object({
+  vehicleId: uuid,
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  excludeShipmentId: optUuid,
+});
 
 /** Các chuyến (chưa hủy) của xe trong một ngày: nhận hàng trong ngày hoặc đang chạy dở sang ngày đó */
 export async function vehicleTripsOnDay(input: z.input<typeof dayTripsSchema>): Promise<ActionResult<VehicleDayTrip[]>> {
@@ -406,7 +494,10 @@ export async function saveShipmentItems(input: z.input<typeof itemsInput>): Prom
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
     const fields = moduleCustomFields("shipment_items", visibleCustomRows(await loadCustomFields(supabase, "shipment_items"), me.permissions), me.permissions);
-    const { data, error } = await supabase.rpc("set_shipment_items", { p_shipment_id: p.data.shipmentId, p_items: itemRows(p.data.items, fields, "") });
+    const { data, error } = await supabase.rpc("set_shipment_items", {
+      p_shipment_id: p.data.shipmentId,
+      p_items: itemRows(p.data.items, fields, ""),
+    });
     if (error) throw error;
     revalidatePath(`/chuyen-xe/${p.data.shipmentId}`);
     return data as number;
@@ -422,7 +513,10 @@ export async function saveShipmentFees(input: z.input<typeof feesInput>): Promis
     const p = feesInput.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("set_shipment_fees", { p_shipment_id: p.data.shipmentId, p_fees: feeRows(p.data.fees, "") });
+    const { data, error } = await supabase.rpc("set_shipment_fees", {
+      p_shipment_id: p.data.shipmentId,
+      p_fees: feeRows(p.data.fees, ""),
+    });
     if (error) throw error;
     revalidatePath(`/chuyen-xe/${p.data.shipmentId}`);
     revalidatePath("/chuyen-xe");
@@ -454,7 +548,10 @@ export async function updateOrderHeader(input: z.input<typeof orderHeaderSchema>
     if (cur.status === "cancelled") throw new ActionError("Đơn hàng đã hủy, không sửa được.");
     const fields = moduleCustomFields("transport_orders", visibleCustomRows(await loadCustomFields(supabase, "transport_orders"), me.permissions), me.permissions);
     // Giữ nguyên giá trị các trường người sửa không được xem
-    const custom = { ...((cur.custom_fields as Record<string, unknown>) ?? {}), ...customValues(fields, d.custom, "Đơn hàng: ") };
+    const custom = {
+      ...((cur.custom_fields as Record<string, unknown>) ?? {}),
+      ...customValues(fields, d.custom, "Đơn hàng: "),
+    };
     const { data, error } = await supabase
       .from("transport_orders")
       .update({
@@ -476,7 +573,378 @@ export async function updateOrderHeader(input: z.input<typeof orderHeaderSchema>
   }, "Đã lưu thay đổi của đơn hàng.");
 }
 
-const cancelOrderSchema = z.object({ orderId: uuid, reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy đơn hàng").max(500) });
+const editShipmentSchema = checkShipment(
+  shipmentBase.extend({
+    /** Chuyến đã có; không gửi = chuyến mới thêm khi sửa đơn */
+    id: optUuid,
+    version: z.number().int().optional(),
+    /** keep = giữ giá đang lưu (sửa tay được); quote = tìm lại theo bảng giá như lúc tạo */
+    priceMode: z.enum(["keep", "quote"]).optional(),
+    pricingUnit: z.enum(["trip", "km", "ton", "other"]).optional(),
+    /** Có lý do = hủy chuyến này khi lưu */
+    cancelReason: z.string().trim().max(500).optional(),
+  }),
+);
+
+const fullOrderSchema = z.object({
+  orderId: uuid,
+  customerId: uuid,
+  payerCustomerId: optUuid,
+  companyEntityId: optUuid,
+  orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày đơn hàng không hợp lệ"),
+  notes: z.string().max(2000).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
+  shipments: z.array(editShipmentSchema).max(200, "Mỗi đơn tối đa 200 chuyến"),
+  otherOrders,
+});
+
+export type UpdateOrderFullInput = z.input<typeof fullOrderSchema>;
+
+type CurShipment = {
+  id: string;
+  shipment_code: string;
+  status: string;
+  version: number;
+  receivable_id: string | null;
+  driver_id: string | null;
+  vehicle_id: string | null;
+  pickup_location_id: string;
+  delivery_location_id: string;
+  fuel_support_base: string | null;
+  pricing_snapshot: Record<string, unknown> | null;
+  custom_fields: Record<string, unknown> | null;
+};
+
+const ASSIGNABLE = ["draft", "assigned", "accepted"];
+const CANCELLABLE = ["draft", "assigned", "accepted", "in_transit"];
+
+/**
+ * Sửa toàn bộ đơn hàng bằng đúng biểu mẫu lúc tạo: phần đầu đơn, từng chuyến (ngày, điểm, xe, tài xế, giá, phí, hàng hóa,
+ * trường bổ sung), thêm chuyến mới, hủy chuyến. Giữ các khóa: chuyến đã lập công nợ không đổi giá/phí/số lượng;
+ * đổi tài xế đi qua assign_shipment nên chuyến phải chờ Giám đốc duyệt lại.
+ */
+export async function updateOrderFull(input: UpdateOrderFullInput): Promise<ActionResult<{ created: number; cancelled: number; warning?: string }>> {
+  return runAction(async () => {
+    const me = await requirePermission("dispatch.update");
+    const p = fullOrderSchema.safeParse(input);
+    if (!p.success) {
+      const issue = p.error.issues[0];
+      const idx = issue?.path[0] === "shipments" && typeof issue.path[1] === "number" ? `Chuyến ${issue.path[1] + 1}: ` : "";
+      throw new ActionError(idx + (issue?.message ?? "Dữ liệu không hợp lệ"));
+    }
+    const d = p.data;
+    const label = (i: number) => `Chuyến ${i + 1}`;
+    const supabase = await createClient();
+    const [orderRes, shipRes, orderRows, shipRows, itemFieldRows] = await Promise.all([
+      supabase.from("transport_orders").select("status, customer_id, payer_customer_id, company_entity_id, order_date, notes, custom_fields").eq("id", d.orderId).maybeSingle(),
+      supabase
+        .from("shipments")
+        .select(
+          "id, shipment_code, status, version, receivable_id, driver_id, vehicle_id, pickup_location_id, delivery_location_id, fuel_support_base, pricing_snapshot, custom_fields",
+        )
+        .eq("order_id", d.orderId),
+      loadCustomFields(supabase, "transport_orders"),
+      loadCustomFields(supabase, "shipments"),
+      loadCustomFields(supabase, "shipment_items"),
+    ]);
+    if (orderRes.error) throw orderRes.error;
+    if (shipRes.error) throw shipRes.error;
+    const cur = orderRes.data;
+    if (!cur) throw new ActionError("Không tìm thấy đơn hàng.");
+    if (cur.status === "cancelled") throw new ActionError("Đơn hàng đã hủy, không sửa được.");
+    const curShips = new Map(((shipRes.data ?? []) as CurShipment[]).map((r) => [r.id, r]));
+    const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions);
+    const shipFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
+    const itemFields = moduleCustomFields("shipment_items", visibleCustomRows(itemFieldRows, me.permissions), me.permissions);
+
+    // 1. Kiểm tra toàn bộ trước khi ghi để không lưu dở dang vì lỗi nhập liệu
+    const fresh = d.shipments.map((s, i) => ({ s, i })).filter((x) => !x.s.id);
+    if (fresh.length && !me.permissions.has("dispatch.create")) throw new ActionError("Bạn không có quyền thêm chuyến vào đơn hàng.");
+    if (fresh.length && cur.status !== "open") throw new ActionError("Đơn hàng đã hoàn thành, không thêm chuyến được.");
+    type EditShipment = (typeof d.shipments)[number];
+    type Plan =
+      | { i: number; s: EditShipment; c: CurShipment; cancel: true }
+      | {
+          i: number;
+          s: EditShipment;
+          c: CurShipment;
+          cancel: false;
+          assignChanged: boolean;
+          items: ReturnType<typeof itemRows> | null;
+          fees: ReturnType<typeof feeRows> | null;
+          custom: Record<string, unknown>;
+        };
+    const plans = d.shipments.flatMap((s, i): Plan[] => {
+      if (!s.id) return [];
+      const c = curShips.get(s.id);
+      if (!c) throw new ActionError(`${label(i)}: không thuộc đơn hàng này.`);
+      if (c.status === "cancelled") throw new ActionError(`${label(i)} (${c.shipment_code}) đã hủy, tải lại trang rồi sửa tiếp.`);
+      if (s.version !== undefined && s.version !== c.version) throw new ActionError(`Chuyến ${c.shipment_code} vừa được người khác sửa. Tải lại trang rồi thử lại.`);
+      if (s.cancelReason) {
+        if (!(me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete"))) throw new ActionError("Bạn không có quyền hủy chuyến.");
+        if (s.cancelReason.length < 3) throw new ActionError(`Chuyến ${c.shipment_code}: nhập lý do hủy (ít nhất 3 ký tự).`);
+        if (!CANCELLABLE.includes(c.status)) throw new ActionError(`Chuyến ${c.shipment_code} đã hoàn thành, không hủy được.`);
+        if (c.receivable_id) throw new ActionError(`Chuyến ${c.shipment_code} đã lập công nợ, không hủy được. Hủy phiếu công nợ trước.`);
+        return [{ i, s, c, cancel: true as const }];
+      }
+      const assignChanged = (s.driverId ?? null) !== c.driver_id || (s.vehicleId ?? null) !== c.vehicle_id;
+      if (assignChanged && !ASSIGNABLE.includes(c.status)) throw new ActionError(`Chuyến ${c.shipment_code} đang chạy hoặc đã xong, không đổi xe, tài xế được.`);
+      return [
+        {
+          i,
+          s,
+          c,
+          cancel: false as const,
+          assignChanged,
+          // Chuyến đã đóng: CSDL khóa hàng hóa, giữ nguyên
+          items: c.status === "closed" ? null : itemRows(s.items ?? [], itemFields, `${label(i)}, `),
+          fees: c.receivable_id ? null : feeRows(s.fees ?? [], `${label(i)}, `),
+          custom: {
+            ...(c.custom_fields ?? {}),
+            ...customValues(shipFields, s.custom, `${label(i)}: `),
+          },
+        },
+      ];
+    });
+    const orderCustom = {
+      ...((cur.custom_fields as Record<string, unknown>) ?? {}),
+      ...customValues(orderFields, d.custom, "Đơn hàng: "),
+    };
+    const billed = [...curShips.values()].some((r) => r.receivable_id);
+    const payer = d.payerCustomerId ?? d.customerId;
+    if (billed && (d.customerId !== cur.customer_id || payer !== cur.payer_customer_id || (d.companyEntityId ?? null) !== cur.company_entity_id)) {
+      throw new ActionError("Đơn đã có chuyến lập công nợ: không đổi khách hàng, khách thanh toán, đơn vị nội bộ được. Hủy phiếu công nợ trước.");
+    }
+
+    // 2. Phần đầu đơn
+    const header = {
+      customer_id: d.customerId,
+      payer_customer_id: payer,
+      company_entity_id: d.companyEntityId ?? null,
+      order_date: d.orderDate,
+      notes: d.notes?.trim() || null,
+      custom_fields: orderCustom,
+    };
+    const changed =
+      header.customer_id !== cur.customer_id ||
+      header.payer_customer_id !== cur.payer_customer_id ||
+      header.company_entity_id !== cur.company_entity_id ||
+      header.order_date !== cur.order_date ||
+      header.notes !== (cur.notes ?? null) ||
+      JSON.stringify(orderCustom) !== JSON.stringify(cur.custom_fields ?? {});
+    if (changed) {
+      const { data, error } = await supabase.from("transport_orders").update(header).eq("id", d.orderId).select("id");
+      if (error) throw error;
+      if (!data?.length) throw new ActionError("Bạn không có quyền sửa đơn hàng này.");
+    }
+
+    // 3. Từng chuyến đã có: lỗi giữa chừng báo rõ chuyến nào đã lưu
+    const saved: string[] = [];
+    const fail = (code: string, e: unknown): never => {
+      const msg = toUserMessage(e);
+      throw new ActionError(`Chuyến ${code}: ${msg}${saved.length || changed ? ` (đã lưu ${[changed ? "phần đầu đơn" : "", ...saved].filter(Boolean).join(", ")})` : ""}`);
+    };
+    let cancelled = 0;
+    const dayOrders: { shipmentId: string; order: number | null }[] = [];
+    for (const plan of plans) {
+      const { s, c } = plan;
+      try {
+        if (plan.cancel) {
+          const { error } = await supabase.rpc("cancel_shipment", {
+            p_shipment_id: c.id,
+            p_reason: s.cancelReason,
+          });
+          if (error) throw error;
+          cancelled++;
+          saved.push(c.shipment_code);
+          continue;
+        }
+        const patch: Record<string, unknown> = {
+          pickup_at: new Date(s.pickupAt).toISOString(),
+          expected_delivery_at: s.expectedDeliveryAt ? new Date(s.expectedDeliveryAt).toISOString() : null,
+          pickup_location_id: s.pickupLocationId,
+          delivery_location_id: s.deliveryLocationId,
+          vehicle_type_id: s.vehicleTypeId ?? null,
+          notes: s.notes?.trim() || null,
+          custom_fields: plan.custom,
+        };
+        const routeChanged = s.pickupLocationId !== c.pickup_location_id || s.deliveryLocationId !== c.delivery_location_id;
+        if (!c.receivable_id) {
+          Object.assign(patch, await pricePatch(supabase, d.customerId, s, c));
+        } else if (routeChanged) {
+          const { data: r } = await supabase
+            .from("routes")
+            .select("id")
+            .eq("pickup_location_id", s.pickupLocationId)
+            .eq("delivery_location_id", s.deliveryLocationId)
+            .eq("is_active", true)
+            .maybeSingle();
+          patch.route_id = r?.id ?? null;
+        }
+        const { data, error } = await supabase.from("shipments").update(patch).eq("id", c.id).eq("version", c.version).select("id");
+        if (error) throw error;
+        if (!data?.length) throw new ActionError("vừa được người khác sửa. Tải lại trang rồi thử lại.");
+        if (plan.items) {
+          const it = await supabase.rpc("set_shipment_items", {
+            p_shipment_id: c.id,
+            p_items: plan.items,
+          });
+          if (it.error) throw it.error;
+        }
+        if (plan.fees) {
+          const fe = await supabase.rpc("set_shipment_fees", {
+            p_shipment_id: c.id,
+            p_fees: plan.fees,
+          });
+          if (fe.error) throw fe.error;
+        }
+        if (plan.assignChanged) {
+          const { error: ae } = await supabase.rpc("assign_shipment", {
+            p_shipment_id: c.id,
+            p_driver_id: s.driverId ?? null,
+            p_vehicle_id: s.vehicleId ?? null,
+          });
+          if (ae) throw ae;
+        }
+        if (s.vehicleDayOrder !== undefined)
+          dayOrders.push({
+            shipmentId: c.id,
+            order: s.vehicleId ? s.vehicleDayOrder : null,
+          });
+        saved.push(c.shipment_code);
+      } catch (e) {
+        fail(c.shipment_code, e);
+      }
+    }
+
+    // 4. Chuyến mới thêm khi sửa đơn
+    let warning: string | undefined;
+    if (fresh.length) {
+      const list = fresh.map((x) => ({
+        ...x.s,
+        pricingUnit: x.s.pricingUnit === "other" ? undefined : x.s.pricingUnit,
+      }));
+      const created = await insertShipments(supabase, { id: d.orderId }, list, shipFields, itemFields, (j) => label(fresh[j].i));
+      warning = created.itemsError;
+      fresh.forEach((x, j) => {
+        if (x.s.vehicleDayOrder && created.shipments[j])
+          dayOrders.push({
+            shipmentId: created.shipments[j].id,
+            order: x.s.vehicleDayOrder,
+          });
+      });
+    }
+    await setDayOrders(supabase, [...(d.otherOrders ?? []), ...dayOrders]);
+
+    revalidatePath(`/dieu-phoi/don-hang/${d.orderId}`);
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    return { created: fresh.length, cancelled, warning };
+  });
+}
+
+/** Giá của chuyến khi sửa: giữ giá đang lưu (sửa tay) hoặc tìm lại theo bảng giá giống lúc tạo chuyến */
+async function pricePatch(supabase: Sb, customerId: string, s: z.infer<typeof editShipmentSchema>, c: CurShipment): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { quantity: s.quantity ?? 1 };
+  const routeChanged = s.pickupLocationId !== c.pickup_location_id || s.deliveryLocationId !== c.delivery_location_id;
+  if (s.priceMode !== "quote") {
+    Object.assign(out, {
+      unit_price: s.unitPrice ?? 0,
+      pricing_unit: s.pricingUnit ?? "trip",
+      surcharge_amount: s.surchargeAmount ?? 0,
+      fuel_support_rate: s.fuelSupportRate ?? null,
+    });
+    if (s.fuelSupportRate === undefined)
+      Object.assign(out, {
+        fuel_support_base: null,
+        fuel_support_amount: 0,
+        fuel_support_rule_id: null,
+      });
+    else if (!c.fuel_support_base) out.fuel_support_base = "freight_revenue";
+    if (routeChanged) {
+      const { data: r } = await supabase
+        .from("routes")
+        .select("id")
+        .eq("pickup_location_id", s.pickupLocationId)
+        .eq("delivery_location_id", s.deliveryLocationId)
+        .eq("is_active", true)
+        .maybeSingle();
+      out.route_id = r?.id ?? null;
+    }
+    return out;
+  }
+  const day = new Date(s.pickupAt).toLocaleDateString("sv-SE", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  });
+  const { data, error } = await supabase.rpc("quote_shipment", {
+    p_customer_id: customerId,
+    p_pickup: s.pickupLocationId,
+    p_delivery: s.deliveryLocationId,
+    p_vehicle_type: s.vehicleTypeId ?? null,
+    p_on: day,
+  });
+  if (error) throw error;
+  const q = data as QuoteResult;
+  const top = q.candidates[0];
+  const tied = top ? q.candidates.filter((x) => x.specificity === top.specificity && x.priority === top.priority).length > 1 : false;
+  let pl = s.priceListId ? q.candidates.find((x) => x.id === s.priceListId) : undefined;
+  if (s.priceListId && !pl) throw new ActionError("bảng giá đã chọn không áp dụng cho chuyến này, chọn lại bảng giá.");
+  if (!pl && top) {
+    if (tied) throw new ActionError("có nhiều bảng giá ngang nhau, vui lòng chọn một bảng giá.");
+    pl = top;
+  }
+  Object.assign(out, {
+    route_id: q.route?.id ?? null,
+    price_list_id: pl?.id ?? null,
+    unit_price: pl ? pl.unit_price : (s.unitPrice ?? 0),
+    pricing_unit: pl ? pl.pricing_unit : (s.pricingUnit ?? "trip"),
+    surcharge_amount: s.surchargeAmount ?? pl?.surcharge_amount ?? 0,
+  });
+  let fuelSource = "none";
+  if (s.fuelSupportRate !== undefined || pl?.fuel_support_rate != null) {
+    fuelSource = s.fuelSupportRate !== undefined ? "manual" : "price_list";
+    Object.assign(out, {
+      fuel_support_rate: s.fuelSupportRate ?? pl?.fuel_support_rate,
+      fuel_support_base: "freight_revenue",
+      fuel_support_rule_id: null,
+    });
+  } else if (q.fuel_rule) {
+    fuelSource = `rule:${q.fuel_rule.scope_type}`;
+    Object.assign(out, {
+      fuel_support_rate: q.fuel_rule.rate_percent,
+      fuel_support_base: q.fuel_rule.calculation_base,
+      fuel_support_rule_id: q.fuel_rule.id,
+    });
+    // Định mức dầu / công thức: giữ số tiền đã tính trước đó (CSDL chỉ tự tính lại các cơ sở theo giá)
+  } else {
+    Object.assign(out, {
+      fuel_support_rate: null,
+      fuel_support_base: null,
+      fuel_support_amount: 0,
+      fuel_support_rule_id: null,
+    });
+  }
+  out.pricing_snapshot = {
+    ...(c.pricing_snapshot ?? {}),
+    quoted_at: new Date().toISOString(),
+    price_source: pl ? "price_list" : s.unitPrice === undefined ? "pending" : "manual",
+    price_list_code: pl?.code ?? null,
+    price_specificity: pl?.specificity ?? null,
+    price_priority: pl?.priority ?? null,
+    route_name: q.route?.name ?? null,
+    route_distance_km: q.route?.distance_km ?? null,
+    fuel_source: fuelSource,
+    fuel_rate: out.fuel_support_rate ?? null,
+    fuel_base: out.fuel_support_base ?? null,
+    edited_from_order_form: true,
+  };
+  return out;
+}
+
+const cancelOrderSchema = z.object({
+  orderId: uuid,
+  reason: z.string().trim().min(3, "Vui lòng nhập lý do hủy đơn hàng").max(500),
+});
 
 /** Hủy cả đơn hàng tạo sai: hủy mọi chuyến chưa hoàn thành, không xóa dữ liệu */
 export async function cancelOrder(input: z.input<typeof cancelOrderSchema>): Promise<ActionResult<number>> {
@@ -485,7 +953,10 @@ export async function cancelOrder(input: z.input<typeof cancelOrderSchema>): Pro
     const p = cancelOrderSchema.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("cancel_transport_order", { p_order_id: p.data.orderId, p_reason: p.data.reason });
+    const { data, error } = await supabase.rpc("cancel_transport_order", {
+      p_order_id: p.data.orderId,
+      p_reason: p.data.reason,
+    });
     if (error) throw error;
     revalidatePath("/dieu-phoi", "layout");
     revalidatePath("/chuyen-xe", "layout");
@@ -501,30 +972,41 @@ const tripDecisionSchema = z.object({
 
 /** Giám đốc duyệt / từ chối một hoặc nhiều chuyến (từ chối bắt buộc lý do) */
 export async function decideTrips(input: z.input<typeof tripDecisionSchema>): Promise<ActionResult<{ done: number; failed: string[] }>> {
-  return runAction(async () => {
-    // Giám đốc hoặc người được ủy quyền duyệt hộ (thường là điều phối); CSDL kiểm tra lại quyền từng chuyến
-    await requirePermission("approvals.approve", "dispatch.view");
-    const p = tripDecisionSchema.safeParse(input);
-    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
-    const d = p.data;
-    if (d.action === "reject" && !d.comment?.trim()) throw new ActionError("Nhập lý do từ chối");
-    const supabase = await createClient();
-    let done = 0;
-    const failed: string[] = [];
-    for (const id of d.requestIds) {
-      const { error } = await supabase.rpc("approval_decide", { p_request_id: id, p_action: d.action, p_comment: d.comment?.trim() || null, p_amount: null });
-      if (error) failed.push(toUserMessage(error));
-      else done++;
-    }
-    if (done === 0 && failed.length) throw new ActionError(failed[0]);
-    revalidatePath("/dieu-phoi", "layout");
-    revalidatePath("/chuyen-xe", "layout");
-    revalidatePath("/phe-duyet");
-    return { done, failed };
-  }, input.action === "approve" ? "Đã duyệt chuyến, tài xế đã thấy chuyến." : "Đã từ chối chuyến.");
+  return runAction(
+    async () => {
+      // Giám đốc hoặc người được ủy quyền duyệt hộ (thường là điều phối); CSDL kiểm tra lại quyền từng chuyến
+      await requirePermission("approvals.approve", "dispatch.view");
+      const p = tripDecisionSchema.safeParse(input);
+      if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+      const d = p.data;
+      if (d.action === "reject" && !d.comment?.trim()) throw new ActionError("Nhập lý do từ chối");
+      const supabase = await createClient();
+      let done = 0;
+      const failed: string[] = [];
+      for (const id of d.requestIds) {
+        const { error } = await supabase.rpc("approval_decide", {
+          p_request_id: id,
+          p_action: d.action,
+          p_comment: d.comment?.trim() || null,
+          p_amount: null,
+        });
+        if (error) failed.push(toUserMessage(error));
+        else done++;
+      }
+      if (done === 0 && failed.length) throw new ActionError(failed[0]);
+      revalidatePath("/dieu-phoi", "layout");
+      revalidatePath("/chuyen-xe", "layout");
+      revalidatePath("/phe-duyet");
+      return { done, failed };
+    },
+    input.action === "approve" ? "Đã duyệt chuyến, tài xế đã thấy chuyến." : "Đã từ chối chuyến.",
+  );
 }
 
-const resubmitSchema = z.object({ shipmentId: uuid, note: z.string().max(500, "Tối đa 500 ký tự").optional() });
+const resubmitSchema = z.object({
+  shipmentId: uuid,
+  note: z.string().max(500, "Tối đa 500 ký tự").optional(),
+});
 
 /** Điều phối gửi duyệt lại chuyến bị Giám đốc từ chối */
 export async function resubmitTrip(input: z.input<typeof resubmitSchema>): Promise<ActionResult> {
@@ -533,7 +1015,10 @@ export async function resubmitTrip(input: z.input<typeof resubmitSchema>): Promi
     const p = resubmitSchema.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
-    const { error } = await supabase.rpc("resubmit_trip_approval", { p_shipment_id: p.data.shipmentId, p_note: p.data.note?.trim() || null });
+    const { error } = await supabase.rpc("resubmit_trip_approval", {
+      p_shipment_id: p.data.shipmentId,
+      p_note: p.data.note?.trim() || null,
+    });
     if (error) throw error;
     revalidatePath("/dieu-phoi", "layout");
     revalidatePath("/chuyen-xe", "layout");
@@ -544,7 +1029,11 @@ export async function resubmitTrip(input: z.input<typeof resubmitSchema>): Promi
 const delegationSchema = z.object({
   delegateId: uuid,
   /** Ngày hết hạn (YYYY-MM-DD, hết ngày theo giờ Việt Nam); để trống = đến khi thu hồi */
-  endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày hết hạn không hợp lệ").optional().or(z.literal("").transform(() => undefined)),
+  endsOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày hết hạn không hợp lệ")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   note: z.string().max(500, "Ghi chú tối đa 500 ký tự").optional(),
 });
 
@@ -571,7 +1060,9 @@ export async function revokeTripDelegation(id: string): Promise<ActionResult> {
   return runAction(async () => {
     await requirePermission();
     const supabase = await createClient();
-    const { error } = await supabase.rpc("revoke_trip_delegation", { p_id: uuid.parse(id) });
+    const { error } = await supabase.rpc("revoke_trip_delegation", {
+      p_id: uuid.parse(id),
+    });
     if (error) throw error;
     revalidatePath("/phe-duyet");
     revalidatePath("/dieu-phoi", "layout");

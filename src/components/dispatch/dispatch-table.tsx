@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES } from "@/lib/status";
@@ -7,9 +8,7 @@ import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
 import { CancelDialog } from "./cancel-dialog";
-import { EditShipmentDialog } from "@/app/(app)/chuyen-xe/[id]/edit-shipment-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
-
 
 /** Bảng chuyến cho màn hình điều phối và chi tiết đơn hàng */
 export function DispatchTable({
@@ -129,7 +128,13 @@ export function DispatchTable({
                         pickupAt={r.pickup_at}
                       />
                     ) : null}
-                    {canAssign && !LOCKED_STATUSES.includes(r.status) ? <EditShipmentDialog compact s={r} /> : null}
+                    {canAssign && !LOCKED_STATUSES.includes(r.status) ? (
+                      <Button asChild variant="ghost" size="sm" className="h-7 px-2" title={`Sửa toàn bộ đơn ${r.order_code}, mở tới chuyến ${r.shipment_code}`}>
+                        <Link href={`/dieu-phoi/don-hang/${r.order_id}/sua#chuyen-${r.shipment_code}`}>
+                          <Pencil /> Sửa
+                        </Link>
+                      </Button>
+                    ) : null}
                     {canCancel && CANCELLABLE_STATUSES.includes(r.status) ? <CancelDialog compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
                   </div>
                 </td>

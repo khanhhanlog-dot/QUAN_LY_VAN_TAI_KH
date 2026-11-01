@@ -1,4 +1,4 @@
-// Kiểm thử giao diện: sửa phần đầu đơn hàng (khách thanh toán, ghi chú) và sửa giá chuyến đã đóng.
+// Kiểm thử giao diện: sửa toàn bộ đơn hàng (form tạo đơn ở chế độ sửa: khách thanh toán, ghi chú) và sửa giá chuyến đã đóng.
 import { execFileSync } from "node:child_process";
 import { BASE, asUser, check, desktop, finish, shot, visible } from "./e2e-lib.mjs";
 
@@ -12,15 +12,15 @@ for (const st of ["accepted", "in_transit", "driver_completed", "closed"]) sql(`
 
 await asUser("dieuphoi@khanhha.test", desktop, async (page) => {
   await page.goto(`${BASE}/dieu-phoi/don-hang/${oid}`);
-  await page.getByRole("button", { name: "Sửa đơn hàng" }).click();
-  const d = page.getByRole("dialog");
-  await d.locator("#eo-payer").click();
+  await page.getByRole("link", { name: "Sửa toàn bộ đơn" }).click();
+  await page.waitForURL(/\/sua$/);
+  await page.locator("#order-payer").click();
   await page.getByPlaceholder("Gõ để tìm…").fill("Mẫu B");
   await page.getByRole("option", { name: /Công ty Mẫu B/ }).click();
-  await d.getByLabel("Ghi chú").fill("Sửa khách thanh toán do nhập sai");
+  await page.locator("#order-notes").fill("Sửa khách thanh toán do nhập sai");
   await shot(page, "eo-01-sua-don");
-  await d.getByRole("button", { name: "Lưu đơn hàng" }).click();
-  check(await toast(page, "Đã lưu thay đổi của đơn hàng"), "Lưu sửa đơn hàng");
+  await page.getByRole("button", { name: /Lưu thay đổi đơn/ }).click();
+  check(await toast(page, "Đã lưu đơn"), "Lưu sửa toàn bộ đơn hàng");
   check(sql(`select c.name || '|' || o.notes from public.transport_orders o join public.customers c on c.id = o.payer_customer_id where o.id = '${oid}'`) === "Công ty Mẫu B|Sửa khách thanh toán do nhập sai",
     "Đơn hàng đổi khách thanh toán và ghi chú");
   check(await visible(page.getByText("Sửa khách thanh toán do nhập sai")), "Trang đơn hiện ghi chú mới");
