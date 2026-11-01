@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Loader2, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FeesEditor, feesPayload, newFee, type FeeKind, type FeeLine } from "@/app/(app)/dieu-phoi/tao-don/fees-editor";
+import { FeesEditor, feesPayload, newFee, numText, type FeeKind, type FeeLine } from "@/app/(app)/dieu-phoi/tao-don/fees-editor";
 import { saveShipmentFees } from "@/app/(app)/dieu-phoi/actions";
 import { formatNumber } from "@/lib/format";
 
@@ -16,6 +16,9 @@ export type ShipmentFee = {
   amount: number;
   note: string | null;
   declaration_type_id: string | null;
+  ref_no: string | null;
+  quantity: number | null;
+  unit_price: number | null;
   declaration: { name: string } | null;
   fee_type: { name: string; sort_order: number; fee_group: { id: string; name: string; report_role: string; sort_order: number } | null } | null;
 };
@@ -43,6 +46,9 @@ export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; cod
                 note: f.note ?? "",
                 declaration_type_id: f.declaration_type_id ?? "",
                 declaration_label: f.declaration?.name ?? "",
+                ref_no: f.ref_no ?? "",
+                quantity: numText(f.quantity),
+                unit_price: numText(f.unit_price),
               }),
             ),
           );

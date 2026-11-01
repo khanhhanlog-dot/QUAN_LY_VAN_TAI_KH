@@ -14,10 +14,11 @@ import { VehicleDayConflict, type VehicleDayState } from "@/components/dispatch/
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
-import { PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
+import { FORM_SYSTEM_FIELDS, PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
 import { ItemsEditor, itemsPayload, newItem, type ItemLine } from "./items-editor";
 import { FeesEditor, feeTotals, feesPayload, newFee, useFeeCatalog, type FeeLine } from "./fees-editor";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
+import { parseNumberVN } from "@/lib/entities/record";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, customerDefaultPayer, quoteShipment, updateOrderFull, vehicleDefaultDriver, type QuoteResult } from "../actions";
 import { shipmentStatus } from "@/lib/status";
@@ -183,6 +184,17 @@ const rowFromShipment = (s: EditShipmentInit, generalKeys: string[], priceKeys: 
 const startIso = (v: string) => (v ? `${v.slice(0, 10)}T00:00:00+07:00` : "");
 const endIso = (v: string) => (v ? `${v.slice(0, 10)}T23:59:59+07:00` : "");
 const num = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
+/** Số tiền gõ kiểu "1,500,000" (phẩy ngăn cách nghìn); sai định dạng thì NaN để máy chủ báo lỗi */
+/** Gửi máy chủ: số hợp lệ gửi số, gõ sai gửi nguyên chuỗi để máy chủ báo "không hợp lệ" */
+const moneyOut = (v: string) => {
+  const n = money(v);
+  return n !== undefined && Number.isNaN(n) ? v : n;
+};
+const GENERAL_SYSTEM_KEYS = FORM_SYSTEM_FIELDS.shipments.map((f) => f.key).filter((k) => !PRICE_SYSTEM_KEYS.includes(k));
+const money = (v: string) => {
+  const n = parseNumberVN(v, true);
+  return n === null ? undefined : n;
+};
 
 export function OrderForm({
   order,
@@ -277,10 +289,10 @@ export function OrderForm({
     vehicleId: s.vehicleId,
     driverId: s.driverId,
     priceListId: s.priceListId,
-    unitPrice: num(s.unitPrice),
+    unitPrice: moneyOut(s.unitPrice),
     pricingUnit: s.pricingUnit,
     quantity: num(s.quantity),
-    surchargeAmount: num(s.surchargeAmount),
+    surchargeAmount: moneyOut(s.surchargeAmount),
     fuelSupportRate: num(s.fuelSupportRate),
     notes: s.notes,
     custom: { ...s.custom, ...s.customPrice },
@@ -590,9 +602,9 @@ function ShipmentEditor({
 
   // Xem trước số tiền (máy chủ tính lại khi lưu)
   const qty = num(row.quantity) ?? 1;
-  const unitPrice = chosen ? chosen.unit_price : (num(row.unitPrice) ?? 0);
+  const unitPrice = chosen ? chosen.unit_price : (money(row.unitPrice) || 0);
   const unit = chosen ? chosen.pricing_unit : row.pricingUnit;
-  const surcharge = num(row.surchargeAmount) ?? (chosen ? chosen.surcharge_amount : 0);
+  const surcharge = money(row.surchargeAmount) ?? (chosen ? chosen.surcharge_amount : 0);
   const freight = Math.round(unitPrice * qty);
   const rule = shownQuote?.fuel_rule;
   const manualRate = num(row.fuelSupportRate);
@@ -626,7 +638,19 @@ function ShipmentEditor({
   const priceReady = keep || (quoteReady && Boolean(chosen || manual));
   const manualInputs = keep || manual;
   // Ô hệ thống của khung Giá chưa có trong thứ tự đã lưu thì đứng trước trường bổ sung
-  const priceOrder = [...PRICE_SYSTEM_KEYS.filter((k) => !shipmentLayout.includes(k)), ...shipmentLayout];
+  const priceOrder = shipmentLayout.filter((k) => !PRICE_SYSTEM_KEYS.includes(k));
+  // "Tính theo" nằm cạnh trường "Loại hình vận chuyển" (nếu có), không thì theo thứ tự đã sắp
+  const serviceKind = generalFields.find((f) => /lo[aạ]i\s*h[iì]nh/i.test(f.label))?.key;
+  const generalOrder = (() => {
+    const base = (shipmentLayout.length ? shipmentLayout : [...GENERAL_SYSTEM_KEYS, ...generalFields.map((f) => f.key)]).filter((k) => k !== "pricing_unit");
+    // "Tính theo" đứng ngay sau "Loại hình vận chuyển"; chưa có trường đó thì đứng sau Số lượng
+    const at = base.indexOf(serviceKind && base.includes(serviceKind) ? serviceKind : "quantity");
+    base.splice(at < 0 ? base.length : at + 1, 0, "pricing_unit");
+    return base;
+  })();
+  const fuelLabel = rate !== null ? `${formatNumber(rate)}%` : "% dầu";
+  const freightFormula = `Đơn giá${qty !== 1 ? ` × ${formatNumber(qty)}` : ""} × (1 + ${fuelLabel})${surcharge ? " + phụ phí bảng giá" : ""}`;
+  const transportTotal = !priceReady ? 0 : fuel === null ? null : freight + surcharge + fuel + fees.byRole.freight;
   const priceContext = {
     unit_price: unitPrice,
     quantity: qty,
@@ -702,7 +726,8 @@ function ShipmentEditor({
           idPrefix={`s${row.key}-cf-`}
           initial={row.custom}
           onChange={(custom) => onChange({ custom })}
-          order={shipmentLayout}
+          order={generalOrder}
+          className="gap-x-2 gap-y-2 sm:grid-cols-3 lg:grid-cols-6 [&_label]:text-xs [&>div]:space-y-1"
           context={{
             ...row.customPrice,
             unit_price: unitPrice,
@@ -745,19 +770,19 @@ function ShipmentEditor({
               </div>
             ),
             pickup_location_id: (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("pickup")}>Điểm nhận *</Label>
                 <ReferenceSelect id={id("pickup")} refKey="locations" value={row.pickupLocationId} onChange={(v) => routeChange({ pickupLocationId: v, priceListId: "" })} />
               </div>
             ),
             delivery_location_id: (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("delivery")}>Điểm giao *</Label>
                 <ReferenceSelect id={id("delivery")} refKey="locations" value={row.deliveryLocationId} onChange={(v) => routeChange({ deliveryLocationId: v, priceListId: "" })} />
               </div>
             ),
             vehicle_id: (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("vehicle")}>Xe (có thể chọn sau)</Label>
                 <ReferenceSelect
                   id={id("vehicle")}
@@ -792,7 +817,7 @@ function ShipmentEditor({
               </div>
             ),
             driver_id: (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
                 <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} disabled={!canAssign} onChange={(v) => onChange({ driverId: v })} />
                 {row.orig && row.driverId !== row.orig.driverId && row.driverId ? (
@@ -800,8 +825,34 @@ function ShipmentEditor({
                 ) : null}
               </div>
             ),
+            pricing_unit: (
+              <div className="space-y-1">
+                <Label htmlFor={id("unit")}>Tính theo</Label>
+                {manualInputs ? (
+                  <NativeSelect
+                    id={id("unit")}
+                    value={row.pricingUnit}
+                    disabled={row.billed}
+                    onChange={(e) =>
+                      onChange({
+                        pricingUnit: e.target.value as Row["pricingUnit"],
+                      })
+                    }
+                  >
+                    <option value="trip">Chuyến</option>
+                    <option value="km">Km</option>
+                    <option value="ton">Tấn</option>
+                    {row.pricingUnit === "other" ? <option value="other">Khác</option> : null}
+                  </NativeSelect>
+                ) : (
+                  <div id={id("unit")} className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm" title="Theo bảng giá">
+                    {PRICING_UNITS[unit] ?? chosen?.pricing_unit_label ?? unit}
+                  </div>
+                )}
+              </div>
+            ),
             notes: (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("notes")}>Ghi chú cho tài xế</Label>
                 <Input id={id("notes")} value={row.notes} onChange={(e) => onChange({ notes: e.target.value })} maxLength={1000} />
               </div>
@@ -890,115 +941,91 @@ function ShipmentEditor({
               ) : null}
             </div>
           ) : null}
-          <CustomFieldsEditor
-            fields={priceFields}
-            idPrefix={`s${row.key}-pf-`}
-            initial={row.customPrice}
-            onChange={(customPrice) => onChange({ customPrice })}
-            order={priceOrder}
-            context={{ ...row.custom, ...priceContext }}
-            slots={{
-              unit_price: manualInputs ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor={id("price")}>Đơn giá (đ)</Label>
-                  <Input
-                    id={id("price")}
-                    type="number"
-                    min="0"
-                    step="1000"
-                    placeholder="Để trống nếu tính giá sau"
-                    value={row.unitPrice}
-                    onChange={(e) => onChange({ unitPrice: e.target.value })}
-                  />
-                  {!row.unitPrice ? <p className="text-xs text-muted-foreground">Chuyến sẽ ghi “Chưa có giá”; nhập sau ở bảng Quản lý chuyến xe hoặc chi tiết chuyến.</p> : null}
-                </div>
-              ) : null,
-              pricing_unit: manualInputs ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor={id("unit")}>Tính theo</Label>
-                  <NativeSelect
-                    id={id("unit")}
-                    value={row.pricingUnit}
-                    onChange={(e) =>
-                      onChange({
-                        pricingUnit: e.target.value as Row["pricingUnit"],
-                      })
-                    }
-                  >
-                    <option value="trip">Chuyến</option>
-                    <option value="km">Km</option>
-                    <option value="ton">Tấn</option>
-                    {row.pricingUnit === "other" ? <option value="other">Khác</option> : null}
-                  </NativeSelect>
-                </div>
-              ) : null,
-              surcharge_amount: quoteReady ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor={id("surcharge")}>Phụ phí (đ)</Label>
-                  <Input
-                    id={id("surcharge")}
-                    type="number"
-                    min="0"
-                    step="1000"
-                    placeholder={chosen?.surcharge_amount ? String(chosen.surcharge_amount) : "0"}
-                    value={row.surchargeAmount}
-                    onChange={(e) => onChange({ surchargeAmount: e.target.value })}
-                  />
-                </div>
-              ) : null,
-              fuel_support_rate: quoteReady ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor={id("fuel")}>Tỷ lệ hỗ trợ dầu (%)</Label>
-                  <Input
-                    id={id("fuel")}
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    placeholder={chosen?.fuel_support_rate != null ? String(chosen.fuel_support_rate) : rule?.rate_percent != null ? String(rule.rate_percent) : "Không có"}
-                    value={row.fuelSupportRate}
-                    onChange={(e) => onChange({ fuelSupportRate: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Bỏ trống để dùng tỷ lệ tự động
-                    {rateSource && manualRate === undefined ? ` (${rateSource})` : ""}.
-                  </p>
-                </div>
-              ) : null,
-            }}
-          />
+          {priceFields.length ? (
+            <CustomFieldsEditor
+              fields={priceFields}
+              idPrefix={`s${row.key}-pf-`}
+              initial={row.customPrice}
+              onChange={(customPrice) => onChange({ customPrice })}
+              order={priceOrder}
+              context={{ ...row.custom, ...priceContext }}
+            />
+          ) : null}
           <FeesEditor
             value={row.fees}
             onChange={(fees) => onChange({ fees })}
             idPrefix={`s${row.key}-fee-`}
             freightBase={priceReady ? (fuel === null ? null : freight + surcharge + fuel) : 0}
+            freightLabel={freightFormula}
+            freightHead={
+              <>
+                <FreightRow label="Đơn giá (đ)" htmlFor={id("price")}>
+                  {manualInputs ? (
+                    <Input
+                      id={id("price")}
+                      inputMode="numeric"
+                      className="h-8 text-right tabular-nums"
+                      placeholder="Chưa có giá"
+                      value={row.unitPrice}
+                      onChange={(e) => onChange({ unitPrice: e.target.value })}
+                      onBlur={(e) => {
+                        const n = money(e.target.value);
+                        if (n !== null && !Number.isNaN(n)) onChange({ unitPrice: formatNumber(n) });
+                      }}
+                    />
+                  ) : (
+                    <div id={id("price")} className="flex h-8 items-center justify-end rounded-md border bg-muted/40 px-2 text-sm tabular-nums">
+                      {chosen ? formatNumber(chosen.unit_price) : "—"}
+                    </div>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {!priceReady
+                      ? "Chọn tuyến, ngày nhận để tìm bảng giá"
+                      : `/${PRICING_UNITS[unit] ?? unit}${qty !== 1 ? ` × ${formatNumber(qty)} = ${formatVND(freight)}` : ""}${manualInputs && !row.unitPrice ? " · để trống: chuyến ghi “Chưa có giá”, nhập sau" : ""}`}
+                  </span>
+                </FreightRow>
+                <FreightRow label="Tỷ lệ hỗ trợ dầu (%)" htmlFor={id("fuel")}>
+                  <Input
+                    id={id("fuel")}
+                    inputMode="decimal"
+                    className="h-8 text-right tabular-nums"
+                    disabled={!quoteReady}
+                    placeholder={chosen?.fuel_support_rate != null ? String(chosen.fuel_support_rate) : rule?.rate_percent != null ? String(rule.rate_percent) : "Không có"}
+                    value={row.fuelSupportRate}
+                    onChange={(e) => onChange({ fuelSupportRate: e.target.value })}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {fuel === null ? "Tính theo định mức khi lưu" : `Tiền dầu ${formatVND(fuel)}`}
+                    {rateSource && manualRate === undefined ? ` · tự động (${rateSource}), gõ số để đổi` : ""}
+                  </span>
+                </FreightRow>
+                {surcharge || money(row.surchargeAmount) ? (
+                  <FreightRow label="Phụ phí cố định (bảng giá)" htmlFor={id("surcharge")}>
+                    <Input
+                      id={id("surcharge")}
+                      inputMode="numeric"
+                      className="h-8 text-right tabular-nums"
+                      placeholder={chosen?.surcharge_amount ? formatNumber(chosen.surcharge_amount) : "0"}
+                      value={row.surchargeAmount}
+                      onChange={(e) => onChange({ surchargeAmount: e.target.value })}
+                    />
+                    <span className="text-xs text-muted-foreground">Khoản cộng thêm cố định ghi trong bảng giá của tuyến; gõ 0 để bỏ.</span>
+                  </FreightRow>
+                ) : null}
+              </>
+            }
           />
           {priceReady ? (
-            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-              <Money label={`Cước (${formatNumber(qty)} × ${formatVND(unitPrice)})`} value={freight} />
-              <Money label={rate !== null ? `Hỗ trợ dầu ${formatNumber(rate)}%` : "Hỗ trợ dầu"} value={fuel} note={fuel === null ? "Tính theo định mức khi lưu" : undefined} />
-              {surcharge ? <Money label="Phụ phí (bảng giá)" value={surcharge} /> : null}
-              {fees.byRole.freight ? <Money label="Phụ thu (vé, hạ xa + BOT, neo…)" value={fees.byRole.freight} /> : null}
-              <Money
-                label="Phí vận chuyển"
-                value={fuel === null ? null : freight + surcharge + fuel + fees.byRole.freight}
-                note="Đơn giá × SL × (1 + % dầu) + phụ thu"
-                strong
-              />
-              {fees.byRole.pass_through ? <Money label="Phí chi hộ" value={fees.byRole.pass_through} /> : null}
-              {fees.byRole.declaration ? <Money label="Phí tờ khai" value={fees.byRole.declaration} /> : null}
-              {fees.byRole.loading ? <Money label="Phí bốc xếp" value={fees.byRole.loading} /> : null}
+            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+              <Money label="Tổng phí vận chuyển" value={transportTotal} note="Tính khi lưu" strong />
+              <Money label="Tổng phí chi hộ" value={fees.byRole.pass_through} />
+              <Money label="Tổng phí tờ khai" value={fees.byRole.declaration} />
+              <Money label="Tổng phí bốc xếp" value={fees.byRole.loading} />
               {fees.byRole.other ? <Money label="Phí khác" value={fees.byRole.other} /> : null}
-              <Money label="Doanh thu" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue} note="Không gồm chi hộ, bốc xếp" />
-              <Money label="Khách phải trả" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue + fees.passThrough} strong />
+              <Money label="Khách phải trả" value={transportTotal === null ? null : transportTotal - fees.byRole.freight + fees.revenue + fees.passThrough} note="Tính khi lưu" strong />
             </dl>
           ) : null}
-          {!priceFields.length ? (
-            <p className="text-xs text-muted-foreground">
-              Phụ thu vé, hạ rỗng xa + BOT, neo xe… nhập ở nhóm Phí vận chuyển phía trên. Thêm loại phụ thu mới: Danh mục → Loại phí thu khách (chọn nhóm Phí vận chuyển). Cách tính tiền xem ở Cấu hình → Công thức tính tiền.
-            </p>
-          ) : null}
-          {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm phụ thu / công thức giá" /> : null}
+          {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm trường giá (tiền, %, công thức)" /> : null}
         </fieldset>
       </CardContent>
       {canCreatePriceList ? (
@@ -1012,7 +1039,7 @@ function ShipmentEditor({
             pickup_location_id: row.pickupLocationId || null,
             delivery_location_id: row.deliveryLocationId || null,
             vehicle_type_id: row.vehicleTypeId || null,
-            unit_price: num(row.unitPrice) ?? null,
+            unit_price: money(row.unitPrice) ?? null,
             pricing_unit: row.pricingUnit,
             effective_from: day,
           }}
@@ -1026,12 +1053,22 @@ function ShipmentEditor({
   );
 }
 
+function FreightRow({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-2 items-center gap-1.5 sm:grid-cols-[minmax(0,12rem)_9rem_minmax(0,1fr)]">
+      <label htmlFor={htmlFor} className="col-span-full truncate text-sm font-medium sm:col-span-1">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 function Money({ label, value, note, strong }: { label: string; value: number | null; note?: string; strong?: boolean }) {
   return (
     <div className="rounded-md bg-card px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={strong ? "font-semibold text-primary" : "font-medium"}>{value === null ? note : formatVND(value)}</dd>
-      {value !== null && note ? <dd className="text-[11px] text-muted-foreground">{note}</dd> : null}
     </div>
   );
 }

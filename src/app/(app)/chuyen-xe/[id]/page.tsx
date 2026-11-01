@@ -149,7 +149,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     loadCustomFields(supabase, "expenses"),
     supabase.from("shipment_items").select("line_no, item_code, item_name, quantity, unit, note, custom_fields").eq("shipment_id", id).order("line_no"),
     loadCustomFields(supabase, "shipment_items"),
-    supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
+    supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
   ]);
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
@@ -329,7 +329,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 {g.lines.map((f) => (
                   <Line
                     key={f.line_no}
-                    label={`${f.fee_type?.name ?? "Phí"}${f.declaration?.name ? ` · tờ khai ${f.declaration.name}` : ""}${f.fee_kind === "pass_through" ? " (chi hộ)" : ""}${f.note ? ` (${f.note})` : ""}`}
+                    label={`${f.fee_type?.name ?? "Phí"}${f.declaration?.name ? ` · tờ khai ${f.declaration.name}` : ""}${f.quantity != null && f.unit_price != null ? ` · ${formatNumber(f.quantity)} × ${formatNumber(f.unit_price)}` : ""}${f.ref_no ? ` · số ${f.ref_no}` : ""}${f.fee_kind === "pass_through" ? " (chi hộ)" : ""}${f.note ? ` (${f.note})` : ""}`}
                     value={formatVND(f.amount)}
                   />
                 ))}

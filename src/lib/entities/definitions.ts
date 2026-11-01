@@ -1608,7 +1608,7 @@ export const FORM_SYSTEM_FIELDS: Record<string, { key: string; label: string }[]
     { key: "driver_id", label: "Tài xế" },
     { key: "notes", label: "Ghi chú cho tài xế" },
     { key: "unit_price", label: "Đơn giá (khung Giá)" },
-    { key: "pricing_unit", label: "Tính theo (khung Giá)" },
+    { key: "pricing_unit", label: "Tính theo" },
     { key: "surcharge_amount", label: "Phụ phí (khung Giá)" },
     { key: "fuel_support_rate", label: "Tỷ lệ hỗ trợ dầu (khung Giá)" },
   ],

@@ -77,3 +77,29 @@ select tests.assert((select count(*) from public.fee_types f join public.fee_gro
 select tests.assert(exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipment_list' and column_name = 'transport_fee'),
   'Bảng chuyến có cột Phí vận chuyển');
 \o
+
+-- 0038: số hóa đơn / số chứng từ, số lượng × đơn giá
+\o /dev/null
+select tests.login('00000000-0000-0000-0000-0000000000a2');
+set role authenticated;
+select public.set_shipment_fees((select id from t_sp), jsonb_build_array(
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Phí nâng'), 'amount', 250000, 'ref_no', 'HD-0012'),
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Phí tờ khai theo cont'), 'ref_no', 'CT-77'),
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Bốc xếp bởi 3-PL'), 'quantity', '12', 'unit_price', '15000')));
+select tests.assert((select ref_no from public.shipment_fees f join public.fee_types t on t.id = f.fee_type_id
+  where f.shipment_id = (select id from t_sp) and t.name = 'Phí nâng') = 'HD-0012', 'Lưu số hóa đơn phí chi hộ');
+select tests.assert((select (ref_no, amount) = ('CT-77', 0::numeric) from public.shipment_fees f join public.fee_types t on t.id = f.fee_type_id
+  where f.shipment_id = (select id from t_sp) and t.name = 'Phí tờ khai theo cont'), 'Lưu số chứng từ tờ khai (chưa có phí ghi 0 đ)');
+select tests.assert((select (quantity, unit_price, amount) = (12::numeric, 15000::numeric, 180000::numeric) from public.shipment_fees f join public.fee_types t on t.id = f.fee_type_id
+  where f.shipment_id = (select id from t_sp) and t.name = 'Bốc xếp bởi 3-PL'), 'Bốc xếp: số tiền = số lượng × đơn giá');
+select tests.assert((select pass_through_amount from public.shipments where id = (select id from t_sp)) = 250000 + 180000, 'Tổng chi hộ gồm phí nâng và bốc xếp');
+do $$ begin
+  perform public.set_shipment_fees((select id from t_sp), jsonb_build_array(
+    jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Bốc xếp bởi 3-PL'), 'quantity', '-1', 'unit_price', '15000')));
+  raise exception 'phải lỗi';
+exception when sqlstate '22023' then null;
+end $$;
+select public.set_shipment_fees((select id from t_sp), '[]'::jsonb);
+reset role;
+\o
+\echo 'TẤT CẢ KIỂM THỬ SỐ HÓA ĐƠN, SỐ LƯỢNG × ĐƠN GIÁ ĐỀU ĐẠT'

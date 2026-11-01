@@ -139,6 +139,9 @@ const feeSchema = z.object({
   amount: z.union([z.number(), z.string()]).optional(),
   note: z.string().max(500, "Ghi chú phí tối đa 500 ký tự").optional(),
   declaration_type_id: z.string().max(40).optional(),
+  ref_no: z.string().max(100, "Số hóa đơn / chứng từ tối đa 100 ký tự").optional(),
+  quantity: z.union([z.number(), z.string()]).optional(),
+  unit_price: z.union([z.number(), z.string()]).optional(),
 });
 const feesSchema = z.array(feeSchema).max(100, "Mỗi chuyến tối đa 100 dòng phí");
 
@@ -147,11 +150,18 @@ function feeRows(fees: z.infer<typeof feesSchema>, prefix: string) {
   return fees.map((f, j) => {
     const a = f.amount === undefined || f.amount === "" ? null : parseNumberVN(f.amount, true);
     if (a !== null && (Number.isNaN(a) || a < 0)) throw new ActionError(`${prefix}dòng phí ${j + 1}: số tiền không hợp lệ`);
+    const q = f.quantity === undefined || f.quantity === "" ? null : parseNumberVN(f.quantity);
+    if (q !== null && (Number.isNaN(q) || q < 0)) throw new ActionError(`${prefix}dòng phí ${j + 1}: số lượng không hợp lệ`);
+    const u = f.unit_price === undefined || f.unit_price === "" ? null : parseNumberVN(f.unit_price, true);
+    if (u !== null && (Number.isNaN(u) || u < 0)) throw new ActionError(`${prefix}dòng phí ${j + 1}: đơn giá không hợp lệ`);
     return {
       fee_type_id: f.fee_type_id ?? "",
       amount: a ?? "",
       note: f.note ?? "",
       declaration_type_id: f.declaration_type_id ?? "",
+      ref_no: f.ref_no ?? "",
+      quantity: q ?? "",
+      unit_price: u ?? "",
     };
   });
 }

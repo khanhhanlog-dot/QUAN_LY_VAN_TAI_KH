@@ -54,6 +54,9 @@ type FeeRow = {
   amount: number;
   note: string | null;
   declaration_type_id: string | null;
+  ref_no: string | null;
+  quantity: number | null;
+  unit_price: number | null;
   declaration: { name: string } | null;
   fee_type: { name: string } | null;
 };
@@ -114,7 +117,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     ? await Promise.all([
         sb
           .from("shipment_fees")
-          .select("shipment_id, line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, declaration:declaration_types(name), fee_type:fee_types(name)")
+          .select("shipment_id, line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name)")
           .in("shipment_id", ids)
           .order("line_no"),
         sb.from("shipment_items").select("shipment_id, line_no, item_code, item_name, quantity, unit, note, custom_fields").in("shipment_id", ids).order("line_no"),
@@ -176,6 +179,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         note: f.note ?? "",
         declaration_type_id: f.declaration_type_id ?? "",
         declaration_label: f.declaration?.name ?? "",
+                ref_no: f.ref_no ?? "",
+                quantity: f.quantity == null ? "" : formatNumber(Number(f.quantity)),
+                unit_price: f.unit_price == null ? "" : formatNumber(Number(f.unit_price)),
       })),
   }));
 

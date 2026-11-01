@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,11 @@ export type FeeLine = {
   note: string;
   declaration_type_id: string;
   declaration_label: string;
+  /** Số hóa đơn (chi hộ) hoặc số chứng từ (tờ khai) */
+  ref_no: string;
+  /** Số lượng × đơn giá (tùy chọn, dùng cho bốc xếp) */
+  quantity: string;
+  unit_price: string;
 };
 
 export type FeeGroup = { id: string; name: string; report_role: FeeGroupRole; description: string | null };
@@ -37,15 +42,30 @@ export const newFee = (from?: Partial<FeeLine>): FeeLine => ({
   note: from?.note ?? "",
   declaration_type_id: from?.declaration_type_id ?? "",
   declaration_label: from?.declaration_label ?? "",
+  ref_no: from?.ref_no ?? "",
+  quantity: from?.quantity ?? "",
+  unit_price: from?.unit_price ?? "",
 });
 
-const blank = (l: FeeLine) => !l.amount.trim() && !l.note.trim() && !l.declaration_type_id;
+const blank = (l: FeeLine) =>
+  !l.amount.trim() && !l.note.trim() && !l.declaration_type_id && !l.ref_no.trim() && !l.quantity.trim() && !l.unit_price.trim();
+
+/** Số từ CSDL (numeric) sang chuỗi hiển thị có dấu phẩy ngăn cách nghìn */
+export const numText = (v: number | string | null | undefined) => (v === null || v === undefined || v === "" ? "" : formatNumber(Number(v)));
 
 /** Dữ liệu gửi lên máy chủ: dòng chưa nhập gì bị bỏ qua */
 export const feesPayload = (lines: FeeLine[]) =>
   lines
     .filter((l) => !(blank(l) && !l.fee_type_id))
-    .map((l) => ({ fee_type_id: l.fee_type_id, amount: l.amount, note: l.note, declaration_type_id: l.declaration_type_id }));
+    .map((l) => ({
+      fee_type_id: l.fee_type_id,
+      amount: l.amount,
+      note: l.note,
+      declaration_type_id: l.declaration_type_id,
+      ref_no: l.ref_no,
+      quantity: l.quantity,
+      unit_price: l.unit_price,
+    }));
 
 // Danh mục nhóm phí + loại phí: tải một lần, tải lại khi vừa thêm loại phí mới
 let catalogPromise: Promise<FeeCatalog> | null = null;
@@ -92,6 +112,22 @@ export function feeTotals(lines: FeeLine[], catalog?: FeeCatalog | null) {
   return { revenue, passThrough, freight: byRole.freight, byRole };
 }
 
+// Cột của một dòng phí theo vai trò nhóm (màn hình từ sm trở lên)
+const ROW_COLS: Record<FeeGroupRole, string> = {
+  freight: "sm:grid-cols-[minmax(0,12rem)_9rem_minmax(0,1fr)]",
+  other: "sm:grid-cols-[minmax(0,12rem)_9rem_minmax(0,1fr)]",
+  pass_through: "sm:grid-cols-[minmax(0,10rem)_8.5rem_8.5rem_minmax(0,1fr)]",
+  declaration: "sm:grid-cols-[minmax(0,9rem)_7rem_8.5rem_8rem_minmax(0,1fr)]",
+  loading: "sm:grid-cols-[minmax(0,10rem)_4.5rem_7rem_8.5rem_minmax(0,1fr)]",
+};
+const ROW_HEAD: Record<FeeGroupRole, string[]> = {
+  freight: ["Loại phí", "Số tiền (đ)", "Ghi chú"],
+  other: ["Loại phí", "Số tiền (đ)", "Ghi chú"],
+  pass_through: ["Loại phí", "Số tiền (đ)", "Số hóa đơn", "Ghi chú"],
+  declaration: ["Loại phí", "Loại tờ khai", "Số tiền (đ)", "Số chứng từ", "Ghi chú"],
+  loading: ["Loại phí", "Số lượng", "Đơn giá (đ)", "Số tiền (đ)", "Ghi chú"],
+};
+
 export const FEE_KIND_LABEL: Record<FeeKind, string> = { revenue: "Tính doanh thu", pass_through: "Chi hộ" };
 
 /**
@@ -103,12 +139,18 @@ export function FeesEditor({
   onChange,
   idPrefix,
   freightBase,
+  freightHead,
+  freightLabel,
 }: {
   value: FeeLine[];
   onChange: (lines: FeeLine[]) => void;
   idPrefix: string;
   /** Cước + phụ phí + hỗ trợ dầu của chuyến (để hiện Tổng cước ngay trong nhóm Cước vận chuyển) */
   freightBase?: number | null;
+  /** Ô Đơn giá, % hỗ trợ dầu… đặt ở đầu nhóm Phí vận chuyển */
+  freightHead?: ReactNode;
+  /** Diễn giải phần cước (vd. "Đơn giá × (1 + 39%)") hiện ở dòng tổng nhóm Phí vận chuyển */
+  freightLabel?: string;
 }) {
   const [catalog, reload] = useFeeCatalog();
   const latest = useRef(value);
@@ -133,7 +175,6 @@ export function FeesEditor({
   }
   const fixedKeys = new Set([...fixedLine.values()].map((l) => l.key));
   const freeLines = value.filter((l) => !fixedKeys.has(l.key));
-  const totals = feeTotals(value, catalog);
 
   function setFixed(t: FeeTypeRow, p: Partial<FeeLine>) {
     const cur = latest.current.find((l) => l.key === fixedLine.get(t.id)?.key);
@@ -163,78 +204,149 @@ export function FeesEditor({
     value.reduce((a, l) => (typeById.get(l.fee_type_id)?.fee_group_id === g.id ? a + (parseNumberVN(l.amount, true) ?? 0) : a), 0);
   const firstFreight = groups.find((g) => g.report_role === "freight")?.id;
 
+  const num = (v: string) => parseNumberVN(v, true);
+  const tidy = (t: FeeTypeRow, field: "amount" | "quantity" | "unit_price", v: string) => {
+    const n = num(v);
+    if (fixedLine.get(t.id) && n !== null && !Number.isNaN(n)) setFixed(t, { [field]: formatNumber(n) });
+  };
+  // Bốc xếp: gõ số lượng và đơn giá thì số tiền = số lượng × đơn giá
+  function setQtyPrice(t: FeeTypeRow, p: { quantity?: string; unit_price?: string }) {
+    const cur = fixedLine.get(t.id);
+    const q = num(p.quantity ?? cur?.quantity ?? "");
+    const u = num(p.unit_price ?? cur?.unit_price ?? "");
+    const amount = q !== null && u !== null && !Number.isNaN(q) && !Number.isNaN(u) ? formatNumber(Math.round(q * u)) : undefined;
+    setFixed(t, amount === undefined ? p : { ...p, amount });
+  }
+
   return (
     <div className="space-y-2">
       <div className="text-sm font-medium">
         Phí thu khách theo nhóm{" "}
-        <span className="font-normal text-muted-foreground">· chỉ gõ số tiền vào loại phí có phát sinh, ô để trống không lưu. Nhóm phí, loại phí sửa ở Danh mục.</span>
+        <span className="font-normal text-muted-foreground">· chỉ gõ vào loại phí có phát sinh, ô để trống không lưu. Nhóm phí, loại phí sửa ở Danh mục.</span>
       </div>
       {!catalog ? <p className="text-xs text-muted-foreground">Đang tải danh mục phí…</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 xl:grid-cols-2">
         {groups.map((g) => {
           const gTypes = types.filter((t) => t.fee_group_id === g.id);
           const isFreight = g.id === firstFreight;
+          const role = g.report_role;
+          const cols = ROW_COLS[role];
           const sum = groupSum(g);
           return (
-            <fieldset key={g.id} className="rounded-lg border p-2.5">
+            <fieldset key={g.id} className={cn("rounded-lg border p-2.5", isFreight && "border-primary/40")}>
               <legend className="px-1 text-xs font-semibold text-foreground">{g.name}</legend>
-              {isFreight ? (
-                <p className="mb-1.5 text-xs text-muted-foreground">Cước vận chuyển, phụ phí, phí hỗ trợ dầu lấy ở khung giá phía trên.</p>
+              {isFreight && freightHead ? <div className="mb-1.5 space-y-1.5">{freightHead}</div> : null}
+              {gTypes.length ? (
+                <div className={cn("mb-1 hidden gap-1.5 text-[11px] text-muted-foreground sm:grid", cols)}>
+                  {ROW_HEAD[role].map((h, i) => (
+                    <span key={i} className={i > 0 && h !== "Ghi chú" && h !== "Loại tờ khai" && !h.startsWith("Số ") ? "text-right" : undefined}>
+                      {h}
+                    </span>
+                  ))}
+                </div>
               ) : null}
               <div className="space-y-1.5">
                 {gTypes.map((t) => {
                   const l = fixedLine.get(t.id);
                   const fid = `${idPrefix}${t.id.slice(0, 8)}`;
+                  const moneyInput = (
+                    <Input
+                      id={fid}
+                      inputMode="numeric"
+                      placeholder="Số tiền"
+                      className="h-8 text-right tabular-nums"
+                      value={l?.amount ?? ""}
+                      onChange={(e) => setFixed(t, { amount: e.target.value })}
+                      onBlur={(e) => tidy(t, "amount", e.target.value)}
+                      aria-label={`${t.name}: số tiền`}
+                    />
+                  );
+                  const refInput = (placeholder: string) => (
+                    <Input
+                      className="h-8"
+                      placeholder={placeholder}
+                      maxLength={100}
+                      value={l?.ref_no ?? ""}
+                      onChange={(e) => setFixed(t, { ref_no: e.target.value })}
+                      aria-label={`${t.name}: ${placeholder.toLowerCase()}`}
+                    />
+                  );
+                  const noteInput = (
+                    <Input
+                      className="h-8"
+                      placeholder="Ghi chú"
+                      maxLength={500}
+                      value={l?.note ?? ""}
+                      onChange={(e) => setFixed(t, { note: e.target.value })}
+                      aria-label={`${t.name}: ghi chú`}
+                    />
+                  );
                   return (
-                    <div
-                      key={t.id}
-                      className={cn(
-                        "grid items-center gap-1.5",
-                        g.report_role === "declaration" ? "grid-cols-[minmax(0,1fr)_7rem_7.5rem]" : "grid-cols-[minmax(0,1fr)_8rem]",
-                        g.report_role === "declaration" ? "sm:grid-cols-[minmax(0,11rem)_7.5rem_8rem_minmax(0,1fr)]" : "sm:grid-cols-[minmax(0,11rem)_8rem_minmax(0,1fr)]",
-                      )}
-                    >
-                      <label htmlFor={fid} className="truncate text-sm" title={t.description ?? t.name}>
+                    <div key={t.id} className={cn("grid grid-cols-2 items-center gap-1.5", cols)}>
+                      <label htmlFor={fid} className="col-span-full truncate text-sm sm:col-span-1" title={t.description ?? t.name}>
                         {t.name}
-                        {t.fee_kind === "pass_through" ? <span className="ml-1 text-xs text-muted-foreground">(chi hộ)</span> : null}
                       </label>
-                      {g.report_role === "declaration" ? (
-                        <ReferenceSelect
-                          id={`${fid}-tk`}
-                          refKey="declaration_types"
-                          value={l?.declaration_type_id ?? ""}
-                          initialLabel={l?.declaration_label}
-                          onChange={(id, label) => setFixed(t, { declaration_type_id: id, declaration_label: label })}
-                        />
-                      ) : null}
-                      <Input
-                        id={fid}
-                        inputMode="numeric"
-                        placeholder="0"
-                        className="h-8 text-right tabular-nums"
-                        value={l?.amount ?? ""}
-                        onChange={(e) => setFixed(t, { amount: e.target.value })}
-                        onBlur={(e) => {
-                          const n = parseNumberVN(e.target.value, true);
-                          if (l && n !== null && !Number.isNaN(n)) setFixed(t, { amount: formatNumber(n) });
-                        }}
-                        aria-label={`${t.name}: số tiền`}
-                      />
-                      <Input
-                        className="col-span-full h-8 sm:col-span-1"
-                        placeholder="Ghi chú"
-                        maxLength={500}
-                        value={l?.note ?? ""}
-                        onChange={(e) => setFixed(t, { note: e.target.value })}
-                        aria-label={`${t.name}: ghi chú`}
-                      />
+                      {role === "declaration" ? (
+                        <>
+                          <ReferenceSelect
+                            id={`${fid}-tk`}
+                            refKey="declaration_types"
+                            value={l?.declaration_type_id ?? ""}
+                            initialLabel={l?.declaration_label}
+                            onChange={(id, label) => setFixed(t, { declaration_type_id: id, declaration_label: label })}
+                          />
+                          {moneyInput}
+                          {refInput("Số chứng từ")}
+                          {noteInput}
+                        </>
+                      ) : role === "pass_through" ? (
+                        <>
+                          {moneyInput}
+                          {refInput("Số hóa đơn")}
+                          {noteInput}
+                        </>
+                      ) : role === "loading" ? (
+                        <>
+                          <Input
+                            inputMode="decimal"
+                            placeholder="SL"
+                            className="h-8 text-right tabular-nums"
+                            value={l?.quantity ?? ""}
+                            onChange={(e) => setQtyPrice(t, { quantity: e.target.value })}
+                            onBlur={(e) => tidy(t, "quantity", e.target.value)}
+                            aria-label={`${t.name}: số lượng`}
+                          />
+                          <Input
+                            inputMode="numeric"
+                            placeholder="Đơn giá"
+                            className="h-8 text-right tabular-nums"
+                            value={l?.unit_price ?? ""}
+                            onChange={(e) => setQtyPrice(t, { unit_price: e.target.value })}
+                            onBlur={(e) => tidy(t, "unit_price", e.target.value)}
+                            aria-label={`${t.name}: đơn giá`}
+                          />
+                          {moneyInput}
+                          {noteInput}
+                        </>
+                      ) : (
+                        <>
+                          {moneyInput}
+                          {noteInput}
+                        </>
+                      )}
                     </div>
                   );
                 })}
                 {!gTypes.length ? <p className="text-xs text-muted-foreground">Nhóm chưa có loại phí. Thêm ở Danh mục → Loại phí thu khách.</p> : null}
+                {role === "loading" && gTypes.length ? (
+                  <p className="text-xs text-muted-foreground">Có Số lượng và Đơn giá thì Số tiền tự tính = SL × Đơn giá; không dùng thì gõ thẳng Số tiền.</p>
+                ) : null}
               </div>
-              <div className="mt-2 flex justify-between border-t pt-1.5 text-xs">
-                <span className="text-muted-foreground">{isFreight ? "Tổng cước (cước + phụ phí + dầu + phí nhóm)" : `Cộng ${g.name.toLowerCase()}`}</span>
+              <div className="mt-2 flex items-baseline justify-between gap-2 border-t pt-1.5 text-sm">
+                <span>
+                  <b>{isFreight ? "Tổng phí vận chuyển" : `Tổng ${g.name.charAt(0).toLowerCase()}${g.name.slice(1)}`}</b>
+                  {isFreight && freightLabel ? <span className="ml-1 text-xs text-muted-foreground">= {freightLabel} + các phụ thu trên</span> : null}
+                </span>
                 <b className="tabular-nums">
                   {isFreight ? (freightBase === null ? "Tính khi lưu" : formatVND((freightBase ?? 0) + sum)) : formatVND(sum)}
                 </b>
@@ -304,16 +416,6 @@ export function FeesEditor({
           </div>
         </fieldset>
       </div>
-      {value.length ? (
-        <p className="text-xs text-muted-foreground">
-          Phí tính doanh thu: <b>{formatVND(totals.revenue)}</b>
-          {totals.passThrough ? (
-            <>
-              {" "}· Chi hộ (khách trả lại, không tính doanh thu): <b>{formatVND(totals.passThrough)}</b>
-            </>
-          ) : null}
-        </p>
-      ) : null}
     </div>
   );
 }
