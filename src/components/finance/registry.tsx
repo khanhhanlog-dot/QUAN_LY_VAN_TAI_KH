@@ -4,6 +4,7 @@ import { CreateAdvanceDialog, CreateExpenseDialog, type CreateActionProps } from
 import { CreatePayableDialog, CreatePayrollDialog, CreateReceivableDialog } from "./payroll-debt-dialogs";
 import { AdvanceRowActions, ApprovalRowActions, ExpenseRowActions, type RowActionProps } from "./row-actions";
 import { CreateLeaveDialog, HandoverRowActions, LeaveRowActions } from "@/components/leave/leave-dialogs";
+import { CreateTaskDialog, TaskRowActions } from "@/components/tasks/task-dialogs";
 import { CreatePurchaseRequestDialog, PurchaseRowActions } from "./purchase-dialogs";
 import { BillingRowActions, CarrierRowActions, PayableRowActions, PaymentRowActions, PayrollRowActions, ReceivableRowActions } from "./payroll-debt-actions";
 
@@ -15,6 +16,7 @@ export const CREATE_ACTIONS: Record<string, ComponentType<CreateActionProps>> = 
   receivable: CreateReceivableDialog,
   payable: CreatePayableDialog,
   leave: CreateLeaveDialog,
+  task: CreateTaskDialog,
   purchase_request: CreatePurchaseRequestDialog,
 };
 
@@ -31,6 +33,7 @@ export const ROW_ACTIONS: Record<string, ComponentType<RowActionProps>> = {
   payment: PaymentRowActions,
   leave: LeaveRowActions,
   leave_handover: HandoverRowActions,
+  task: TaskRowActions,
   purchase_request: PurchaseRowActions,
 };
 
@@ -47,5 +50,6 @@ export const ROW_ACTION_WIDTH: Record<string, number> = {
   payment: 150,
   leave: 250,
   leave_handover: 150,
+  task: 230,
   purchase_request: 330,
 };

@@ -16,6 +16,8 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   await requireActiveUser();
   const term = sanitizeSearch((await searchParams).q ?? "");
   const supabase = await createClient();
+  // Báo việc quá hạn (mỗi việc một lần) trước khi đọc thông báo
+  await supabase.rpc("task_overdue_sweep");
   let query = supabase
     .from("notifications")
     .select("id, type, title, body, link, read_at, created_at")

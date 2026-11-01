@@ -279,3 +279,12 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Gửi chữ (Enter gửi, Shift+Enter xuống dòng, link bấm được), gửi kèm ảnh/PDF/Excel/Word ≤ 10 MB (chọn tệp hoặc dán ảnh), thu hồi tin của mình, đếm tin chưa đọc từng cuộc trò chuyện, tin mới hiện ngay (Supabase Realtime).
 - Tìm kiếm: ô tìm ở danh sách tìm theo tên người/nhóm (gõ không dấu được) và nội dung tin nhắn trong mọi cuộc trò chuyện; nút kính lúp tìm trong một cuộc trò chuyện; bấm kết quả mở đúng chỗ tin nhắn.
 - Bảo mật: chỉ thành viên đọc được tin và tệp của phòng (RLS + chính sách Storage thư mục chat/{phòng}/); ghi qua hàm chat_* (security definer). Kiểm thử: supabase/tests/30_chat_tests.sql.
+
+## Giao việc (migration 0044) – 01/11/2026
+- Trang mới /giao-viec "Giao việc" (nhóm menu Nhân sự): thẻ Việc của tôi đang mở / Quá hạn / Chờ tôi xác nhận / Tôi giao, chưa xong; tab Danh sách công việc (tìm kiếm, lọc nâng cao, chọn cột, tab trạng thái) và Kết quả theo người (tổng việc, đang làm, quá hạn, xong đúng/trễ hạn, tỷ lệ đúng hạn).
+- Quyền mới tasks.{view, create, delete, export}: Giám đốc và Admin mặc định có hết (giao việc, xem mọi việc, quản lý việc người khác giao). Nhân viên khác thấy việc mình được giao / mình giao. Cấp thêm quyền Giao việc cho vai trò khác ở Người dùng → Ma trận quyền.
+- Giao việc: tên, nội dung, nhiều người được giao (không gồm tài xế), ưu tiên (Thấp/Bình thường/Cao/Gấp), ngày bắt đầu, hạn ngày + giờ (chọn nhanh Hôm nay/Ngày mai/3 ngày/1 tuần), khách hàng liên quan (thêm nhanh được), trường bổ sung (module tasks).
+- Trang chi tiết /giao-viec/[id]: tiến độ %, kết quả, người được giao kèm Đã xem/Chưa xem, tệp đính kèm (ảnh, PDF, xlsx, docx; ai trong việc cũng tải lên được, không cần quyền Chứng từ), trao đổi + lịch sử thay đổi.
+- Luồng: Chưa bắt đầu → Bắt đầu làm → cập nhật % → Báo hoàn thành (Chờ xác nhận) → người giao Xác nhận (Hoàn thành) hoặc Yêu cầu làm lại (bắt buộc lý do). Người giao sửa/gia hạn/đổi người/hủy (bắt buộc lý do). Tự giao cho mình thì báo xong là hoàn thành.
+- Thông báo: giao việc ([GẤP] nếu gấp), đổi hạn, tiến độ, báo xong, xác nhận, làm lại, hủy, trao đổi; quá hạn báo một lần mỗi việc (quét khi mở trang Giao việc hoặc Thông báo, task_overdue_sweep).
+- Kiểm thử: supabase/tests/31_tasks_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-giao-viec.sql (dòng kiểm tra 24). Việc giao không bị xóa bởi Xóa dữ liệu thử.

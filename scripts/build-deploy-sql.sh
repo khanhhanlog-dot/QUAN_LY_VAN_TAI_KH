@@ -126,3 +126,5 @@ upgrade nang-cap-chi-phi-3pl.sql "Chi phí và thanh toán xe thuê ngoài 3PL (
   supabase/migrations/20261101000042_carrier_costs.sql
 upgrade nang-cap-tro-chuyen.sql "Trò chuyện riêng và nhóm trong ứng dụng" "to_regclass('public.chat_messages') is not null" \
   supabase/migrations/20261101000043_chat.sql
+upgrade nang-cap-giao-viec.sql "Giao việc (Giám đốc giao việc, theo dõi tiến độ, hạn, trao đổi)" "to_regclass('public.tasks') is not null" \
+  supabase/migrations/20261101000044_tasks.sql
