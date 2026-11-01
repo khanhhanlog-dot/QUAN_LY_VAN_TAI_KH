@@ -121,6 +121,10 @@ export type EntityDef = {
   writePerm?: string;
   /** Quyền hiện nút tạo nghiệp vụ (mặc định {perm}.create) */
   createPerm?: string;
+  /** Quyền khác cũng được xem danh sách (RLS vẫn lọc dòng, ví dụ người lập chỉ thấy phiếu của mình) */
+  viewAnyOf?: string[];
+  /** Quyền khác cũng được thêm mới (ví dụ người lập phiếu thêm nhanh loại đề nghị ngay ở ô chọn) */
+  createAnyOf?: string[];
 };
 
 /** Cấu hình hiển thị bảng lưu theo người dùng */

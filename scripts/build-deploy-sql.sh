@@ -118,3 +118,5 @@ upgrade nang-cap-so-hoa-don-phi.sql "Số hóa đơn, số chứng từ, số l�
   supabase/migrations/20261101000038_shipment_fee_ref_qty.sql
 upgrade nang-cap-loi-lo-chuyen.sql "Lời/lỗ từng chuyến, chia chi phí xe theo chuyến trong tháng" "to_regclass('public.shipment_profit') is not null" \
   supabase/migrations/20261101000039_trip_profit.sql
+upgrade nang-cap-de-nghi-chi.sql "Phiếu đề nghị chi, mua sắm (Giám đốc duyệt, Kế toán chi tiền)" "to_regclass('public.purchase_requests') is not null" \
+  supabase/migrations/20261101000040_purchase_requests.sql

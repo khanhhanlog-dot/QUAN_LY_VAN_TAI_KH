@@ -27,7 +27,7 @@ export function DocumentsButton({
   canUpload = false,
   variant = "ghost",
 }: {
-  entityType: "shipment" | "shipment_expense" | "advance_request";
+  entityType: "shipment" | "shipment_expense" | "advance_request" | "purchase_request";
   entityId: string;
   count: number;
   title: string;

@@ -153,7 +153,7 @@ export async function payAdvance(input: z.input<typeof paySchema>): Promise<Acti
 
 export type DocumentItem = { id: string; file_name: string; doc_type: string; mime_type: string; created_at: string; url: string | null };
 
-const DOC_ENTITIES = ["shipment", "shipment_expense", "advance_request"] as const;
+const DOC_ENTITIES = ["shipment", "shipment_expense", "advance_request", "purchase_request"] as const;
 
 /** Chứng từ của một bản ghi, kèm đường dẫn xem tạm thời (10 phút) */
 export async function listDocuments(entityType: string, entityId: string): Promise<ActionResult<DocumentItem[]>> {
@@ -182,7 +182,7 @@ const registerSchema = z.object({
   files: z
     .array(
       z.object({
-        path: z.string().regex(/^(shipment|shipment_expense|advance_request)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp|heic|pdf)$/),
+        path: z.string().regex(/^(shipment|shipment_expense|advance_request|purchase_request)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp|heic|pdf)$/),
         name: z.string().min(1).max(200),
         mime: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"]),
         size: z.number().int().positive().max(10485760),
@@ -218,6 +218,7 @@ export async function registerDocuments(input: z.input<typeof registerSchema>): 
       await supabase.from("shipments").update({ document_status: "submitted" }).eq("id", d.entityId).in("document_status", ["missing", "rejected"]);
       revalidatePath(`/chuyen-xe/${d.entityId}`);
     }
+    if (d.entityType === "purchase_request") revalidatePath("/de-nghi");
     refreshFinance();
   }, "Đã tải chứng từ lên");
 }

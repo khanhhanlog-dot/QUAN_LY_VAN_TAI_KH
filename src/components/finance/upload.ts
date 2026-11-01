@@ -6,7 +6,7 @@ import { registerDocuments } from "@/lib/finance/actions";
 export type StaffFile = { file: File; docType: "photo" | "delivery_note" | "receipt" | "invoice" | "other" };
 
 /** Nhân viên tải chứng từ lên Storage (quyền documents.create kiểm tra trong chính sách Storage) rồi ghi vào bảng chứng từ */
-export async function uploadStaffDocuments(entityType: "shipment" | "shipment_expense" | "advance_request", entityId: string, items: StaffFile[]) {
+export async function uploadStaffDocuments(entityType: "shipment" | "shipment_expense" | "advance_request" | "purchase_request", entityId: string, items: StaffFile[]) {
   const supabase = createClient();
   const files = [];
   for (const it of items) {
