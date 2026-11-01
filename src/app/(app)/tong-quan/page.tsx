@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, BadgeCheck, CalendarDays, CheckCircle2, ChevronRight, Clock, FileWarning,
+  AlertTriangle, ArrowDownRight, ArrowUpRight, BadgeCheck, Ban, CheckCircle2, ChevronRight, Clock, FileWarning,
   Navigation, ShieldAlert, Truck, UserCheck, Wallet,
 } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
@@ -13,24 +13,26 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/bar-chart";
 import { LineChart } from "@/components/charts/line-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
-import { addDaysYMD, formatDate, formatVND, todayVN } from "@/lib/format";
+import { addDaysYMD, formatDate, formatVND, startOfDayVN, todayVN } from "@/lib/format";
+import { bucketOf } from "@/lib/report-period";
+import { bucketForRange, dashFilterQuery, dmy, monthsForTrend, parseDashFilter, previousRange, vnDate } from "@/lib/dashboard-filter";
+import { DashboardFilterBar } from "./filter-bar";
 import { SHIPMENT_STATUS, shipmentStatus } from "@/lib/status";
 import { TONE_BADGE, toneVar, type Tone } from "@/lib/tones";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Tổng quan" };
 
-type Stats = {
-  today: number;
-  yesterday: number;
-  month_to_date: number;
-  prev_month_to_date: number;
-  completed_mtd: number;
-  completed_prev_mtd: number;
-  daily: { date: string; total: number }[];
-  monthly: { month: string; total: number; completed: number }[];
-  by_status: Record<string, number>;
-  top_customers: { id: string; name: string; total: number }[];
+type Row = {
+  id: string;
+  pickup_at: string;
+  status: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  driver_id: string | null;
+  driver_name: string | null;
+  vehicle_id: string | null;
+  plate_number: string | null;
 };
 
 type Recent = {
@@ -38,15 +40,36 @@ type Recent = {
   shipment_code: string;
   status: string;
   pickup_at: string;
-  vehicles: { plate_number: string } | null;
-  drivers: { full_name: string } | null;
-  transport_orders: { customers: { name: string } | null } | null;
-  pickup: { name: string } | null;
-  delivery: { name: string } | null;
+  plate_number: string | null;
+  driver_name: string | null;
+  customer_name: string | null;
+  pickup_name: string | null;
+  delivery_name: string | null;
 };
 
-export default async function DashboardPage() {
+type RouteRow = { name: string; pickup_location_id: string; delivery_location_id: string; pickup: { name: string } | null; delivery: { name: string } | null };
+
+const DONE = new Set(["driver_completed", "closed"]);
+const PAGE = 1000;
+
+/** Đọc hết các dòng của một truy vấn (PostgREST trả tối đa 1.000 dòng mỗi lần): trang đầu lấy tổng số, các trang sau tải song song */
+async function fetchAll<T>(build: () => { range: (a: number, b: number) => PromiseLike<{ data: unknown; error: unknown; count?: number | null }> }, maxRows = 50000) {
+  const first = await build().range(0, PAGE - 1);
+  if (first.error) throw first.error;
+  const rows = [...((first.data ?? []) as T[])];
+  const total = Math.min(first.count ?? rows.length, maxRows);
+  const rest = [];
+  for (let off = PAGE; off < total; off += PAGE) rest.push(build().range(off, off + PAGE - 1));
+  for (const r of await Promise.all(rest)) {
+    if (r.error) throw r.error;
+    rows.push(...((r.data ?? []) as T[]));
+  }
+  return { rows, truncated: (first.count ?? 0) > maxRows };
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requirePagePermission("dashboard.view");
+  const sp = await searchParams;
   const supabase = await createClient();
   const perms = user.permissions;
   const canShip = perms.has("shipments.view") || perms.has("dispatch.view");
@@ -55,6 +78,39 @@ export default async function DashboardPage() {
   const today = todayVN();
   const in30 = addDaysYMD(today, 30);
 
+  const f = parseDashFilter(sp, today);
+  const range = { from: f.tu, to: f.den };
+  const prev = previousRange(range, f.ky);
+  const months = monthsForTrend(range);
+  const bucketBy = bucketForRange(range);
+  const hasEntity = !!(f.kh || f.tx || f.xe || f.tuyen);
+  const rangeLabel = f.tu === f.den ? dmy(f.tu) : `${dmy(f.tu)} – ${dmy(f.den)}`;
+
+  // Tuyến = cặp điểm nhận – điểm giao (chuyến cũ chưa gắn mã tuyến vẫn khớp)
+  let route = null as RouteRow | null;
+  if (f.tuyen) {
+    const { data, error } = await supabase
+      .from("routes")
+      .select("name, pickup_location_id, delivery_location_id, pickup:locations!routes_pickup_location_id_fkey(name), delivery:locations!routes_delivery_location_id_fkey(name)")
+      .eq("id", f.tuyen)
+      .maybeSingle();
+    if (error) throw error;
+    route = data as unknown as RouteRow | null;
+  }
+
+  // Áp bộ lọc khách hàng / tài xế / xe / tuyến lên truy vấn shipment_list
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => {
+    if (f.kh) q = q.eq("customer_id", f.kh);
+    if (f.tx) q = q.eq("driver_id", f.tx);
+    if (f.xe) q = q.eq("vehicle_id", f.xe);
+    if (f.tuyen) {
+      q = q.eq("pickup_location_id", route?.pickup_location_id ?? "00000000-0000-0000-0000-000000000000");
+      q = q.eq("delivery_location_id", route?.delivery_location_id ?? "00000000-0000-0000-0000-000000000000");
+    }
+    return q;
+  };
+
   const count = async (q: PromiseLike<{ count: number | null; error: unknown }>) => {
     const { count: c, error } = await q;
     if (error) throw error;
@@ -62,33 +118,104 @@ export default async function DashboardPage() {
   };
   const head = { count: "exact" as const, head: true };
 
-  let stats: Stats | null = null;
+  let rows: Row[] = [];
+  let truncated = false;
   let recent: Recent[] = [];
   let inTransit = 0;
   let lateCount = 0;
   let waitingAccept = 0;
   let waitingSettle = 0;
   if (canShip) {
-    const [statsRes, recentRes, a, b, c, d] = await Promise.all([
-      supabase.rpc("dashboard_shipment_stats", { p_today: today }),
-      supabase
-        .from("shipments")
-        .select(
-          "id, shipment_code, status, pickup_at, vehicles(plate_number), drivers(full_name), transport_orders(customers!transport_orders_customer_id_fkey(name)), pickup:locations!shipments_pickup_location_id_fkey(name), delivery:locations!shipments_delivery_location_id_fkey(name)",
+    // Một lần đọc đủ dữ liệu cho kỳ đang xem, kỳ trước và biểu đồ theo tháng
+    const loadFrom = [prev.range.from, `${months[0]}-01`, f.tu].sort()[0];
+    const [all, recentRes, a, b, c, d] = await Promise.all([
+      fetchAll<Row>(() =>
+        scope(
+          supabase
+            .from("shipment_list")
+            .select("id, pickup_at, status, customer_id, customer_name, driver_id, driver_name, vehicle_id, plate_number", { count: "exact" })
+            .gte("pickup_at", startOfDayVN(loadFrom))
+            .lt("pickup_at", startOfDayVN(addDaysYMD(f.den, 1))),
         )
+          .order("pickup_at")
+          .order("id"),
+      ),
+      scope(
+        supabase
+          .from("shipment_list")
+          .select("id, shipment_code, status, pickup_at, plate_number, driver_name, customer_name, pickup_name, delivery_name")
+          .gte("pickup_at", startOfDayVN(f.tu))
+          .lt("pickup_at", startOfDayVN(addDaysYMD(f.den, 1))),
+      )
         .order("pickup_at", { ascending: false })
         .limit(6),
-      count(supabase.from("shipments").select("id", head).in("status", ["accepted", "in_transit"])),
-      count(supabase.from("shipments").select("id", head).in("status", ["assigned", "accepted", "in_transit"]).lt("expected_delivery_at", nowIso)),
-      count(supabase.from("shipments").select("id", head).eq("status", "assigned")),
-      count(supabase.from("shipments").select("id", head).eq("status", "driver_completed")),
+      count(scope(supabase.from("shipment_list").select("id", head).in("status", ["accepted", "in_transit"]))),
+      count(scope(supabase.from("shipment_list").select("id", head).in("status", ["assigned", "accepted", "in_transit"]).lt("expected_delivery_at", nowIso))),
+      count(scope(supabase.from("shipment_list").select("id", head).eq("status", "assigned"))),
+      count(scope(supabase.from("shipment_list").select("id", head).eq("status", "driver_completed"))),
     ]);
-    if (statsRes.error) throw statsRes.error;
     if (recentRes.error) throw recentRes.error;
-    stats = statsRes.data as Stats;
-    recent = (recentRes.data ?? []) as unknown as Recent[];
+    rows = all.rows;
+    truncated = all.truncated;
+    recent = (recentRes.data ?? []) as Recent[];
     [inTransit, lateCount, waitingAccept, waitingSettle] = [a, b, c, d];
   }
+
+  // Tính số liệu từ các dòng đã đọc
+  const withDay = rows.map((r) => ({ ...r, d: vnDate(r.pickup_at) }));
+  const inRange = withDay.filter((r) => r.d >= f.tu && r.d <= f.den);
+  const inPrev = withDay.filter((r) => r.d >= prev.range.from && r.d <= prev.range.to);
+  const live = inRange.filter((r) => r.status !== "cancelled");
+  const livePrev = inPrev.filter((r) => r.status !== "cancelled");
+  const stats = {
+    total: live.length,
+    totalPrev: livePrev.length,
+    done: live.filter((r) => DONE.has(r.status)).length,
+    donePrev: livePrev.filter((r) => DONE.has(r.status)).length,
+    cancelled: inRange.length - live.length,
+  };
+
+  // Biểu đồ cột: chia theo ngày / tuần / tháng tùy độ dài kỳ
+  const buckets = new Map<string, { label: string; title: string; value: number }>();
+  for (let day = f.tu; day <= f.den; day = addDaysYMD(day, 1)) {
+    const b = bucketOf(day, bucketBy);
+    if (!buckets.has(b.key)) {
+      const short = bucketBy === "ngay" ? `${day.slice(8, 10)}/${day.slice(5, 7)}` : bucketBy === "thang" ? `T${Number(day.slice(5, 7))}/${day.slice(2, 4)}` : `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+      buckets.set(b.key, { label: short, title: b.label, value: 0 });
+    }
+  }
+  for (const r of live) {
+    const b = buckets.get(bucketOf(r.d, bucketBy).key);
+    if (b) b.value++;
+  }
+  const bucketName = bucketBy === "ngay" ? "ngày" : bucketBy === "tuan" ? "tuần" : "tháng";
+
+  const monthly = months.map((m) => {
+    const list = withDay.filter((r) => r.d.startsWith(m) && r.d <= f.den && r.status !== "cancelled");
+    return { month: m, total: list.length, completed: list.filter((r) => DONE.has(r.status)).length };
+  });
+
+  // Xếp hạng: chưa chọn khách hàng → top khách hàng; đã chọn → top tài xế; đã chọn cả tài xế → top xe
+  const rankBy: { key: "customer" | "driver" | "vehicle"; title: string } = !f.kh
+    ? { key: "customer", title: "Khách hàng nhiều chuyến nhất" }
+    : !f.tx
+      ? { key: "driver", title: "Tài xế chạy nhiều chuyến nhất" }
+      : { key: "vehicle", title: "Xe chạy nhiều chuyến nhất" };
+  const rankMap = new Map<string, { id: string; name: string; total: number }>();
+  for (const r of live) {
+    const [id, name] =
+      rankBy.key === "customer" ? [r.customer_id, r.customer_name ?? "Khách hàng"] : rankBy.key === "driver" ? [r.driver_id, r.driver_name] : [r.vehicle_id, r.plate_number];
+    if (!id) continue;
+    const e = rankMap.get(id) ?? { id, name: name ?? "—", total: 0 };
+    e.total++;
+    rankMap.set(id, e);
+  }
+  const top = [...rankMap.values()].sort((x, y) => y.total - x.total || x.name.localeCompare(y.name, "vi")).slice(0, 5);
+  const topMax = Math.max(1, ...top.map((c) => c.total));
+
+  const byStatus: Record<string, number> = {};
+  for (const r of inRange) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+  const statusItems = SHIPMENT_STATUS.map((s) => ({ label: s.label, tone: s.tone, value: byStatus[s.value] ?? 0 })).filter((i) => i.value > 0);
 
   const pendingApprovals = perms.has("approvals.view")
     ? await count(supabase.from("approval_requests").select("id", head).eq("status", "pending"))
@@ -97,93 +224,125 @@ export default async function DashboardPage() {
 
   let expiring: { id: string; plate_number: string; registration_expiry: string | null; insurance_expiry: string | null }[] = [];
   if (perms.has("vehicles.view")) {
-    const { data, error } = await supabase
+    let q = supabase
       .from("vehicles")
       .select("id, plate_number, registration_expiry, insurance_expiry")
       .is("archived_at", null)
-      .or(`registration_expiry.lte.${in30},insurance_expiry.lte.${in30}`)
-      .order("registration_expiry", { ascending: true, nullsFirst: false })
-      .limit(6);
+      .or(`registration_expiry.lte.${in30},insurance_expiry.lte.${in30}`);
+    if (f.xe) q = q.eq("id", f.xe);
+    const { data, error } = await q.order("registration_expiry", { ascending: true, nullsFirst: false }).limit(6);
     if (error) throw error;
     expiring = data ?? [];
   }
 
   // Chỉ tiêu tài chính (người có quyền xem báo cáo); khoản nào không có quyền thì ghi rõ
-  let finance: { label: string; value: number | null }[] | null = null;
+  let finance: { label: string; value: number | null; note?: string }[] | null = null;
   if (perms.has("reports.view")) {
     const sum = async (q: PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>, col: string) => {
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []).reduce((a, r) => a + Number(r[col] ?? 0), 0);
     };
-    const month = `${today.slice(0, 7)}-01`;
-    const [m, ar, ap, adv] = await Promise.all([
-      supabase.from("report_monthly").select("revenue, cost, profit").eq("report_month", month).maybeSingle(),
-      perms.has("receivables.view") ? sum(supabase.from("receivable_list").select("remaining_amount").in("status", ["open", "partial"]), "remaining_amount") : null,
-      perms.has("receivables.view") ? sum(supabase.from("payable_list").select("remaining_amount").in("status", ["open", "partial"]), "remaining_amount") : null,
-      sum(supabase.from("report_advance_balance").select("balance"), "balance"),
+    const profitQuery = () => {
+      let q = supabase
+        .from("report_shipment_profit")
+        .select("id, revenue, cost", { count: "exact" })
+        .gte("report_date", f.tu)
+        .lte("report_date", f.den);
+      if (f.kh) q = q.eq("customer_id", f.kh);
+      if (f.tx) q = q.eq("driver_id", f.tx);
+      if (f.xe) q = q.eq("vehicle_id", f.xe);
+      if (f.tuyen) q = q.eq("pickup_name", route?.pickup?.name ?? "").eq("delivery_name", route?.delivery?.name ?? "");
+      return q.order("id");
+    };
+    const ar = () => {
+      let q = supabase.from("receivable_list").select("remaining_amount").in("status", ["open", "partial"]);
+      if (f.kh) q = q.eq("customer_id", f.kh);
+      return q;
+    };
+    const ap = () => {
+      let q = supabase.from("payable_list").select("remaining_amount").in("status", ["open", "partial"]);
+      if (f.tx) q = q.eq("driver_id", f.tx);
+      return q;
+    };
+    const adv = () => {
+      let q = supabase.from("report_advance_balance").select("balance");
+      if (f.tx) q = q.eq("driver_id", f.tx);
+      return q;
+    };
+    const [pr, arSum, apSum, advSum] = await Promise.all([
+      fetchAll<{ revenue: number; cost: number }>(profitQuery),
+      perms.has("receivables.view") ? sum(ar(), "remaining_amount") : null,
+      perms.has("receivables.view") ? sum(ap(), "remaining_amount") : null,
+      sum(adv(), "balance"),
     ]);
-    if (m.error) throw m.error;
+    const revenue = pr.rows.reduce((a, r) => a + Number(r.revenue ?? 0), 0);
+    const cost = pr.rows.reduce((a, r) => a + Number(r.cost ?? 0), 0);
     finance = [
-      { label: "Doanh thu", value: Number(m.data?.revenue ?? 0) },
-      { label: "Chi phí chuyến", value: Number(m.data?.cost ?? 0) },
-      { label: "Lợi nhuận gộp", value: Number(m.data?.profit ?? 0) },
-      { label: "Công nợ phải thu", value: ar },
-      { label: "Công nợ phải trả", value: ap },
-      { label: "Tạm ứng tài xế đang giữ", value: adv },
+      { label: "Doanh thu", value: revenue },
+      { label: "Chi phí chuyến", value: cost },
+      { label: "Lợi nhuận gộp", value: revenue - cost },
+      { label: f.kh ? "Khách này còn nợ" : "Công nợ phải thu", value: arSum, note: "Số dư hiện tại" },
+      { label: f.tx ? "Phải trả tài xế này" : "Công nợ phải trả", value: apSum, note: "Số dư hiện tại" },
+      { label: f.tx ? "Tạm ứng tài xế này đang giữ" : "Tạm ứng tài xế đang giữ", value: advSum, note: "Số dư hiện tại" },
     ];
   }
 
+  const todoHref = (tt: string) =>
+    `/chuyen-xe?${new URLSearchParams({ tt, tu: addDaysYMD(today, -365), den: addDaysYMD(today, 30), ...(f.kh ? { kh: f.kh } : {}) }).toString()}`;
   const todos: { icon: LucideIcon; tone: Tone; label: string; value: number; href?: string }[] = [];
   if (canShip) {
-    todos.push({ icon: Clock, tone: "amber", label: "Chờ tài xế nhận chuyến", value: waitingAccept });
-    todos.push({ icon: FileWarning, tone: "teal", label: "Đã giao, chờ chứng từ / quyết toán", value: waitingSettle });
+    todos.push({ icon: Clock, tone: "amber", label: "Chờ tài xế nhận chuyến", value: waitingAccept, href: todoHref("assigned") });
+    todos.push({ icon: FileWarning, tone: "teal", label: "Đã giao, chờ chứng từ / quyết toán", value: waitingSettle, href: todoHref("driver_completed") });
   }
   if (pendingApprovals !== null) todos.push({ icon: BadgeCheck, tone: "purple", label: "Yêu cầu phê duyệt đang chờ", value: pendingApprovals, href: "/phe-duyet" });
   if (pendingUsers !== null) todos.push({ icon: UserCheck, tone: "blue", label: "Tài khoản chờ cấp quyền", value: pendingUsers, href: "/nguoi-dung" });
 
-  const statusItems = stats
-    ? SHIPMENT_STATUS.map((s) => ({ label: s.label, tone: s.tone, value: stats!.by_status[s.value] ?? 0 })).filter((i) => i.value > 0)
-    : [];
-  const topMax = Math.max(1, ...(stats?.top_customers ?? []).map((c) => c.total));
+  const listHref = `/chuyen-xe?${new URLSearchParams({ tu: f.tu, den: f.den, ...(f.kh ? { kh: f.kh } : {}) }).toString()}`;
+  const prevName = prev.label.charAt(0).toUpperCase() + prev.label.slice(1);
+
+  const entityNote = hasEntity ? " · theo bộ lọc" : "";
 
   return (
     <>
       <PageHeader title="Tổng quan" description={`Hôm nay ${formatDate(today)} · Xin chào ${user.fullName || user.email}`} />
+      <DashboardFilterBar key={dashFilterQuery(f)} filter={f} />
+      {truncated ? (
+        <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Kỳ đang xem có quá nhiều chuyến, số liệu chỉ tính 50,000 chuyến đầu. Hãy chọn khoảng thời gian ngắn hơn.
+        </p>
+      ) : null}
 
-      {stats ? (
+      {canShip ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5 [&>*]:min-w-0">
-            <Kpi icon={CalendarDays} tone="blue" label="Chuyến hôm nay" value={stats.today} prev={stats.yesterday} prevLabel="so với hôm qua" prevName="Hôm qua" />
-            <Kpi icon={Truck} tone="purple" label="Chuyến trong tháng" value={stats.month_to_date} prev={stats.prev_month_to_date} prevLabel="so với cùng kỳ tháng trước" prevName="Cùng kỳ tháng trước" />
-            <Kpi icon={CheckCircle2} tone="green" label="Hoàn thành trong tháng" value={stats.completed_mtd} prev={stats.completed_prev_mtd} prevLabel="so với cùng kỳ tháng trước" prevName="Cùng kỳ tháng trước" />
-            <Kpi icon={Navigation} tone="amber" label="Đang thực hiện" value={inTransit} note="Tài xế đã nhận hoặc đang chạy" />
-            <Kpi icon={AlertTriangle} tone="red" label="Đang trễ giờ giao" value={lateCount} note="Quá giờ giao dự kiến, chưa hoàn thành" />
+            <Kpi icon={Truck} tone="blue" label={`Chuyến trong kỳ (${rangeLabel})`} value={stats.total} prev={stats.totalPrev} prevLabel={`so với ${prev.label}`} prevName={prevName} />
+            <Kpi icon={CheckCircle2} tone="green" label="Hoàn thành trong kỳ" value={stats.done} prev={stats.donePrev} prevLabel={`so với ${prev.label}`} prevName={prevName} />
+            <Kpi icon={Ban} tone="purple" label="Đã hủy trong kỳ" value={stats.cancelled} note="Không tính vào số chuyến và biểu đồ" />
+            <Kpi icon={Navigation} tone="amber" label="Đang thực hiện" value={inTransit} note={`Hiện tại, tài xế đã nhận hoặc đang chạy${entityNote}`} />
+            <Kpi icon={AlertTriangle} tone="red" label="Đang trễ giờ giao" value={lateCount} note={`Hiện tại, quá giờ giao dự kiến${entityNote}`} />
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-3 [&>*]:min-w-0">
             <Card className="xl:col-span-2">
               <CardHeader>
-                <CardTitle className="text-base">Số chuyến 14 ngày gần đây</CardTitle>
-                <CardDescription>Theo ngày nhận hàng, không tính chuyến đã hủy</CardDescription>
+                <CardTitle className="text-base">Số chuyến theo {bucketName}</CardTitle>
+                <CardDescription>{rangeLabel} · theo ngày nhận hàng, không tính chuyến đã hủy</CardDescription>
               </CardHeader>
               <CardContent>
-                <BarChart
-                  unit="chuyến"
-                  data={stats.daily.map((d) => ({ label: `${d.date.slice(8, 10)}/${d.date.slice(5, 7)}`, title: formatDate(d.date), value: d.total }))}
-                />
+                <BarChart unit="chuyến" data={[...buckets.values()]} />
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Trạng thái chuyến tháng này</CardTitle>
+                <CardTitle className="text-base">Trạng thái chuyến trong kỳ</CardTitle>
                 <CardDescription>Tính cả chuyến đã hủy</CardDescription>
               </CardHeader>
               <CardContent>
                 {statusItems.length ? (
                   <DonutChart items={statusItems} centerLabel="Tổng chuyến" />
                 ) : (
-                  <p className="py-10 text-center text-sm text-muted-foreground">Chưa có chuyến nào trong tháng.</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">Không có chuyến nào trong kỳ.</p>
                 )}
               </CardContent>
             </Card>
@@ -194,15 +353,15 @@ export default async function DashboardPage() {
               <CardHeader className="flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-base">Chuyến gần đây</CardTitle>
-                  <CardDescription>6 chuyến có ngày nhận hàng mới nhất</CardDescription>
+                  <CardDescription>6 chuyến có ngày nhận hàng mới nhất trong kỳ</CardDescription>
                 </div>
-                <span className="text-xs text-muted-foreground" title="Màn hình quản lý chuyến hoàn thiện ở Giai đoạn 4">
-                  Danh sách đầy đủ: Giai đoạn 4
-                </span>
+                <Link href={listHref} className="text-xs text-primary hover:underline">
+                  Xem tất cả
+                </Link>
               </CardHeader>
               <CardContent className="px-0">
                 {recent.length === 0 ? (
-                  <p className="px-6 py-8 text-center text-sm text-muted-foreground">Chưa có chuyến nào.</p>
+                  <p className="px-6 py-8 text-center text-sm text-muted-foreground">Không có chuyến nào trong kỳ.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -221,21 +380,23 @@ export default async function DashboardPage() {
                           return (
                             <tr key={r.id} className="border-b last:border-0">
                               <td className="px-6 py-2.5 whitespace-nowrap">
-                                <div className="font-medium text-primary">{r.shipment_code}</div>
+                                <Link href={`/chuyen-xe/${r.id}`} className="font-medium text-primary hover:underline">
+                                  {r.shipment_code}
+                                </Link>
                                 <div className="text-xs text-muted-foreground">{formatDate(r.pickup_at)}</div>
                               </td>
                               <td className="max-w-56 px-3 py-2.5">
-                                <div className="truncate">{r.transport_orders?.customers?.name ?? "—"}</div>
+                                <div className="truncate">{r.customer_name ?? "—"}</div>
                                 <div className="truncate text-xs text-muted-foreground 2xl:hidden">
-                                  {r.pickup?.name ?? "?"} → {r.delivery?.name ?? "?"}
+                                  {r.pickup_name ?? "?"} → {r.delivery_name ?? "?"}
                                 </div>
                               </td>
                               <td className="hidden max-w-56 truncate px-3 py-2.5 text-muted-foreground 2xl:table-cell">
-                                {r.pickup?.name ?? "?"} → {r.delivery?.name ?? "?"}
+                                {r.pickup_name ?? "?"} → {r.delivery_name ?? "?"}
                               </td>
                               <td className="px-3 py-2.5 whitespace-nowrap">
-                                {r.vehicles?.plate_number ?? <span className="text-muted-foreground">Chưa gán xe</span>}
-                                {r.drivers ? <div className="text-xs text-muted-foreground">{r.drivers.full_name}</div> : null}
+                                {r.plate_number ?? <span className="text-muted-foreground">Chưa gán xe</span>}
+                                {r.driver_name ? <div className="text-xs text-muted-foreground">{r.driver_name}</div> : null}
                               </td>
                               <td className="px-6 py-2.5">
                                 <Badge variant={TONE_BADGE[st.tone]}>{st.label}</Badge>
@@ -251,15 +412,15 @@ export default async function DashboardPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Khách hàng nhiều chuyến nhất tháng</CardTitle>
-                <CardDescription>Top 5, không tính chuyến đã hủy</CardDescription>
+                <CardTitle className="text-base">{rankBy.title}</CardTitle>
+                <CardDescription>Top 5 trong kỳ, không tính chuyến đã hủy</CardDescription>
               </CardHeader>
               <CardContent>
-                {stats.top_customers.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">Chưa có chuyến nào trong tháng.</p>
+                {top.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">Không có chuyến nào trong kỳ.</p>
                 ) : (
                   <ul className="space-y-3">
-                    {stats.top_customers.map((c, i) => (
+                    {top.map((c, i) => (
                       <li key={c.id}>
                         <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                           <span className="flex min-w-0 items-center gap-2">
@@ -282,26 +443,26 @@ export default async function DashboardPage() {
           <div className="mt-4 grid gap-4 xl:grid-cols-3 [&>*]:min-w-0">
             <Card className="xl:col-span-2">
               <CardHeader>
-                <CardTitle className="text-base">Sản lượng chuyến 6 tháng</CardTitle>
-                <CardDescription>Tổng chuyến và chuyến đã hoàn thành theo tháng nhận hàng</CardDescription>
+                <CardTitle className="text-base">Sản lượng chuyến {monthly.length} tháng</CardTitle>
+                <CardDescription>Tổng chuyến và chuyến đã hoàn thành theo tháng nhận hàng, đến {dmy(f.den)}{entityNote}</CardDescription>
               </CardHeader>
               <CardContent>
                 <LineChart
                   unit="chuyến"
-                  labels={stats.monthly.map((m) => `T${Number(m.month.slice(5, 7))}/${m.month.slice(2, 4)}`)}
+                  labels={monthly.map((m) => `T${Number(m.month.slice(5, 7))}/${m.month.slice(2, 4)}`)}
                   series={[
-                    { name: "Tổng chuyến", tone: "blue", values: stats.monthly.map((m) => m.total) },
-                    { name: "Đã hoàn thành", tone: "amber", values: stats.monthly.map((m) => m.completed) },
+                    { name: "Tổng chuyến", tone: "blue", values: monthly.map((m) => m.total) },
+                    { name: "Đã hoàn thành", tone: "amber", values: monthly.map((m) => m.completed) },
                   ]}
                 />
               </CardContent>
             </Card>
-            <TodoCard todos={todos} />
+            <TodoCard todos={todos} note={`Số liệu hiện tại${entityNote}`} />
           </div>
         </>
       ) : todos.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <TodoCard todos={todos} />
+          <TodoCard todos={todos} note="Số liệu hiện tại" />
         </div>
       ) : null}
 
@@ -312,7 +473,7 @@ export default async function DashboardPage() {
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldAlert className="size-4 text-tone-red" /> Giấy tờ xe sắp hết hạn (30 ngày)
               </CardTitle>
-              <CardDescription>Đăng kiểm và bảo hiểm</CardDescription>
+              <CardDescription>Đăng kiểm và bảo hiểm{f.xe ? " · xe đang lọc" : ""}</CardDescription>
             </CardHeader>
             <CardContent>
               {expiring.length === 0 ? (
@@ -346,7 +507,10 @@ export default async function DashboardPage() {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Wallet className="size-4 text-tone-green" /> Tổng quan tài chính
                 </CardTitle>
-                <CardDescription>Tháng này, tính từ chuyến, chi phí đã duyệt và phiếu thu chi</CardDescription>
+                <CardDescription>
+                  Doanh thu, chi phí theo ngày hoàn thành chuyến, {rangeLabel}
+                  {entityNote}
+                </CardDescription>
               </div>
               <Link href="/bao-cao" className="text-xs text-primary hover:underline">
                 Báo cáo
@@ -356,7 +520,10 @@ export default async function DashboardPage() {
               <div className="grid grid-cols-2 gap-2">
                 {finance.map((k) => (
                   <div key={k.label} className="rounded-lg border px-3 py-2">
-                    <div className="text-xs text-muted-foreground">{k.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {k.label}
+                      {k.note ? <span className="opacity-70"> · {k.note}</span> : null}
+                    </div>
                     <div className="text-sm font-semibold tabular-nums">{k.value === null ? "Không có quyền xem" : formatVND(k.value)}</div>
                   </div>
                 ))}
@@ -429,12 +596,12 @@ function Kpi({
   );
 }
 
-function TodoCard({ todos }: { todos: { icon: LucideIcon; tone: Tone; label: string; value: number; href?: string }[] }) {
+function TodoCard({ todos, note }: { todos: { icon: LucideIcon; tone: Tone; label: string; value: number; href?: string }[]; note: string }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Việc cần xử lý</CardTitle>
-        <CardDescription>Số liệu hiện tại</CardDescription>
+        <CardDescription>{note}</CardDescription>
       </CardHeader>
       <CardContent>
         <ul className="space-y-2">

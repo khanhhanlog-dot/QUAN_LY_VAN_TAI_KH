@@ -16,7 +16,7 @@ export function BarChart({ data, unit, height = 220 }: { data: Datum[]; unit: st
   const slot = iw / data.length;
   const bw = Math.min(28, slot * 0.6);
   const y = (v: number) => pad.t + ih - (v / top) * ih;
-  const every = data.length > 10 ? 2 : 1;
+  const every = Math.max(1, Math.ceil(data.length / 16));
   const h = hover !== null ? data[hover] : null;
 
   return (

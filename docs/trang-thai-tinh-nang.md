@@ -12,6 +12,7 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Khóa/mở tài khoản, gán vai trò, ma trận quyền theo vai trò, cấp/chặn quyền riêng | ✅ | E2E + CSDL (chặn tự cấp quyền, bảo vệ Super Admin) |
 | Menu và trang theo quyền; chặn truy cập bằng URL | ✅ | E2E |
 | Tổng quan: thẻ số liệu so với kỳ trước (hôm qua, cùng kỳ tháng trước), biểu đồ số chuyến 14 ngày, trạng thái chuyến trong tháng, sản lượng 6 tháng, chuyến gần đây, khách hàng nhiều chuyến nhất, việc cần xử lý, giấy tờ xe sắp hết hạn | ✅ | E2E + 6 kiểm thử CSDL (số liệu tính trực tiếp từ bảng chuyến qua RLS; tài xế chỉ được tính chuyến của mình) |
+| Tổng quan có bộ lọc (2026-11-01): kỳ Hôm nay / 7 ngày / Tuần này / Tháng này / 30 ngày / Năm nay hoặc tự chọn từ ngày – đến ngày; lọc khách hàng, tài xế, xe, tuyến (ô chọn có tìm kiếm); mọi thẻ, biểu đồ, chuyến gần đây, xếp hạng, tài chính tính lại theo bộ lọc, giữ trên địa chỉ trang; không cần nâng cấp CSDL | ✅ | 11 kiểm thử đơn vị + chạy thử với CSDL cục bộ |
 | Thông báo trong ứng dụng, đánh dấu đã đọc | ✅ | E2E |
 | Nhật ký hệ thống (chỉ đọc, không sửa/xóa, che dữ liệu nhạy cảm) | ✅ | E2E + CSDL |
 | Cấu hình tham số hệ thống | ✅ | E2E |
