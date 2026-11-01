@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, MODULE_ACTIONS, hasAny } from "@/lib/permissions";
@@ -15,6 +15,14 @@ function permissionsFromSql(): string[] {
     const actions = m[2].split(",").map((a) => a.trim().replace(/'/g, ""));
     actions.forEach((a) => out.push(`${m[1]}.${a}`));
   }
+  // Quyền thêm ở migration sau: insert into public.permissions (code, module, action, ...) values ('x.y', ...)
+  const dir = path.resolve(__dirname, "../supabase/migrations");
+  for (const f of readdirSync(dir).filter((n) => n > "20261016000002_rbac.sql")) {
+    const text = readFileSync(path.join(dir, f), "utf8");
+    for (const blk of text.matchAll(/insert into public\.permissions[^;]*;/g)) {
+      for (const m of blk[0].matchAll(/\('([a-z_]+\.[a-z_]+)',/g)) out.push(m[1]);
+    }
+  }
   return out.sort();
 }
 
@@ -22,8 +30,8 @@ describe("Danh mục quyền", () => {
   it("khớp giữa mã TypeScript và migration SQL", () => {
     expect([...ALL_PERMISSIONS].sort()).toEqual(permissionsFromSql());
   });
-  it("có 92 quyền", () => {
-    expect(ALL_PERMISSIONS).toHaveLength(92);
+  it("có 97 quyền", () => {
+    expect(ALL_PERMISSIONS).toHaveLength(97);
   });
   it("mọi quyền dùng trong menu đều tồn tại", () => {
     const all = new Set<string>(ALL_PERMISSIONS);

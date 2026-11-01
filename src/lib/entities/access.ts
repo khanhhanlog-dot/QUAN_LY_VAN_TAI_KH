@@ -6,8 +6,9 @@ export type EntityAccess = { view: boolean; create: boolean; update: boolean; de
 export function entityAccess(entity: EntityDef, perms: Set<string>): EntityAccess {
   const has = (a: string) => perms.has(`${entity.perm}.${a}`);
   const sensitiveOk = !entity.sensitive || has("view_sensitive");
-  const view = has("view") && sensitiveOk;
-  const create = sensitiveOk && (entity.writeAsUpdate ? has("update") : has("create"));
+  const view = (has("view") || Boolean(entity.viewAnyOf?.some((p) => perms.has(p)))) && sensitiveOk;
+  const create =
+    sensitiveOk && ((entity.writeAsUpdate ? has("update") : has("create")) || Boolean(entity.createAnyOf?.some((p) => perms.has(p))));
   const update = sensitiveOk && has("update");
   const del = !entity.noDelete && sensitiveOk && (entity.writeAsUpdate ? has("update") : has("delete"));
   const exp = view && (entity.hasExport ? has("export") : true);

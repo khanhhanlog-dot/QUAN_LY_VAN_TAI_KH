@@ -120,3 +120,5 @@ upgrade nang-cap-loi-lo-chuyen.sql "Lời/lỗ từng chuyến, chia chi phí xe
   supabase/migrations/20261101000039_trip_profit.sql
 upgrade nang-cap-xin-nghi-ban-giao.sql "Xin nghỉ (phép/ốm), bàn giao khách hàng, nhân viên phụ trách khách" "to_regclass('public.leave_requests') is not null" \
   supabase/migrations/20261101000041_leave_requests.sql
+upgrade nang-cap-de-nghi-chi.sql "Phiếu đề nghị chi, mua sắm (Giám đốc duyệt, Kế toán chi tiền)" "to_regclass('public.purchase_requests') is not null" \
+  supabase/migrations/20261101000040_purchase_requests.sql

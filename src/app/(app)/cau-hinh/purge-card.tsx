@@ -19,6 +19,7 @@ const DELETE_ROWS: [string, string][] = [
   ["shipment_fees", "Phí thu khách của chuyến"],
   ["shipment_expenses", "Chi phí chuyến"],
   ["advance_requests", "Phiếu ứng tiền"],
+  ["purchase_requests", "Phiếu đề nghị chi, mua sắm"],
   ["approval_requests", "Yêu cầu phê duyệt"],
   ["driver_payrolls", "Bảng lương tài xế"],
   ["receivables", "Công nợ phải thu"],

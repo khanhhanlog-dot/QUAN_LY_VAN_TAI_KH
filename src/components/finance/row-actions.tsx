@@ -10,6 +10,7 @@ import { ReferenceSelect } from "@/components/entities/reference-select";
 import { formatVND, todayVN } from "@/lib/format";
 import { decideApproval, payAdvance } from "@/lib/finance/actions";
 import { DocumentsButton } from "./documents-button";
+import { PurchaseDetailButton } from "./purchase-dialogs";
 
 type Row = Record<string, unknown>;
 export type RowActionProps = { row: Row; onDone: () => void };
@@ -23,9 +24,15 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
   const [amount, setAmount] = useState<number | null>(num(row.amount));
   const [pending, start] = useTransition();
   const isAdvance = row.entity_type === "advance_request";
+  const isPurchase = row.entity_type === "purchase_request";
+  // Duyệt ít hơn số xin: ứng tiền và phiếu đề nghị chi
+  const amountEditable = isAdvance || isPurchase;
   const isTrip = row.entity_type === "shipment_dispatch";
   const isLeave = row.entity_type === "leave_request";
-  const docType = row.entity_type === "shipment_expense" ? "shipment_expense" : row.entity_type === "advance_request" ? "advance_request" : null;
+  const docType =
+    row.entity_type === "shipment_expense" || row.entity_type === "advance_request" || row.entity_type === "purchase_request"
+      ? (row.entity_type as "shipment_expense" | "advance_request" | "purchase_request")
+      : null;
   return (
     <>
       {isTrip && row.entity_id ? (
@@ -38,6 +45,7 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
           <Link href="/nghi-phep?tab=leave_requests&f_can_approve=true">Xem đơn nghỉ</Link>
         </Button>
       ) : null}
+      {isPurchase && row.entity_id ? <PurchaseDetailButton id={String(row.entity_id)} label="Xem phiếu" /> : null}
       {docType && Number(row.file_count) > 0 ? (
         <DocumentsButton entityType={docType} entityId={String(row.entity_id)} count={Number(row.file_count)} title={`Chứng từ ${String(row.code)}`} />
       ) : null}
@@ -64,7 +72,7 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
               {isTrip ? "Doanh thu chuyến" : "Số tiền xin"}: <b>{formatVND(num(row.amount))}</b> · Người gửi: {String(row.requester_name ?? "")}
             </p>
           )}
-          {mode === "approve" && isAdvance ? (
+          {mode === "approve" && amountEditable ? (
             <div className="space-y-1.5">
               <Label htmlFor="approve-amount">Số tiền duyệt</Label>
               <Input
@@ -77,6 +85,7 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
                 }}
               />
               <p className="text-xs text-muted-foreground">Có thể duyệt ít hơn số tiền xin. Không được vượt số tiền xin.</p>
+              {isPurchase ? <p className="text-xs text-muted-foreground">Kế toán chỉ chi được tối đa số tiền duyệt.</p> : null}
             </div>
           ) : null}
           <div className="space-y-1.5">
@@ -96,7 +105,7 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
                     requestId: String(row.id),
                     action: mode!,
                     comment: comment.trim() || undefined,
-                    amount: mode === "approve" && isAdvance && amount && amount !== num(row.amount) ? amount : undefined,
+                    amount: mode === "approve" && amountEditable && amount && amount !== num(row.amount) ? amount : undefined,
                   });
                   if (!r.ok) return void toast.error(r.error);
                   toast.success(r.message);

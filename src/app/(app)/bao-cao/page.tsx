@@ -69,6 +69,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       { key: "report_customer" },
       { key: "report_expense" },
       { key: "report_advance" },
+      { key: "report_purchase_requests" },
     ],
   });
 
