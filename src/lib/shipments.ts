@@ -1,5 +1,5 @@
 import type { AdvField } from "@/lib/advanced-filter";
-import { DOCUMENT_STATUS, PRICING_UNITS, SETTLEMENT_STATUS, SHIPMENT_STATUS } from "@/lib/status";
+import { DOCUMENT_STATUS, PRICING_UNITS, SETTLEMENT_STATUS, SHIPMENT_STATUS, TRIP_APPROVAL_STATUS } from "@/lib/status";
 
 /** Một dòng của view public.shipment_list */
 export type ShipmentListRow = {
@@ -46,6 +46,12 @@ export type ShipmentListRow = {
   /** Thứ tự chuyến của xe trong ngày (1, 2...) khi xe chạy nhiều chuyến cùng ngày */
   vehicle_day_order?: number | null;
   order_custom_fields?: Record<string, unknown> | null;
+  /** Giám đốc duyệt chuyến: not_required | pending | approved | rejected */
+  dispatch_approval?: string;
+  dispatch_approval_request_id?: string | null;
+  dispatch_reject_reason?: string | null;
+  /** Người đang xem duyệt được chuyến này */
+  can_approve_dispatch?: boolean;
 };
 
 /** Chuyến đang trễ: quá giờ giao dự kiến mà chưa giao xong */
@@ -80,6 +86,7 @@ export const SHIPMENT_ADV_FIELDS: AdvField[] = [
   { key: "pass_through_amount", label: "Chi hộ", kind: "number" },
   { key: "amount_due", label: "Khách phải trả", kind: "number" },
   { key: "status", label: "Trạng thái", kind: "select", options: opts(SHIPMENT_STATUS) },
+  { key: "dispatch_approval", label: "Giám đốc duyệt", kind: "select", options: opts(TRIP_APPROVAL_STATUS) },
   { key: "document_status", label: "Chứng từ", kind: "select", options: opts(DOCUMENT_STATUS) },
   { key: "settlement_status", label: "Quyết toán", kind: "select", options: opts(SETTLEMENT_STATUS) },
   { key: "notes", label: "Ghi chú", kind: "text" },

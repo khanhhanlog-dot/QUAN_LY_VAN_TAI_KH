@@ -19,5 +19,7 @@ export async function updateSystemSetting(key: string, rawValue: string): Promis
     if (error) throw error;
     if (!data?.length) throw new ActionError("Không tìm thấy tham số hoặc bạn không có quyền.");
     revalidatePath("/cau-hinh");
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
   }, "Đã lưu cấu hình.");
 }

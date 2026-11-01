@@ -59,7 +59,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const summary = sumRes.data as Summary;
   const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, summary.by_status[s.value]?.count ?? 0]));
   const money = Object.entries(summary.by_status)
-    .filter(([st]) => st !== "cancelled" && (!f.tt || f.tt === "tre" || f.tt === st))
+    .filter(([st]) => st !== "cancelled" && (!f.tt || f.tt === "tre" || f.tt === "cho-duyet" || f.tt === st))
     .reduce(
       (a, [, v]) => ({
         freight: a.freight + Number(v.freight),

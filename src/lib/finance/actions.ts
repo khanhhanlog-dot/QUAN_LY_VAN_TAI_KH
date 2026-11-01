@@ -116,6 +116,9 @@ export async function decideApproval(input: z.input<typeof decideSchema>): Promi
     });
     if (error) throw error;
     refreshFinance();
+    // Duyệt chuyến xe cũng làm đổi bảng điều phối / chuyến
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
   }, input.action === "approve" ? "Đã duyệt" : "Đã từ chối");
 }
 

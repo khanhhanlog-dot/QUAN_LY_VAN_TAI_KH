@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Check, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,15 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
   const [amount, setAmount] = useState<number | null>(num(row.amount));
   const [pending, start] = useTransition();
   const isAdvance = row.entity_type === "advance_request";
+  const isTrip = row.entity_type === "shipment_dispatch";
   const docType = row.entity_type === "shipment_expense" ? "shipment_expense" : row.entity_type === "advance_request" ? "advance_request" : null;
   return (
     <>
+      {isTrip && row.entity_id ? (
+        <Button asChild size="sm" variant="ghost" className="h-7 px-2">
+          <Link href={`/chuyen-xe/${String(row.entity_id)}`}>Xem chuyến</Link>
+        </Button>
+      ) : null}
       {docType && Number(row.file_count) > 0 ? (
         <DocumentsButton entityType={docType} entityId={String(row.entity_id)} count={Number(row.file_count)} title={`Chứng từ ${String(row.code)}`} />
       ) : null}
@@ -45,7 +52,7 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
             <DialogDescription>{String(row.content ?? "")}</DialogDescription>
           </DialogHeader>
           <p className="text-sm">
-            Số tiền xin: <b>{formatVND(num(row.amount))}</b> · Người gửi: {String(row.requester_name ?? "")}
+            {isTrip ? "Doanh thu chuyến" : "Số tiền xin"}: <b>{formatVND(num(row.amount))}</b> · Người gửi: {String(row.requester_name ?? "")}
           </p>
           {mode === "approve" && isAdvance ? (
             <div className="space-y-1.5">

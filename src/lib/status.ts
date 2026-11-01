@@ -27,6 +27,16 @@ export const SETTLEMENT_STATUS: StatusOption[] = [
   { value: "reopened", label: "Mở lại", tone: "red" },
 ];
 
+/** Giám đốc duyệt chuyến (shipments.dispatch_approval): tài xế chỉ thấy chuyến Không cần duyệt / Đã duyệt */
+export const TRIP_APPROVAL_STATUS: StatusOption[] = [
+  { value: "not_required", label: "Không cần GĐ duyệt", tone: "gray" },
+  { value: "pending", label: "Chờ GĐ duyệt", tone: "amber" },
+  { value: "approved", label: "GĐ đã duyệt", tone: "green" },
+  { value: "rejected", label: "GĐ từ chối", tone: "red" },
+];
+/** Chuyến đang bị giữ lại, tài xế chưa thấy */
+export const tripApprovalBlocked = (v: string | null | undefined) => v === "pending" || v === "rejected";
+
 /** Trạng thái cho phép điều phối phân công / đổi tài xế */
 export const ASSIGNABLE_STATUSES = ["draft", "assigned", "accepted"];
 /** Trạng thái cho phép hủy chuyến */
@@ -41,3 +51,4 @@ const find = (list: StatusOption[], v: string): StatusOption => list.find((s) =>
 export const shipmentStatus = (v: string) => find(SHIPMENT_STATUS, v);
 export const documentStatus = (v: string) => find(DOCUMENT_STATUS, v);
 export const settlementStatus = (v: string) => find(SETTLEMENT_STATUS, v);
+export const tripApprovalStatus = (v: string) => find(TRIP_APPROVAL_STATUS, v);

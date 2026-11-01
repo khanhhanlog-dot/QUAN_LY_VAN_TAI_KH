@@ -107,7 +107,7 @@ select tests.assert((select bool_or(field = 'quantity' and old_value = '1.000' a
 select tests.assert((select display_name from public.user_display_names(array['00000000-0000-0000-0000-0000000000d1'::uuid])) = 'Điều phối viên 1',
   'Tên người thao tác hiển thị được cho người không có quyền quản lý người dùng');
 select tests.assert((select (s ->> 'total')::int >= 6 and (s -> 'by_status' -> 'cancelled' ->> 'count')::int = 1
-  from public.shipment_list_summary('2026-10-01', '2026-11-01') s),
+  from public.shipment_list_summary('2026-10-01', (now() + interval '2 days')::timestamptz) s),
   'Tổng hợp bảng chuyến: đếm theo trạng thái');
 select tests.assert((select count(*) from public.shipment_list where order_id = (select (v ->> 'order_id')::uuid from t_ids where k = 'o1')) = 3,
   'Danh sách chuyến hiển thị đủ chuyến của đơn');

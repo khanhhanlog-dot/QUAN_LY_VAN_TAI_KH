@@ -8,6 +8,7 @@ import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
 import { CancelDialog } from "./cancel-dialog";
 import { EditShipmentDialog } from "@/app/(app)/chuyen-xe/[id]/edit-shipment-dialog";
+import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 
 
 /** Bảng chuyến cho màn hình điều phối và chi tiết đơn hàng */
@@ -28,6 +29,7 @@ export function DispatchTable({
 }) {
   if (rows.length === 0) return <p className="px-6 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>;
   const now = new Date().getTime();
+  const showActions = canAssign || canCancel || rows.some((r) => r.can_approve_dispatch);
   return (
     <div className="max-h-[calc(100dvh-12rem)] overflow-auto">
       <table className="w-full text-sm">
@@ -38,7 +40,7 @@ export function DispatchTable({
             <th className="px-3 py-2 font-medium">Tuyến</th>
             <th className="px-3 py-2 font-medium">Xe / Tài xế</th>
             <th className="px-3 py-2 font-medium">Trạng thái</th>
-            {canAssign || canCancel ? <th className="px-4 py-2 font-medium text-right">Thao tác</th> : null}
+            {showActions ? <th className="px-4 py-2 font-medium text-right">Thao tác</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -97,12 +99,24 @@ export function DispatchTable({
               <td className="px-3 py-1.5">
                 <div className="flex flex-wrap gap-1">
                   <StatusBadge status={r.status} />
+                  {r.dispatch_approval === "pending" || r.dispatch_approval === "rejected" ? <StatusBadge kind="approval" status={r.dispatch_approval} /> : null}
                   {isLate(r, now) ? <Badge variant="destructive">Trễ giờ giao</Badge> : null}
                 </div>
+                {r.dispatch_approval === "rejected" && r.dispatch_reject_reason ? (
+                  <div className="mt-0.5 max-w-52 truncate text-xs text-destructive" title={r.dispatch_reject_reason}>
+                    Lý do: {r.dispatch_reject_reason}
+                  </div>
+                ) : null}
               </td>
-              {canAssign || canCancel ? (
+              {showActions ? (
                 <td className="px-4 py-1.5">
                   <div className="flex justify-end gap-1">
+                    {r.can_approve_dispatch && r.dispatch_approval_request_id ? (
+                      <TripApprovalButtons compact requestIds={[r.dispatch_approval_request_id]} label={r.shipment_code} />
+                    ) : null}
+                    {canAssign && r.dispatch_approval === "rejected" && r.status === "assigned" ? (
+                      <ResubmitTripButton compact shipmentId={r.id} shipmentCode={r.shipment_code} reason={r.dispatch_reject_reason} />
+                    ) : null}
                     {canAssign && ASSIGNABLE_STATUSES.includes(r.status) ? (
                       <AssignDialog
                         compact

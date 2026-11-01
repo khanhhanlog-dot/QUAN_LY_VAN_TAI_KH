@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { AssignDialog } from "@/components/dispatch/assign-dialog";
 import { CancelDialog } from "@/components/dispatch/cancel-dialog";
+import { ResubmitTripButton, TripApprovalButtons } from "@/components/dispatch/trip-approval";
 import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
 import { formulaVars } from "@/lib/entities/definitions";
@@ -32,6 +33,8 @@ export const metadata: Metadata = { title: "Chi tiết chuyến" };
 
 type Extra = {
   receivable_id: string | null;
+  dispatch_approved_by: string | null;
+  dispatch_approved_at: string | null;
   photo_skip_reason: string | null;
   vehicle: { ownership_type: string } | null;
   pricing_snapshot: Record<string, unknown>;
@@ -127,7 +130,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase
       .from("shipments")
       .select(
-        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, vehicle:vehicles(ownership_type)",
+        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, dispatch_approved_by, dispatch_approved_at, vehicle:vehicles(ownership_type)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -163,7 +166,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const approvedCost = expenses.filter((e) => e.status === "approved").reduce((a, e) => a + Number(e.amount), 0);
   const pendingCost = expenses.filter((e) => e.status === "pending").reduce((a, e) => a + Number(e.amount), 0);
 
-  const actorIds = [...new Set([x.created_by, ...history.map((h) => h.changed_by), ...assignments.map((a) => a.assigned_by)].filter((v): v is string => Boolean(v)))];
+  const actorIds = [...new Set([x.created_by, ...history.map((h) => h.changed_by), ...assignments.map((a) => a.assigned_by), x.dispatch_approved_by].filter((v): v is string => Boolean(v)))];
   const { data: nameRows } = actorIds.length ? await supabase.rpc("user_display_names", { p_ids: actorIds }) : { data: [] };
   const names = new Map(((nameRows ?? []) as { id: string; display_name: string }[]).map((n) => [n.id, n.display_name]));
   const who = (uid: string | null) => (uid ? (names.get(uid) ?? "Người dùng") : "Hệ thống");
@@ -172,7 +175,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const canAssign = me.permissions.has("dispatch.update") && ASSIGNABLE_STATUSES.includes(s.status);
   const canCancel = (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) && CANCELLABLE_STATUSES.includes(s.status);
   const unit = PRICING_UNITS[s.pricing_unit] ?? s.pricing_unit;
-  const canActForDriver = me.permissions.has("dispatch.update") && Boolean(s.driver_id) && ["assigned", "accepted", "in_transit"].includes(s.status);
+  const approvalBlocked = s.status === "assigned" && (s.dispatch_approval === "pending" || s.dispatch_approval === "rejected");
+  const canActForDriver =
+    me.permissions.has("dispatch.update") && Boolean(s.driver_id) && ["assigned", "accepted", "in_transit"].includes(s.status) && !approvalBlocked;
 
   return (
     <>
@@ -186,6 +191,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <StatusBadge status={s.status} />
             <StatusBadge kind="document" status={s.document_status} />
             <StatusBadge kind="settlement" status={s.settlement_status} />
+            {s.dispatch_approval && s.dispatch_approval !== "not_required" ? <StatusBadge kind="approval" status={s.dispatch_approval} /> : null}
             {isLate(s) ? <Badge variant="destructive">Trễ giờ giao</Badge> : null}
           </span>
         }
@@ -211,6 +217,34 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       {s.status === "cancelled" ? (
         <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
           Đã hủy lúc {formatDateTime(x.cancelled_at)}. Lý do: <b>{x.cancel_reason}</b>
+        </p>
+      ) : null}
+
+      {approvalBlocked ? (
+        <div
+          className={`mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ${s.dispatch_approval === "rejected" ? "border-destructive/30 bg-destructive/5" : "border-warning/40 bg-warning/10"}`}
+        >
+          <span>
+            {s.dispatch_approval === "rejected" ? (
+              <>
+                Giám đốc <b>từ chối</b> chuyến này{s.dispatch_reject_reason ? <>: <b>{s.dispatch_reject_reason}</b></> : null}. Sửa chuyến rồi bấm Gửi duyệt lại; đổi tài xế thì tự gửi duyệt.
+              </>
+            ) : (
+              <>
+                Chuyến đang <b>chờ Giám đốc duyệt</b>. Tài xế chưa thấy chuyến trên điện thoại, điều phối chưa nhận đơn thay được.
+              </>
+            )}
+          </span>
+          <span className="flex gap-1">
+            {s.can_approve_dispatch && s.dispatch_approval_request_id ? <TripApprovalButtons requestIds={[s.dispatch_approval_request_id]} label={s.shipment_code} /> : null}
+            {s.dispatch_approval === "rejected" && me.permissions.has("dispatch.update") ? (
+              <ResubmitTripButton shipmentId={s.id} shipmentCode={s.shipment_code} reason={s.dispatch_reject_reason} />
+            ) : null}
+          </span>
+        </div>
+      ) : s.dispatch_approval === "approved" && x.dispatch_approved_at ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Giám đốc {who(x.dispatch_approved_by)} đã duyệt lúc {formatDateTime(x.dispatch_approved_at)}.
         </p>
       ) : null}
 

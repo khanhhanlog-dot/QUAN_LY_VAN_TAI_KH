@@ -104,9 +104,16 @@ const COLS: Col[] = [
     render: (r) => (
       <span className="flex flex-wrap gap-1">
         <StatusBadge status={r.status} />
+        {r.dispatch_approval === "pending" || r.dispatch_approval === "rejected" ? <StatusBadge kind="approval" status={r.dispatch_approval} /> : null}
         {isLate(r) ? <Badge variant="destructive">Trễ</Badge> : null}
       </span>
     ),
+  },
+  {
+    key: "dispatch_approval",
+    label: "Giám đốc duyệt",
+    width: 150,
+    render: (r) => (r.dispatch_approval ? <StatusBadge kind="approval" status={r.dispatch_approval} /> : null),
   },
   { key: "document_status", label: "Chứng từ", width: 140, render: (r) => <StatusBadge kind="document" status={r.document_status} /> },
   { key: "settlement_status", label: "Quyết toán", width: 160, render: (r) => <StatusBadge kind="settlement" status={r.settlement_status} /> },

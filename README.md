@@ -91,6 +91,8 @@ TEST_PASSWORD=<mật khẩu ở trên> CHROMIUM_PATH=<đường dẫn chrome> no
 
 Kịch bản kiểm thử: chuyển hướng khi chưa đăng nhập; tài khoản chưa được mời bị giữ ở trang chờ; Super Admin xem tổng quan, mời người dùng qua giao diện, ma trận quyền, nhật ký, cấu hình; người xem báo cáo bị chặn khi gõ thẳng URL; điều phối bị chặn xem nhật ký; tài xế A chỉ thấy chuyến của mình kèm link Google Maps; tài xế B không thấy chuyến của người khác; menu điện thoại. Kiểm thử thay đổi dữ liệu (mời tài khoản `stranger`), nên muốn chạy lại thì `npx supabase db reset` và tạo lại tài khoản.
 
+Các kịch bản có tài xế nhận đơn viết trước tính năng "Giám đốc duyệt chuyến": tắt tham số trước khi chạy, ví dụ `update public.system_settings set value = 'false' where key = 'dispatch.require_director_approval';`.
+
 > Đăng nhập email/mật khẩu chỉ dùng cho kiểm thử cục bộ. Ứng dụng thật chỉ đăng nhập bằng Google.
 
 ## 2. Tạo dự án Supabase thật

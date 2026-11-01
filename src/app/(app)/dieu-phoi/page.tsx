@@ -21,6 +21,7 @@ import { DispatchFilterBar } from "@/components/dispatch/dispatch-filter-bar";
 import { FreeVehiclesGrid } from "@/components/dispatch/free-vehicles-grid";
 import { cn } from "@/lib/utils";
 import { ReportLinks } from "@/components/reports/report-links";
+import { TripApprovalButtons } from "@/components/dispatch/trip-approval";
 
 export const metadata: Metadata = { title: "Điều phối" };
 
@@ -55,7 +56,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   let listQ = applyShipmentFilters(supabase.from("shipment_list").select("*"), { ...f, tt: "" });
   if (xe) listQ = listQ.eq("vehicle_id", xe);
   if (tx) listQ = listQ.eq("driver_id", tx);
-  const [listRes, upcomingRes, free, view, advLabels] = await Promise.all([
+  const [listRes, upcomingRes, free, view, advLabels, approvalRes] = await Promise.all([
     listQ.order("pickup_at").order("shipment_code").limit(MAX_ROWS),
     // Chuyến chưa phân công ở ngoài khoảng ngày đang xem (từ hôm nay trở đi)
     supabase
@@ -69,6 +70,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     loadFreeVehicles(supabase, f.tu, f.den, { vehicleId: xe, driverId: tx }),
     xem ? loadTableView(supabase, "dispatch_free_vehicles", me.id) : Promise.resolve(null),
     advRefLabels(supabase, f.adv, advFields),
+    // Chuyến chờ Giám đốc duyệt ở mọi ngày (tài xế chưa thấy)
+    supabase
+      .from("shipment_list")
+      .select("id, dispatch_approval_request_id, can_approve_dispatch")
+      .eq("dispatch_approval", "pending")
+      .neq("status", "cancelled")
+      .order("pickup_at")
+      .limit(200),
   ]);
   if (listRes.error) throw listRes.error;
   if (upcomingRes.error) throw upcomingRes.error;
@@ -81,7 +90,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   );
   const now = new Date().getTime();
   const lateCount = all.filter((r) => isLate(r, now)).length;
-  const rows = tab === "tre" ? all.filter((r) => isLate(r, now)) : tab ? all.filter((r) => r.status === tab) : all;
+  const rows =
+    tab === "tre"
+      ? all.filter((r) => isLate(r, now))
+      : tab === "cho-duyet"
+        ? all.filter((r) => r.dispatch_approval === "pending" || r.dispatch_approval === "rejected")
+        : tab
+          ? all.filter((r) => r.status === tab)
+          : all;
+  const approvalCount = all.filter((r) => r.dispatch_approval === "pending" || r.dispatch_approval === "rejected").length;
+  const pendingAll = (approvalRes.data ?? []) as { id: string; dispatch_approval_request_id: string | null; can_approve_dispatch: boolean }[];
+  const myApprovals = pendingAll.filter((r) => r.can_approve_dispatch && r.dispatch_approval_request_id).map((r) => r.dispatch_approval_request_id!);
   const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, all.filter((r) => r.status === s.value).length]));
   const freeCount = free.filter((v) => v.free_days > 0).length;
   const filtered = Boolean(f.kh || xe || tx || f.q || f.adv.length);
@@ -127,6 +146,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       />
       {me.permissions.has("reports.view") ? <ReportLinks /> : null}
 
+      {pendingAll.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          <span>
+            <b>{pendingAll.length}</b> chuyến đang chờ Giám đốc duyệt (mọi ngày). Tài xế chỉ thấy chuyến sau khi được duyệt.
+            {approvalCount > 0 && tab !== "cho-duyet" ? (
+              <>
+                {" "}
+                <Link href={href({ tt: "cho-duyet", xem: "" })} className="font-medium text-primary hover:underline">
+                  Xem chuyến chờ duyệt trong ngày đang lọc
+                </Link>
+              </>
+            ) : null}
+          </span>
+          {myApprovals.length > 0 ? <TripApprovalButtons bulk requestIds={myApprovals} label="" /> : null}
+        </div>
+      ) : null}
+
       <DispatchFilterBar filters={{ tu: f.tu, den: f.den, kh: f.kh, xe, tx, q: f.q, adv: f.adv, xem }} today={today} advFields={advFields} advLabels={advLabels} />
 
       <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Chế độ xem">
@@ -154,6 +190,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             {SHIPMENT_STATUS.filter((s) => counts[s.value] > 0 || ["draft", "assigned"].includes(s.value)).map((s) => (
               <TabLink key={s.value} href={href({ tt: s.value })} active={tab === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
             ))}
+            {approvalCount > 0 || tab === "cho-duyet" ? (
+              <TabLink href={href({ tt: "cho-duyet" })} active={tab === "cho-duyet"} label="Chờ GĐ duyệt / bị từ chối" count={approvalCount} tone="warning" />
+            ) : null}
             {lateCount > 0 ? <TabLink href={href({ tt: "tre" })} active={tab === "tre"} label="Trễ giờ giao" count={lateCount} tone="destructive" /> : null}
           </div>
           {all.length >= MAX_ROWS ? (

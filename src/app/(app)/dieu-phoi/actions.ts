@@ -491,3 +491,50 @@ export async function cancelOrder(input: z.input<typeof cancelOrderSchema>): Pro
     return data as number;
   }, "Đã hủy đơn hàng.");
 }
+
+const tripDecisionSchema = z.object({
+  requestIds: z.array(uuid).min(1, "Chưa chọn chuyến").max(200, "Mỗi lần duyệt tối đa 200 chuyến"),
+  action: z.enum(["approve", "reject"]),
+  comment: z.string().max(1000, "Tối đa 1000 ký tự").optional(),
+});
+
+/** Giám đốc duyệt / từ chối một hoặc nhiều chuyến (từ chối bắt buộc lý do) */
+export async function decideTrips(input: z.input<typeof tripDecisionSchema>): Promise<ActionResult<{ done: number; failed: string[] }>> {
+  return runAction(async () => {
+    await requirePermission("approvals.approve");
+    const p = tripDecisionSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const d = p.data;
+    if (d.action === "reject" && !d.comment?.trim()) throw new ActionError("Nhập lý do từ chối");
+    const supabase = await createClient();
+    let done = 0;
+    const failed: string[] = [];
+    for (const id of d.requestIds) {
+      const { error } = await supabase.rpc("approval_decide", { p_request_id: id, p_action: d.action, p_comment: d.comment?.trim() || null, p_amount: null });
+      if (error) failed.push(toUserMessage(error));
+      else done++;
+    }
+    if (done === 0 && failed.length) throw new ActionError(failed[0]);
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    revalidatePath("/phe-duyet");
+    return { done, failed };
+  }, input.action === "approve" ? "Đã duyệt chuyến, tài xế đã thấy chuyến." : "Đã từ chối chuyến.");
+}
+
+const resubmitSchema = z.object({ shipmentId: uuid, note: z.string().max(500, "Tối đa 500 ký tự").optional() });
+
+/** Điều phối gửi duyệt lại chuyến bị Giám đốc từ chối */
+export async function resubmitTrip(input: z.input<typeof resubmitSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update");
+    const p = resubmitSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("resubmit_trip_approval", { p_shipment_id: p.data.shipmentId, p_note: p.data.note?.trim() || null });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    revalidatePath("/phe-duyet");
+  }, "Đã gửi Giám đốc duyệt lại.");
+}

@@ -27,7 +27,7 @@ export function parseShipmentFilters(raw: SP, extraAdv: AdvField[] = []): Shipme
   return {
     tu,
     den,
-    tt: sp.tt === "tre" || SHIPMENT_STATUS.some((s) => s.value === sp.tt) ? sp.tt! : "",
+    tt: sp.tt === "tre" || sp.tt === "cho-duyet" || SHIPMENT_STATUS.some((s) => s.value === sp.tt) ? sp.tt! : "",
     kh: sp.kh && isUuid(sp.kh) ? sp.kh : "",
     q: sanitizeSearch(sp.q ?? ""),
     adv: parseConditions(raw.a, [...SHIPMENT_ADV_FIELDS, ...extraAdv]).map(encodeCondition),
@@ -54,6 +54,7 @@ export function applyShipmentFilters(query: any, f: ShipmentFilters, opts: { sta
   }
   if (opts.status !== false && f.tt) {
     if (f.tt === "tre") q = q.in("status", ["assigned", "accepted", "in_transit"]).lt("expected_delivery_at", new Date().toISOString());
+    else if (f.tt === "cho-duyet") q = q.in("dispatch_approval", ["pending", "rejected"]);
     else q = q.eq("status", f.tt);
   }
   return q;

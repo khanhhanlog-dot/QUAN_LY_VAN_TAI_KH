@@ -103,3 +103,6 @@ upgrade nang-cap-bao-cao-boc-xep.sql "Báo cáo cước vận chuyển, phí chi
 
 upgrade nang-cap-ma-khach-bao-cao.sql "Báo cáo hiển thị mã khách hàng; xóa dữ liệu thử trong ứng dụng" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'report_shipment_profit' and column_name = 'customer_code')" \
   supabase/migrations/20261030000031_report_customer_code.sql
+
+upgrade nang-cap-giam-doc-duyet-chuyen.sql "Giám đốc duyệt chuyến trước khi tài xế nhận" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'dispatch_approval')" \
+  supabase/migrations/20261101000033_trip_director_approval.sql
