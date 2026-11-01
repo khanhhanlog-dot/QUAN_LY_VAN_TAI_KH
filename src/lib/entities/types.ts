@@ -119,6 +119,8 @@ export type EntityDef = {
   rowActions?: string;
   /** Mọi thao tác ghi cần đúng một quyền này (ví dụ approvals.configure) */
   writePerm?: string;
+  /** Mọi người dùng đang hoạt động đều xem/tạo được (RLS giới hạn dòng: đơn của mình, việc giao cho mình…) */
+  openToAll?: boolean;
   /** Quyền hiện nút tạo nghiệp vụ (mặc định {perm}.create) */
   createPerm?: string;
 };

@@ -24,12 +24,18 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
   const [pending, start] = useTransition();
   const isAdvance = row.entity_type === "advance_request";
   const isTrip = row.entity_type === "shipment_dispatch";
+  const isLeave = row.entity_type === "leave_request";
   const docType = row.entity_type === "shipment_expense" ? "shipment_expense" : row.entity_type === "advance_request" ? "advance_request" : null;
   return (
     <>
       {isTrip && row.entity_id ? (
         <Button asChild size="sm" variant="ghost" className="h-7 px-2">
           <Link href={`/chuyen-xe/${String(row.entity_id)}`}>Xem chuyến</Link>
+        </Button>
+      ) : null}
+      {isLeave ? (
+        <Button asChild size="sm" variant="ghost" className="h-7 px-2">
+          <Link href="/nghi-phep?tab=leave_requests&f_can_approve=true">Xem đơn nghỉ</Link>
         </Button>
       ) : null}
       {docType && Number(row.file_count) > 0 ? (
@@ -51,9 +57,13 @@ export function ApprovalRowActions({ row, onDone }: RowActionProps) {
             <DialogTitle>{mode === "approve" ? "Duyệt yêu cầu" : "Từ chối yêu cầu"}</DialogTitle>
             <DialogDescription>{String(row.content ?? "")}</DialogDescription>
           </DialogHeader>
-          <p className="text-sm">
-            {isTrip ? "Doanh thu chuyến" : "Số tiền xin"}: <b>{formatVND(num(row.amount))}</b> · Người gửi: {String(row.requester_name ?? "")}
-          </p>
+          {isLeave ? (
+            <p className="text-sm">Người gửi: {String(row.requester_name ?? "")}. Xem bàn giao ở mục Xin nghỉ, bàn giao.</p>
+          ) : (
+            <p className="text-sm">
+              {isTrip ? "Doanh thu chuyến" : "Số tiền xin"}: <b>{formatVND(num(row.amount))}</b> · Người gửi: {String(row.requester_name ?? "")}
+            </p>
+          )}
           {mode === "approve" && isAdvance ? (
             <div className="space-y-1.5">
               <Label htmlFor="approve-amount">Số tiền duyệt</Label>

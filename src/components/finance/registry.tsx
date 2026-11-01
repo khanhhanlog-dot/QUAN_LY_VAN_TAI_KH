@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { CreateAdvanceDialog, CreateExpenseDialog, type CreateActionProps } from "./create-dialogs";
 import { CreatePayableDialog, CreatePayrollDialog, CreateReceivableDialog } from "./payroll-debt-dialogs";
 import { AdvanceRowActions, ApprovalRowActions, ExpenseRowActions, type RowActionProps } from "./row-actions";
+import { CreateLeaveDialog, HandoverRowActions, LeaveRowActions } from "@/components/leave/leave-dialogs";
 import { BillingRowActions, PayableRowActions, PaymentRowActions, PayrollRowActions, ReceivableRowActions } from "./payroll-debt-actions";
 
 /** Biểu mẫu nghiệp vụ thay cho biểu mẫu chung khi bấm "Tạo …" trên bảng (EntityDef.createAction) */
@@ -12,6 +13,7 @@ export const CREATE_ACTIONS: Record<string, ComponentType<CreateActionProps>> = 
   payroll: CreatePayrollDialog,
   receivable: CreateReceivableDialog,
   payable: CreatePayableDialog,
+  leave: CreateLeaveDialog,
 };
 
 /** Nút thao tác trên từng dòng (EntityDef.rowActions) */
@@ -24,6 +26,8 @@ export const ROW_ACTIONS: Record<string, ComponentType<RowActionProps>> = {
   payable: PayableRowActions,
   billing: BillingRowActions,
   payment: PaymentRowActions,
+  leave: LeaveRowActions,
+  leave_handover: HandoverRowActions,
 };
 
 /** Độ rộng cột thao tác (px) theo loại nút */
@@ -36,4 +40,6 @@ export const ROW_ACTION_WIDTH: Record<string, number> = {
   payable: 250,
   billing: 170,
   payment: 150,
+  leave: 250,
+  leave_handover: 150,
 };
