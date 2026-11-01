@@ -52,6 +52,12 @@ export type ShipmentListRow = {
   dispatch_reject_reason?: string | null;
   /** Người đang xem duyệt được chuyến này */
   can_approve_dispatch?: boolean;
+  /** Tổng theo nhóm phí (Phí vận chuyển = cước + phụ phí + hỗ trợ dầu + phụ thu nhóm vận chuyển) */
+  transport_fee?: number;
+  pass_through_fee?: number;
+  declaration_fee?: number;
+  loading_fee?: number;
+  other_fee?: number;
 };
 
 /** Chuyến đang trễ: quá giờ giao dự kiến mà chưa giao xong */
@@ -82,7 +88,11 @@ export const SHIPMENT_ADV_FIELDS: AdvField[] = [
   { key: "fuel_support_rate", label: "% hỗ trợ dầu", kind: "number" },
   { key: "fuel_support_amount", label: "Hỗ trợ dầu", kind: "number" },
   { key: "extra_fee_amount", label: "Phí khác (tính doanh thu)", kind: "number" },
-  { key: "total_revenue", label: "Tổng doanh thu", kind: "number" },
+  { key: "transport_fee", label: "Phí vận chuyển", kind: "number" },
+  { key: "pass_through_fee", label: "Phí chi hộ", kind: "number" },
+  { key: "declaration_fee", label: "Phí tờ khai", kind: "number" },
+  { key: "loading_fee", label: "Phí bốc xếp", kind: "number" },
+  { key: "total_revenue", label: "Doanh thu", kind: "number" },
   { key: "pass_through_amount", label: "Chi hộ", kind: "number" },
   { key: "amount_due", label: "Khách phải trả", kind: "number" },
   { key: "status", label: "Trạng thái", kind: "select", options: opts(SHIPMENT_STATUS) },

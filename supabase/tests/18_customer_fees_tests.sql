@@ -5,6 +5,8 @@
 \set QUIET 1
 \o /dev/null
 reset role;
+-- Từ 0037 loại phí nhóm Bốc xếp tính như chi hộ; kiểm thử 0029 dùng Phí bốc xếp làm phí tính doanh thu
+update public.fee_types set fee_kind = 'revenue' where name = 'Phí bốc xếp';
 create temp table t_cf as
   select s.id, (select id from public.fee_types where name = 'Phí bốc xếp') as boc_xep, (select id from public.fee_types where name = 'Phí chi hộ') as chi_ho,
          s.freight_amount + s.surcharge_amount + s.fuel_support_amount as base

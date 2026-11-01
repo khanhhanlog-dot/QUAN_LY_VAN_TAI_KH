@@ -70,3 +70,10 @@ select public.set_shipment_fees((select id from t_sp), '[]'::jsonb);
 reset role;
 \o
 \echo 'TẤT CẢ KIỂM THỬ TỔNG THEO NHÓM PHÍ ĐỀU ĐẠT'
+
+\o /dev/null
+select tests.assert((select count(*) from public.fee_types f join public.fee_groups g on g.id = f.fee_group_id where g.code = 'BOCXEP' and f.fee_kind <> 'pass_through') = 0,
+  'Loại phí nhóm Bốc xếp tính như chi hộ (không vào doanh thu)');
+select tests.assert(exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipment_list' and column_name = 'transport_fee'),
+  'Bảng chuyến có cột Phí vận chuyển');
+\o

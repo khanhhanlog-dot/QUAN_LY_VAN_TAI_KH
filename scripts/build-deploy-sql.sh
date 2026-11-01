@@ -112,5 +112,5 @@ upgrade nang-cap-nhom-phi.sql "Nhóm phí (vận chuyển, chi hộ, tờ khai, 
   supabase/migrations/20261101000035_fee_groups.sql
 upgrade nang-cap-nhap-chuyen-excel.sql "Nhập đơn hàng, chuyến từ Excel" "to_regprocedure('public.import_transport_order(jsonb,jsonb)') is not null" \
   supabase/migrations/20261101000036_import_trips.sql
-upgrade nang-cap-tong-theo-nhom-phi.sql "Thẻ tổng Quản lý chuyến theo nhóm phí (vận chuyển, chi hộ, tờ khai, bốc xếp)" "to_regclass('public.shipment_fee_role_totals') is not null" \
+upgrade nang-cap-tong-theo-nhom-phi.sql "Phí vận chuyển, chi hộ, tờ khai, bốc xếp trên Quản lý chuyến; công thức tính tiền" "to_regclass('public.shipment_fee_role_totals') is not null" \
   supabase/migrations/20261101000037_shipment_fee_role_totals.sql

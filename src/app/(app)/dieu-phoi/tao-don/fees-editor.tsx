@@ -78,7 +78,7 @@ export function useFeeCatalog(): [FeeCatalog | null, () => void] {
 export function feeTotals(lines: FeeLine[], catalog?: FeeCatalog | null) {
   let revenue = 0;
   let passThrough = 0;
-  let freight = 0;
+  const byRole: Record<FeeGroupRole, number> = { freight: 0, pass_through: 0, declaration: 0, loading: 0, other: 0 };
   const typeOf = new Map(catalog?.types.map((t) => [t.id, t]) ?? []);
   const roleOf = new Map(catalog?.groups.map((g) => [g.id, g.report_role]) ?? []);
   for (const l of lines) {
@@ -87,9 +87,9 @@ export function feeTotals(lines: FeeLine[], catalog?: FeeCatalog | null) {
     const kind = l.kind ?? t?.fee_kind ?? "revenue";
     if (kind === "pass_through") passThrough += v;
     else revenue += v;
-    if (t?.fee_group_id && roleOf.get(t.fee_group_id) === "freight") freight += v;
+    byRole[(t?.fee_group_id && roleOf.get(t.fee_group_id)) || "other"] += v;
   }
-  return { revenue, passThrough, freight };
+  return { revenue, passThrough, freight: byRole.freight, byRole };
 }
 
 export const FEE_KIND_LABEL: Record<FeeKind, string> = { revenue: "Tính doanh thu", pass_through: "Chi hộ" };

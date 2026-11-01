@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDateTime } from "@/lib/format";
 import { SettingValueEditor } from "./setting-row";
 import { PurgeCard } from "./purge-card";
+import { FeeFormulaCard } from "./fee-formula-card";
 
 export const metadata: Metadata = { title: "Cấu hình" };
 
@@ -22,6 +23,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Cấu hình" description="Tham số hệ thống. Mỗi lần thay đổi được ghi nhật ký." />
+      <FeeFormulaCard />
       <Card>
         <Table>
           <TableHeader>

@@ -976,19 +976,26 @@ function ShipmentEditor({
           {priceReady ? (
             <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
               <Money label={`Cước (${formatNumber(qty)} × ${formatVND(unitPrice)})`} value={freight} />
-              <Money label="Phụ phí" value={surcharge} />
               <Money label={rate !== null ? `Hỗ trợ dầu ${formatNumber(rate)}%` : "Hỗ trợ dầu"} value={fuel} note={fuel === null ? "Tính theo định mức khi lưu" : undefined} />
-              {fees.freight ? <Money label="Phụ thu nhóm cước" value={fees.freight} /> : null}
-              <Money label="Tổng cước" value={fuel === null ? null : freight + surcharge + fuel + fees.freight} strong />
-              {fees.revenue - fees.freight ? <Money label="Phí khác (tính doanh thu)" value={fees.revenue - fees.freight} /> : null}
-              <Money label="Tổng doanh thu dự kiến" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue} strong />
-              {fees.passThrough ? <Money label="Chi hộ (không tính doanh thu)" value={fees.passThrough} /> : null}
-              {fees.passThrough ? <Money label="Khách phải trả" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue + fees.passThrough} strong /> : null}
+              {surcharge ? <Money label="Phụ phí (bảng giá)" value={surcharge} /> : null}
+              {fees.byRole.freight ? <Money label="Phụ thu (vé, hạ xa + BOT, neo…)" value={fees.byRole.freight} /> : null}
+              <Money
+                label="Phí vận chuyển"
+                value={fuel === null ? null : freight + surcharge + fuel + fees.byRole.freight}
+                note="Đơn giá × SL × (1 + % dầu) + phụ thu"
+                strong
+              />
+              {fees.byRole.pass_through ? <Money label="Phí chi hộ" value={fees.byRole.pass_through} /> : null}
+              {fees.byRole.declaration ? <Money label="Phí tờ khai" value={fees.byRole.declaration} /> : null}
+              {fees.byRole.loading ? <Money label="Phí bốc xếp" value={fees.byRole.loading} /> : null}
+              {fees.byRole.other ? <Money label="Phí khác" value={fees.byRole.other} /> : null}
+              <Money label="Doanh thu" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue} note="Không gồm chi hộ, bốc xếp" />
+              <Money label="Khách phải trả" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue + fees.passThrough} strong />
             </dl>
           ) : null}
           {!priceFields.length ? (
             <p className="text-xs text-muted-foreground">
-              Cần thêm phụ thu (vé, hạ trái tuyến…) hoặc công thức giá riêng? Bấm nút dưới. Ví dụ công thức: ROUND(unit_price * (1 + fuel_support_rate / 100), 0) + N(phu_thu_ve).
+              Phụ thu vé, hạ rỗng xa + BOT, neo xe… nhập ở nhóm Phí vận chuyển phía trên. Thêm loại phụ thu mới: Danh mục → Loại phí thu khách (chọn nhóm Phí vận chuyển). Cách tính tiền xem ở Cấu hình → Công thức tính tiền.
             </p>
           ) : null}
           {canAddField ? <AddFieldButton module="shipments" customRows={shipmentFieldRows} label="Thêm phụ thu / công thức giá" /> : null}
@@ -1024,6 +1031,7 @@ function Money({ label, value, note, strong }: { label: string; value: number | 
     <div className="rounded-md bg-card px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={strong ? "font-semibold text-primary" : "font-medium"}>{value === null ? note : formatVND(value)}</dd>
+      {value !== null && note ? <dd className="text-[11px] text-muted-foreground">{note}</dd> : null}
     </div>
   );
 }
