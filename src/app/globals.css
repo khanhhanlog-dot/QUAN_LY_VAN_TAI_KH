@@ -137,3 +137,16 @@ thead th span {
 thead th button:hover {
   color: var(--primary);
 }
+
+/* Dòng dữ liệu của MỌI bảng: cột hẹp thì nội dung tự xuống dòng (không cắt "…"), kéo cột hẹp lại để thấy
+   nhiều cột hơn mà vẫn đọc đủ chữ. Ô nào cần giữ một dòng thì gắn data-nowrap. */
+tbody td:not([data-nowrap]),
+tbody td:not([data-nowrap]) .truncate,
+tbody td:not([data-nowrap]) .whitespace-nowrap {
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+}
+tbody td:not([data-nowrap]) .truncate {
+  overflow: visible;
+}
