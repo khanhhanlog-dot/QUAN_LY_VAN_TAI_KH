@@ -1,8 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Ban, Copy, Loader2, Plus, RefreshCw, Save, Trash2, Undo2 } from "lucide-react";
+import { Ban, Copy, X, Loader2, Plus, RefreshCw, Save, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
@@ -199,6 +200,7 @@ export function OrderForm({
   edit,
   canCreate = true,
   canCancelTrips = false,
+  closeHref,
 }: {
   order?: {
     id: string;
@@ -212,6 +214,8 @@ export function OrderForm({
   canCreate?: boolean;
   /** Được hủy chuyến ngay trong form sửa */
   canCancelTrips?: boolean;
+  /** Nút Đóng: quay lại trang trước (không lưu) */
+  closeHref?: string;
   canCreatePriceList: boolean;
   /** Trường bổ sung do người dùng tự thêm cho đơn hàng / chuyến */
   orderFields: FieldDef[];
@@ -470,7 +474,8 @@ export function OrderForm({
         />
       ))}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+      {/* Thanh lưu/đóng luôn nổi ở đáy màn hình khi cuộn đơn dài */}
+      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col-reverse gap-2 border-t bg-background/95 px-4 py-3 sm:-mx-6 sm:px-6 backdrop-blur sm:flex-row sm:justify-between">
         {canCreate ? (
           <Button variant="outline" onClick={() => setRows((rs) => [...rs, newRow()])} disabled={rows.length >= (edit ? 200 : 100)}>
             <Plus /> Thêm chuyến
@@ -478,10 +483,19 @@ export function OrderForm({
         ) : (
           <span />
         )}
-        <Button onClick={submit} disabled={pending}>
-          {pending ? <Loader2 className="animate-spin" /> : <Save />}{" "}
-          {edit ? `Lưu thay đổi đơn ${edit.code}` : order ? `Lưu ${rows.length} chuyến vào đơn ${order.code}` : `Lưu đơn hàng (${rows.length} chuyến)`}
-        </Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          {closeHref ? (
+            <Button asChild variant="outline">
+              <Link href={closeHref}>
+                <X /> Đóng
+              </Link>
+            </Button>
+          ) : null}
+          <Button onClick={submit} disabled={pending}>
+            {pending ? <Loader2 className="animate-spin" /> : <Save />}{" "}
+            {edit ? `Lưu thay đổi đơn ${edit.code}` : order ? `Lưu ${rows.length} chuyến vào đơn ${order.code}` : `Lưu đơn hàng (${rows.length} chuyến)`}
+          </Button>
+        </div>
       </div>
     </div>
   );

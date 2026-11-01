@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
@@ -204,6 +205,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <ChevronLeft className="size-4" /> Đơn hàng {o.order_code}
       </Link>
       <PageHeader
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/dieu-phoi/don-hang/${o.id}`}>
+              <X /> Đóng
+            </Link>
+          </Button>
+        }
         title={`Sửa đơn hàng ${o.order_code}`}
         description="Sửa mọi thông tin đã nhập lúc tạo đơn: phần đầu đơn, từng chuyến, giá, phí, hàng hóa, trường bổ sung. Thêm chuyến hoặc hủy chuyến ngay tại đây. Mọi thay đổi được ghi nhật ký."
       />
@@ -213,6 +221,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </Alert>
       ) : (
         <OrderForm
+          closeHref={`/dieu-phoi/don-hang/${o.id}`}
           edit={edit}
           canCreate={o.status === "open" && me.permissions.has("dispatch.create")}
           canCancelTrips={me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")}

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
@@ -38,6 +39,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
         <ChevronLeft className="size-4" /> {order ? `Đơn hàng ${order.code}` : "Điều phối"}
       </Link>
       <PageHeader
+        actions={
+          <Button asChild variant="outline">
+            <Link href={order ? `/dieu-phoi/don-hang/${order.id}` : "/dieu-phoi"}>
+              <X /> Đóng
+            </Link>
+          </Button>
+        }
         title={order ? `Thêm chuyến vào đơn ${order.code}` : "Tạo đơn hàng"}
         description={
           order
@@ -46,6 +54,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
         }
       />
       <OrderForm
+        closeHref={order ? `/dieu-phoi/don-hang/${order.id}` : "/dieu-phoi"}
         order={order}
         canCreatePriceList={me.permissions.has("price_lists.create")}
         orderFields={orderFields}

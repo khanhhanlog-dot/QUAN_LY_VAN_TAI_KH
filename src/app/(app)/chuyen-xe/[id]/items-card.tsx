@@ -76,7 +76,7 @@ export function ItemsCard({
             <ItemsEditor value={editing} onChange={setEditing} fields={fields} layout={layout} canAddField={canAddField} fieldRows={fieldRows} idPrefix="ct-it-" />
             <div className="flex justify-end gap-2">
               <Button variant="outline" disabled={pending} onClick={() => setEditing(null)}>
-                Hủy
+                Đóng
               </Button>
               <Button
                 disabled={pending}

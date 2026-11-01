@@ -60,7 +60,7 @@ export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; cod
           <FeesEditor value={lines} onChange={setLines} idPrefix="ct-fee-" />
           <DialogFooter>
             <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>
-              Hủy
+              Đóng
             </Button>
             <Button
               disabled={pending}

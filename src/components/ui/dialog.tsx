@@ -19,19 +19,23 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
         )}
         {...props}
       >
-        {children}
-        <P.Close className="absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100" aria-label="Đóng">
-          <XIcon className="size-4" />
+        {/* Nút Đóng luôn nổi ở góc trên khi cuộn hộp thoại dài */}
+        <P.Close
+          className="sticky top-0 z-20 order-first -mt-2 -mr-2 -mb-12 inline-flex h-8 self-start items-center gap-1 justify-self-end rounded-md border bg-card px-2 py-1 text-sm text-muted-foreground shadow-sm hover:text-foreground"
+          aria-label="Đóng"
+        >
+          <XIcon className="size-4" /> Đóng
         </P.Close>
+        {children}
       </P.Content>
     </P.Portal>
   );
 }
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("flex flex-col gap-1.5", className)} {...props} />;
+  return <div className={cn("flex flex-col gap-1.5 pr-20", className)} {...props} />;
 }
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)} {...props} />;
+  return <div className={cn("sticky -bottom-6 z-10 -mx-6 -mb-6 flex flex-col-reverse gap-2 border-t bg-card px-6 py-3 sm:flex-row sm:justify-end", className)} {...props} />;
 }
 function DialogTitle({ className, ...props }: React.ComponentProps<typeof P.Title>) {
   return <P.Title className={cn("text-lg font-semibold", className)} {...props} />;

@@ -135,7 +135,7 @@ export function EditShipmentDialog({ s, compact }: { s: ShipmentListRow; compact
           </div>
           <DialogFooter>
             <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>
-              Hủy
+              Đóng
             </Button>
             <Button disabled={pending} onClick={save}>
               {pending ? <Loader2 className="animate-spin" /> : null} Lưu thay đổi

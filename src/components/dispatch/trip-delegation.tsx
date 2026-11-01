@@ -100,7 +100,7 @@ export function TripDelegationManager({ info, compact }: { info: DelegationInfo 
               <Textarea id="dlg-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Ví dụ: Đi công tác Hà Nội 3 ngày" />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="static mx-0 mb-0 border-t-0 p-0">
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
               Đóng
             </Button>
