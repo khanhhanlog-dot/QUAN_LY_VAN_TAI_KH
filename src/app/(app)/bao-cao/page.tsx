@@ -61,6 +61,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       { key: "report_freight" },
       { key: "report_pass_through" },
       { key: "report_loading" },
+      { key: "report_carrier_trips" },
+      { key: "report_carrier_by_supplier" },
       { key: "report_fee_type" },
       { key: "report_fee_lines" },
       { key: "report_monthly" },

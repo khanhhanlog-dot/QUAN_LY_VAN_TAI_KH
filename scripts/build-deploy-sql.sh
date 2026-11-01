@@ -122,3 +122,5 @@ upgrade nang-cap-xin-nghi-ban-giao.sql "Xin nghỉ (phép/ốm), bàn giao khác
   supabase/migrations/20261101000041_leave_requests.sql
 upgrade nang-cap-de-nghi-chi.sql "Phiếu đề nghị chi, mua sắm (Giám đốc duyệt, Kế toán chi tiền)" "to_regclass('public.purchase_requests') is not null" \
   supabase/migrations/20261101000040_purchase_requests.sql
+upgrade nang-cap-chi-phi-3pl.sql "Chi phí và thanh toán xe thuê ngoài 3PL (cước, chi hộ phải trả nhà xe, báo cáo)" "to_regclass('public.shipment_carrier_costs') is not null" \
+  supabase/migrations/20261101000042_carrier_costs.sql

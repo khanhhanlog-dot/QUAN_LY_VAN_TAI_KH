@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Ban, FilePlus2, HandCoins, History, Send } from "lucide-react";
+import { Ban, FilePlus2, HandCoins, History, Send, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -409,6 +409,23 @@ export function PaymentRowActions({ row, onDone }: RowActionProps) {
           }}
         />
       ) : null}
+    </>
+  );
+}
+
+/** Báo cáo chuyến 3PL: mở chi phí 3PL của chuyến; trả tiền, xem lịch sử trả của công nợ 3PL */
+export function CarrierRowActions({ row, onDone }: RowActionProps) {
+  const payable = row.payable_id
+    ? { ...row, id: row.payable_id, code: row.payable_code, status: row.pay_status === "unpaid" ? "open" : row.pay_status }
+    : null;
+  return (
+    <>
+      <Button asChild size="sm" variant="outline" className="h-7 px-2">
+        <Link href={`/chuyen-xe/${String(row.id)}#chi-phi-3pl`} aria-label={`Chi phí 3PL ${String(row.shipment_code)}`}>
+          <Truck className="size-3.5" /> {row.pay_status === "no_cost" ? "Nhập chi phí" : "Chi phí"}
+        </Link>
+      </Button>
+      {payable ? <DebtRowActions kind="payable" row={payable} onDone={onDone} /> : null}
     </>
   );
 }

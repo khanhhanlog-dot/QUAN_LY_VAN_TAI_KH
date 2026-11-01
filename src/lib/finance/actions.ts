@@ -14,6 +14,7 @@ function refreshFinance() {
   revalidatePath("/phe-duyet");
   revalidatePath("/cong-no");
   revalidatePath("/bao-cao");
+  revalidatePath("/thue-ngoai");
 }
 
 /** Kiểm tra và tách giá trị trường bổ sung của module (ứng tiền / chi phí) */

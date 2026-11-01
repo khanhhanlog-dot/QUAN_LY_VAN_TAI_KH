@@ -17,6 +17,8 @@ export type ShipmentProfit = {
   profit_before_vehicle: number;
   profit: number;
   margin_percent: number | null;
+  /** Cước + chi phí khác phải trả nhà xe 3PL (không gồm chi hộ 3PL) */
+  carrier_cost?: number;
 };
 
 /** Khung Lời/lỗ chuyến: doanh thu − chi phí chuyến đã duyệt − chi phí xe chia về */
@@ -32,6 +34,7 @@ export function ProfitCard(props: {
   const p = props.profit;
   const tripCost = props.costLines.reduce((a, l) => a + l.amount, 0);
   const vehicleCost = Number(p?.vehicle_cost ?? 0);
+  const carrierCost = Number(p?.carrier_cost ?? 0);
   const result = p ? Number(p.profit) : props.revenue - tripCost;
   const month = p?.trip_month ? `${p.trip_month.slice(5, 7)}/${p.trip_month.slice(0, 4)}` : null;
   return (
@@ -46,6 +49,14 @@ export function ProfitCard(props: {
           <Op><Minus className="size-4" /></Op>
           <Box label="Chi phí chuyến" value={tripCost} />
           <Op><Minus className="size-4" /></Op>
+          {props.outsourced || carrierCost > 0 ? (
+            <>
+              <a href="#chi-phi-3pl" className="contents">
+                <Box label="Cước, chi phí trả 3PL" value={carrierCost} />
+              </a>
+              <Op><Minus className="size-4" /></Op>
+            </>
+          ) : null}
           <Box label="Chi phí xe chia về" value={vehicleCost} />
           <Op><Equal className="size-4" /></Op>
           <div
@@ -74,13 +85,13 @@ export function ProfitCard(props: {
               <Line label="Chờ duyệt (chưa trừ vào lời lỗ)" value={<span className="text-amber-700 dark:text-amber-400">{formatVND(p!.pending_cost)}</span>} />
             ) : null}
             <p className="pt-1 text-xs text-muted-foreground">
-              Nhập ở nút <b>Nhập chi phí</b> (văn phòng) hoặc tài xế khai khi hoàn thành chuyến: bồi dưỡng, bốc xếp, cầu đường, vá lốp dọc đường, thuê xe ngoài (3-PL)... Khoản chỉ được trừ sau khi duyệt.
+              Nhập ở nút <b>Nhập chi phí</b> (văn phòng) hoặc tài xế khai khi hoàn thành chuyến: bồi dưỡng, bốc xếp, cầu đường, vá lốp dọc đường, ... Khoản chỉ được trừ sau khi duyệt. Cước thuê xe 3PL nhập ở khung Chi phí trả 3PL.
             </p>
           </div>
           <div className="space-y-1">
             <div className="font-medium">Chi phí xe chia về</div>
             {props.outsourced ? (
-              <p className="text-muted-foreground">Xe thuê ngoài (3-PL): không có chi phí sửa chữa, bảo hiểm của công ty. Tiền thuê xe nhập là chi phí chuyến, hạng mục &quot;Thuê xe ngoài (3-PL)&quot;.</p>
+              <p className="text-muted-foreground">Xe thuê ngoài (3-PL): không có chi phí sửa chữa, bảo hiểm của công ty. Cước trả nhà xe nhập ở khung <a href="#chi-phi-3pl" className="text-primary hover:underline">Chi phí trả 3PL</a> bên dưới.</p>
             ) : !props.vehicleId ? (
               <p className="text-muted-foreground">Chuyến chưa có xe.</p>
             ) : !p ? (

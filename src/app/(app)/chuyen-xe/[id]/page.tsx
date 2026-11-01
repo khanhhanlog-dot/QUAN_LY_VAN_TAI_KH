@@ -26,6 +26,8 @@ import { EditShipmentDialog } from "./edit-shipment-dialog";
 import { ItemsCard, type ShipmentItem } from "./items-card";
 import { FeesDialog, type ShipmentFee } from "./fees-dialog";
 import { ProfitCard, type ShipmentProfit } from "./profit-card";
+import { CarrierCard, type CarrierPayable } from "./carrier-card";
+import type { CarrierCost } from "@/components/finance/carrier-dialogs";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
 import { TONE_BADGE } from "@/lib/tones";
@@ -39,7 +41,9 @@ type Extra = {
   dispatch_approved_at: string | null;
   dispatch_approved_on_behalf: boolean;
   photo_skip_reason: string | null;
-  vehicle: { ownership_type: string } | null;
+  vehicle: { ownership_type: string; supplier_id: string | null; supplier: { name: string } | null } | null;
+  carrier_supplier_id: string | null;
+  carrier: { name: string } | null;
   pricing_snapshot: Record<string, unknown>;
   cancel_reason: string | null;
   cancelled_at: string | null;
@@ -127,13 +131,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
   const canExpenses = me.permissions.has("expenses.view");
+  const canSeeCarrier = ["dispatch.view", "receivables.view", "reports.view", "expenses.view"].some((k) => me.permissions.has(k as never));
+  const canSeePayable = me.permissions.has("receivables.view");
   const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows, feeRes, profitRes] = await Promise.all([
     shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("shipments")
       .select(
-        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, vehicle:vehicles(ownership_type)",
+        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, carrier_supplier_id, carrier:suppliers(name), vehicle:vehicles(ownership_type, supplier_id, supplier:suppliers(name))",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -154,6 +160,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
     canExpenses ? supabase.from("shipment_profit").select("*").eq("shipment_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
+  const [carrierRes, payableRes] = await Promise.all([
+    canSeeCarrier
+      ? supabase.from("shipment_carrier_costs").select("line_no, cost_kind, fee_type_id, description, quantity, unit_price, amount, ref_no, note, fee_type:fee_types(name)").eq("shipment_id", id).order("line_no")
+      : Promise.resolve({ data: [], error: null }),
+    canSeePayable
+      ? supabase.from("payables").select("id, code, amount, paid_amount, status, due_date, invoice_no").eq("shipment_id", id).eq("kind", "carrier").neq("status", "cancelled").maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  if (carrierRes.error) throw carrierRes.error;
+  const carrierCosts = (carrierRes.data ?? []) as unknown as CarrierCost[];
+  const carrierPayable = (payableRes.data ?? null) as CarrierPayable | null;
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
   const x = extraRes.data as Extra | null;
@@ -411,6 +428,25 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   canAddField={me.permissions.has("fields.configure")}
                 />
               ) : null
+            }
+          />
+        ) : null}
+
+        {canSeeCarrier && (x.vehicle?.ownership_type === "outsourced" || x.carrier_supplier_id || carrierCosts.length) ? (
+          <CarrierCard
+            shipmentId={s.id}
+            code={s.shipment_code}
+            outsourced={x.vehicle?.ownership_type === "outsourced"}
+            supplierId={x.carrier_supplier_id ?? x.vehicle?.supplier_id ?? null}
+            supplierName={x.carrier?.name ?? x.vehicle?.supplier?.name ?? null}
+            costs={carrierCosts}
+            payable={carrierPayable}
+            canSeePayable={canSeePayable}
+            customerPassThrough={fees
+              .filter((f) => f.fee_kind === "pass_through")
+              .map((f) => ({ fee_type_id: f.fee_type_id, name: f.fee_type?.name ?? "Chi hộ", amount: Number(f.amount), ref_no: f.ref_no, note: f.note }))}
+            canEdit={
+              (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update") || me.permissions.has("receivables.create")) && s.status !== "cancelled"
             }
           />
         ) : null}
