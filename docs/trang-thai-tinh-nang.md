@@ -230,3 +230,10 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Bảo dưỡng, sửa chữa xe thêm loại Vá lốp, Bảo hiểm; Đăng kiểm đổi tên Kiểm định.
 - View: report_fee_group_lines, report_cost_lines. Kiểm thử CSDL: supabase/tests/23_fee_groups_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-nhom-phi.sql.
 - Chưa làm: chi phí cầu đường import Excel theo số xe (chờ mẫu Excel của khách).
+
+## Nhập đơn hàng, chuyến từ Excel (migration 0036) – 01/11/2026
+- Màn hình /dieu-phoi/nhap-excel (quyền dispatch.create); nút "Nhập từ Excel" ở Điều phối và Quản lý chuyến xe.
+- File mẫu sinh theo dữ liệu hiện tại: cột chính (Gộp đơn, Mã khách hàng, Khách thanh toán, Ngày đơn/nhận/giao, Điểm nhận/giao, Loại xe, Biển số, Tài xế, Trạng thái, Ngày hoàn thành, Số lượng, Đơn vị tính, Đơn giá, Phụ phí, Hỗ trợ dầu, Ghi chú), trường bổ sung của chuyến, Loại tờ khai, mỗi loại phí thu khách một cột "<Nhóm phí> - <Loại phí>". Danh sách chọn (sheet Danh mục), ghi chú trên tiêu đề, sheet Hướng dẫn.
+- Kiểm tra trước khi ghi: khách hàng theo mã (hoặc đúng tên), xe theo biển số chuẩn hóa, tài xế theo mã/SĐT/họ tên (trống = tài xế phụ trách xe), địa điểm theo mã/tên (tùy chọn tạo địa điểm mới), ngày dd/mm/yyyy, số dấu phẩy hàng nghìn; cảnh báo trùng trong file và trùng chuyến đã có (cùng khách, ngày, tuyến, xe). Tìm kiếm, lọc dòng lỗi/cần xem lại, bỏ chọn dòng.
+- Trạng thái: Chờ phân công (nháp), Đã phân công (qua Giám đốc duyệt như tạo tay), Đã hoàn thành (chuyến cũ: không duyệt, không báo tài xế, chuyển thẳng Tài xế đã hoàn thành, chứng từ Thiếu, photo_skip_reason "Chuyến cũ nhập từ Excel", không phát sinh chi phí). Có đơn giá trong file thì dùng đúng giá đó (pricing_snapshot.price_source = 'excel').
+- CSDL: public.import_transport_order(p_order, p_shipments) mỗi đơn một giao dịch; private.trip_approval_on() bỏ qua duyệt khi app.trip_import_done = on (chỉ trong giao dịch nhập). Kiểm thử: supabase/tests/24_import_trips_tests.sql, tests/import-trips*.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-nhap-chuyen-excel.sql.

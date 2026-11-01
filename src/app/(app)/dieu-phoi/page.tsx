@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Truck, ListChecks } from "lucide-react";
+import { Plus, Truck, ListChecks, FileSpreadsheet } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysYMD, formatDate, startOfDayVN, todayVN } from "@/lib/format";
@@ -140,6 +140,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         actions={
           <>
             <TripDelegationManager info={delegation} />
+            {canCreate ? (
+              <Button variant="outline" asChild>
+                <Link href="/dieu-phoi/nhap-excel">
+                  <FileSpreadsheet /> Nhập từ Excel
+                </Link>
+              </Button>
+            ) : null}
             {canCreate ? (
               <Button asChild>
                 <Link href="/dieu-phoi/tao-don">

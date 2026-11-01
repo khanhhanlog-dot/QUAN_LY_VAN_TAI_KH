@@ -110,3 +110,5 @@ upgrade nang-cap-tach-boc-xep-chi-ho.sql "Tách phí bốc xếp khỏi báo cá
   supabase/migrations/20261030000032_loading_fee_split.sql
 upgrade nang-cap-nhom-phi.sql "Nhóm phí (vận chuyển, chi hộ, tờ khai, bốc xếp), loại tờ khai, báo cáo chi phí theo nhóm" "to_regclass('public.fee_groups') is not null" \
   supabase/migrations/20261101000035_fee_groups.sql
+upgrade nang-cap-nhap-chuyen-excel.sql "Nhập đơn hàng, chuyến từ Excel" "to_regprocedure('public.import_transport_order(jsonb,jsonb)') is not null" \
+  supabase/migrations/20261101000036_import_trips.sql

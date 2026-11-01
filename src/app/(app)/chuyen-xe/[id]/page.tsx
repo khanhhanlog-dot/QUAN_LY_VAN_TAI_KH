@@ -348,7 +348,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   ? `bảng giá ${String(snap.price_list_code)} (mức cụ thể ${String(snap.price_specificity)}, ưu tiên ${String(snap.price_priority)})`
                   : snap.price_source === "manual"
                     ? "nhập tay (không có bảng giá phù hợp)"
-                    : snap.price_source === "pending"
+                    : snap.price_source === "excel"
+                      ? "theo file Excel đã nhập"
+                      : snap.price_source === "pending"
                       ? Number(s.unit_price)
                         ? "nhập sau khi tạo chuyến"
                         : "chưa có giá. Nhập đơn giá và phụ phí ở bảng Quản lý chuyến xe (bấm vào ô Đơn giá để sửa)"

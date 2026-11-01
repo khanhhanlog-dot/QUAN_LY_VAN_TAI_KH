@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FileSpreadsheet } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { loadTableView } from "@/lib/entities/server";
 import { SHIPMENT_ADV_FIELDS } from "@/lib/shipments";
@@ -86,7 +87,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       <PageHeader
         title="Quản lý chuyến xe"
         description="Bảng tổng hợp, mỗi dòng một chuyến. Bấm vào ô có viền chấm để sửa nhanh; mọi thay đổi được ghi vào nhật ký hệ thống."
-        actions={me.permissions.has("shipments.export") ? <ExportShipmentsButton params={{ tu: f.tu, den: f.den, tt: f.tt, kh: f.kh, q: f.q, a: f.adv }} /> : null}
+        actions={
+          <>
+            {me.permissions.has("dispatch.create") ? (
+              <Button variant="outline" asChild>
+                <Link href="/dieu-phoi/nhap-excel?tu=chuyen-xe">
+                  <FileSpreadsheet /> Nhập từ Excel
+                </Link>
+              </Button>
+            ) : null}
+            {me.permissions.has("shipments.export") ? <ExportShipmentsButton params={{ tu: f.tu, den: f.den, tt: f.tt, kh: f.kh, q: f.q, a: f.adv }} /> : null}
+          </>
+        }
       />
       {me.permissions.has("reports.view") ? <ReportLinks /> : null}
       <ShipmentFilterBar filters={f} />
