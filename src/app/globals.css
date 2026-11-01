@@ -19,6 +19,9 @@
   --muted-foreground: oklch(0.52 0.02 257);
   --accent: oklch(0.955 0.025 255);
   --accent-foreground: oklch(0.35 0.12 260);
+  /* Nền và chữ tiêu đề cột của mọi bảng */
+  --table-head: oklch(0.9 0.045 255);
+  --table-head-foreground: oklch(0.3 0.1 262);
   --destructive: oklch(0.58 0.22 27);
   --warning: oklch(0.75 0.15 75);
   --success: oklch(0.6 0.14 155);
@@ -107,4 +110,29 @@
   html:has([data-density="compact"]) {
     font-size: 87.5%;
   }
+}
+
+/* Tiêu đề cột của MỌI bảng: nền xanh nhạt, chữ xanh đậm để dễ phân biệt với dữ liệu; cột hẹp thì tiêu đề
+   tự xuống dòng thay vì bị cắt "…". Viết ngoài @layer để thắng các lớp tiện ích (bg-muted, whitespace-nowrap,
+   truncate) gắn trên từng bảng. */
+thead th {
+  background-color: var(--table-head);
+  color: var(--table-head-foreground);
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.25;
+  vertical-align: middle;
+  border-bottom-color: color-mix(in oklch, var(--table-head-foreground) 25%, transparent);
+}
+thead th .truncate,
+thead th button,
+thead th span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}
+thead th button:hover {
+  color: var(--primary);
 }
