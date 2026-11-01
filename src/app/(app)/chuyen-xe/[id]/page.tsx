@@ -20,6 +20,7 @@ import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
 import { formulaVars } from "@/lib/entities/definitions";
 import { ShipmentExpenseButton } from "./expense-button";
+import { ExpenseApproveButtons } from "./expense-approve";
 import { ActForDriver } from "./act-for-driver";
 import { EditShipmentDialog } from "./edit-shipment-dialog";
 import { ItemsCard, type ShipmentItem } from "./items-card";
@@ -64,7 +65,7 @@ type Assignment = {
   driver: { full_name: string; code: string } | null;
   vehicle: { plate_number: string } | null;
 };
-type Expense = { id: string; code: string; category_name: string; amount: number; status: string; paid_by: string; incurred_at: string; file_count: number; note: string | null };
+type Expense = { id: string; code: string; category_name: string; amount: number; status: string; paid_by: string; incurred_at: string; file_count: number; note: string | null; approval_request_id: string | null };
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
 type Change = { occurred_at: string; actor_name: string | null; field: string; old_value: string | null; new_value: string | null };
 
@@ -144,7 +145,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       .order("assigned_at", { ascending: false }),
     supabase.rpc("shipment_change_history", { p_shipment_id: id }),
     canExpenses
-      ? supabase.from("expense_list").select("id, code, category_name, amount, status, paid_by, incurred_at, file_count, note").eq("shipment_id", id).order("incurred_at")
+      ? supabase.from("expense_list").select("id, code, category_name, amount, status, paid_by, incurred_at, file_count, note, approval_request_id").eq("shipment_id", id).order("incurred_at")
       : Promise.resolve({ data: [], error: null }),
     supabase.from("documents").select("id", { count: "exact", head: true }).eq("entity_type", "shipment").eq("entity_id", id).is("archived_at", null),
     loadCustomFields(supabase, "expenses"),
@@ -161,6 +162,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const assignments = (asgRes.data ?? []) as unknown as Assignment[];
   const changes = (changeRes.data ?? []) as Change[];
   const expenses = (expRes.data ?? []) as Expense[];
+  // Khoản chờ duyệt mà người đang xem duyệt được: hiện nút Duyệt / Từ chối ngay tại dòng chi phí
+  const pendingIds = expenses.filter((e) => e.status === "pending" && e.approval_request_id).map((e) => e.approval_request_id!);
+  const approvable = new Map<string, Record<string, unknown>>();
+  if (pendingIds.length) {
+    const { data } = await supabase.from("approval_list").select("id, code, amount, can_approve, entity_type, entity_id").in("id", pendingIds);
+    for (const r of data ?? []) if (r.can_approve) approvable.set(r.id as string, { ...r, file_count: 0 });
+  }
   const docCount = docRes.count ?? 0;
   if (feeRes.error) throw feeRes.error;
   const fees = (feeRes.data ?? []) as unknown as ShipmentFee[];
@@ -614,7 +622,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                             <td className="py-1.5 pr-3">{st ? <Badge variant={TONE_BADGE[st.tone!]}>{st.label}</Badge> : e.status}</td>
                             <td className="py-1.5 pr-3">{formatDateTime(e.incurred_at)}</td>
                             <td className="py-1.5 text-right">
-                              <DocumentsButton entityType="shipment_expense" entityId={e.id} count={Number(e.file_count)} title={`Chứng từ ${e.code}`} />
+                              <div className="flex items-center justify-end gap-1">
+                                {e.approval_request_id && approvable.has(e.approval_request_id) ? <ExpenseApproveButtons row={approvable.get(e.approval_request_id)!} /> : null}
+                                <DocumentsButton entityType="shipment_expense" entityId={e.id} count={Number(e.file_count)} title={`Chứng từ ${e.code}`} />
+                              </div>
                             </td>
                           </tr>
                         );

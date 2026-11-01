@@ -32,7 +32,8 @@ const MAX_TRIP_DAYS = 7;
 
 /**
  * Xe công ty (không tính xe thuê ngoài 3PL) và số ngày chưa có chuyến trong khoảng [tu, den].
- * Một ngày được coi là có chuyến nếu xe nhận hàng trong ngày hoặc đang chạy dở chuyến (đến ngày giao dự kiến).
+ * Một ngày được coi là có chuyến nếu xe nhận hàng trong ngày hoặc đang chạy dở chuyến (đến ngày giao dự kiến;
+ * chuyến đã giao thì tính đến ngày giao thực tế, không chờ duyệt chi phí hay đóng chuyến).
  */
 export async function loadFreeVehicles(supabase: SupabaseClient, tu: string, den: string, opts: { vehicleId?: string; driverId?: string } = {}): Promise<FreeVehicleRow[]> {
   let vq = supabase
@@ -55,7 +56,7 @@ export async function loadFreeVehicles(supabase: SupabaseClient, tu: string, den
   for (let p = 0; p < 20; p++) {
     const { data, error: e } = await supabase
       .from("shipments")
-      .select("id, vehicle_id, pickup_at, expected_delivery_at")
+      .select("id, vehicle_id, pickup_at, expected_delivery_at, completed_at")
       .not("vehicle_id", "is", null)
       .not("status", "in", "(cancelled,rejected)")
       .lt("pickup_at", to)
@@ -63,10 +64,12 @@ export async function loadFreeVehicles(supabase: SupabaseClient, tu: string, den
       .order("id")
       .range(p * 1000, p * 1000 + 999);
     if (e) throw e;
-    const rows = (data ?? []) as { vehicle_id: string; pickup_at: string; expected_delivery_at: string | null }[];
+    const rows = (data ?? []) as { vehicle_id: string; pickup_at: string; expected_delivery_at: string | null; completed_at: string | null }[];
     for (const r of rows) {
       const start = todayVN(new Date(r.pickup_at));
-      const end = r.expected_delivery_at ? todayVN(new Date(r.expected_delivery_at)) : start;
+      // Đã giao xong (dù chi phí chưa duyệt, chưa đóng chuyến): xe trống từ ngày hôm sau ngày giao thực tế
+      const endAt = r.completed_at ?? r.expected_delivery_at;
+      const end = endAt ? todayVN(new Date(endAt)) : start;
       const set = busy.get(r.vehicle_id) ?? new Set<string>();
       for (let d = start, i = 0; d <= end && i < MAX_TRIP_DAYS; d = addDaysYMD(d, 1), i++) if (d >= tu && d <= den) set.add(d);
       busy.set(r.vehicle_id, set);

@@ -490,7 +490,13 @@ export async function vehicleTripsOnDay(input: z.input<typeof dayTripsSchema>): 
     if (p.data.excludeShipmentId) q = q.neq("id", p.data.excludeShipmentId);
     const { data, error } = await q;
     if (error) throw error;
-    return (data ?? []) as VehicleDayTrip[];
+    const trips = (data ?? []) as VehicleDayTrip[];
+    if (!trips.length) return trips;
+    // Chuyến đã giao xong trước ngày này thì xe đã trống (không chờ duyệt chi phí hay đóng chuyến)
+    const { data: done, error: e2 } = await supabase.from("shipments").select("id").in("id", trips.map((t) => t.id)).lt("completed_at", from);
+    if (e2) throw e2;
+    const finished = new Set((done ?? []).map((r) => r.id as string));
+    return trips.filter((t) => !finished.has(t.id));
   });
 }
 
