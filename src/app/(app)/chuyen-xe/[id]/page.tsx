@@ -35,6 +35,7 @@ type Extra = {
   receivable_id: string | null;
   dispatch_approved_by: string | null;
   dispatch_approved_at: string | null;
+  dispatch_approved_on_behalf: boolean;
   photo_skip_reason: string | null;
   vehicle: { ownership_type: string } | null;
   pricing_snapshot: Record<string, unknown>;
@@ -130,7 +131,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase
       .from("shipments")
       .select(
-        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, dispatch_approved_by, dispatch_approved_at, vehicle:vehicles(ownership_type)",
+        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, vehicle:vehicles(ownership_type)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -244,7 +245,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </div>
       ) : s.dispatch_approval === "approved" && x.dispatch_approved_at ? (
         <p className="mb-4 text-sm text-muted-foreground">
-          Giám đốc {who(x.dispatch_approved_by)} đã duyệt lúc {formatDateTime(x.dispatch_approved_at)}.
+          {x.dispatch_approved_on_behalf
+            ? `${who(x.dispatch_approved_by)} đã duyệt hộ Giám đốc (ủy quyền) lúc ${formatDateTime(x.dispatch_approved_at)}.`
+            : `Giám đốc ${who(x.dispatch_approved_by)} đã duyệt lúc ${formatDateTime(x.dispatch_approved_at)}.`}
         </p>
       ) : null}
 

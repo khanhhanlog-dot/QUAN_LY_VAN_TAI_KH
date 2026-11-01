@@ -104,7 +104,8 @@ const decideSchema = z.object({
 
 export async function decideApproval(input: z.input<typeof decideSchema>): Promise<ActionResult> {
   return runAction(async () => {
-    await requirePermission("approvals.approve");
+    // dispatch.view: người được ủy quyền duyệt hộ chuyến; CSDL chỉ cho họ duyệt yêu cầu Duyệt chuyến xe
+    await requirePermission("approvals.approve", "dispatch.view");
     const d = decideSchema.parse(input);
     if (d.action === "reject" && !d.comment?.trim()) throw new ActionError("Nhập lý do từ chối");
     const supabase = await createClient();

@@ -501,7 +501,8 @@ const tripDecisionSchema = z.object({
 /** Giám đốc duyệt / từ chối một hoặc nhiều chuyến (từ chối bắt buộc lý do) */
 export async function decideTrips(input: z.input<typeof tripDecisionSchema>): Promise<ActionResult<{ done: number; failed: string[] }>> {
   return runAction(async () => {
-    await requirePermission("approvals.approve");
+    // Giám đốc hoặc người được ủy quyền duyệt hộ (thường là điều phối); CSDL kiểm tra lại quyền từng chuyến
+    await requirePermission("approvals.approve", "dispatch.view");
     const p = tripDecisionSchema.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const d = p.data;
@@ -537,4 +538,41 @@ export async function resubmitTrip(input: z.input<typeof resubmitSchema>): Promi
     revalidatePath("/chuyen-xe", "layout");
     revalidatePath("/phe-duyet");
   }, "Đã gửi Giám đốc duyệt lại.");
+}
+
+const delegationSchema = z.object({
+  delegateId: uuid,
+  /** Ngày hết hạn (YYYY-MM-DD, hết ngày theo giờ Việt Nam); để trống = đến khi thu hồi */
+  endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày hết hạn không hợp lệ").optional().or(z.literal("").transform(() => undefined)),
+  note: z.string().max(500, "Ghi chú tối đa 500 ký tự").optional(),
+});
+
+/** Giám đốc ủy quyền người khác duyệt hộ chuyến (đi công tác, hội họp) */
+export async function grantTripDelegation(input: z.input<typeof delegationSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission();
+    const p = delegationSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("grant_trip_delegation", {
+      p_delegate_id: p.data.delegateId,
+      p_ends_at: p.data.endsOn ? startOfDayVN(addDaysYMD(p.data.endsOn, 1)) : null,
+      p_note: p.data.note?.trim() || null,
+    });
+    if (error) throw error;
+    revalidatePath("/phe-duyet");
+    revalidatePath("/dieu-phoi", "layout");
+  }, "Đã ủy quyền duyệt chuyến.");
+}
+
+/** Thu hồi ủy quyền duyệt chuyến */
+export async function revokeTripDelegation(id: string): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission();
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("revoke_trip_delegation", { p_id: uuid.parse(id) });
+    if (error) throw error;
+    revalidatePath("/phe-duyet");
+    revalidatePath("/dieu-phoi", "layout");
+  }, "Đã thu hồi ủy quyền.");
 }

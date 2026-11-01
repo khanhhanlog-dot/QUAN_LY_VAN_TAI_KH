@@ -22,6 +22,7 @@ import { FreeVehiclesGrid } from "@/components/dispatch/free-vehicles-grid";
 import { cn } from "@/lib/utils";
 import { ReportLinks } from "@/components/reports/report-links";
 import { TripApprovalButtons } from "@/components/dispatch/trip-approval";
+import { DelegateNotice, TripDelegationManager, type DelegationInfo } from "@/components/dispatch/trip-delegation";
 
 export const metadata: Metadata = { title: "Điều phối" };
 
@@ -56,7 +57,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   let listQ = applyShipmentFilters(supabase.from("shipment_list").select("*"), { ...f, tt: "" });
   if (xe) listQ = listQ.eq("vehicle_id", xe);
   if (tx) listQ = listQ.eq("driver_id", tx);
-  const [listRes, upcomingRes, free, view, advLabels, approvalRes] = await Promise.all([
+  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes] = await Promise.all([
     listQ.order("pickup_at").order("shipment_code").limit(MAX_ROWS),
     // Chuyến chưa phân công ở ngoài khoảng ngày đang xem (từ hôm nay trở đi)
     supabase
@@ -78,7 +79,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       .neq("status", "cancelled")
       .order("pickup_at")
       .limit(200),
+    supabase.rpc("trip_delegation_info"),
   ]);
+  const delegation = (delegationRes.data ?? null) as DelegationInfo | null;
   if (listRes.error) throw listRes.error;
   if (upcomingRes.error) throw upcomingRes.error;
   const all = (listRes.data ?? []) as ShipmentListRow[];
@@ -135,17 +138,21 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         title="Điều phối"
         description={`Chuyến nhận hàng ${rangeText}`}
         actions={
-          canCreate ? (
-            <Button asChild>
-              <Link href="/dieu-phoi/tao-don">
-                <Plus /> Tạo đơn hàng
-              </Link>
-            </Button>
-          ) : null
+          <>
+            <TripDelegationManager info={delegation} />
+            {canCreate ? (
+              <Button asChild>
+                <Link href="/dieu-phoi/tao-don">
+                  <Plus /> Tạo đơn hàng
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       {me.permissions.has("reports.view") ? <ReportLinks /> : null}
 
+      <DelegateNotice info={delegation} />
       {pendingAll.length > 0 ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           <span>
