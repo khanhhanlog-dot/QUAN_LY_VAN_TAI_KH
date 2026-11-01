@@ -3,6 +3,7 @@ import { BarChart3 } from "lucide-react";
 
 const LINKS: { href?: string; tab?: string; label: string }[] = [
   { href: "/bao-cao/nhom-phi", label: "Chi phí theo nhóm" },
+  { href: "/so-chuyen", label: "Số chuyến xe, tài xế" },
   { tab: "report_freight", label: "Cước vận chuyển" },
   { tab: "report_pass_through", label: "Phí chi hộ" },
   { tab: "report_loading", label: "Bốc xếp" },

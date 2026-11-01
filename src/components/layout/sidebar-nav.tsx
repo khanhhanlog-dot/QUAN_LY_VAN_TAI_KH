@@ -3,14 +3,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BadgeCheck, BarChart3, Building2, Bus, Columns3, FileInput, IdCard, LayoutDashboard, ListTree,
-  Receipt, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow, type LucideIcon,
+  ListOrdered, Receipt, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
   BadgeCheck, BarChart3, Building2, Bus, Columns3, FileInput, IdCard, LayoutDashboard, ListTree,
-  Receipt, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow,
+  ListOrdered, Receipt, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow,
 };
 
 export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {

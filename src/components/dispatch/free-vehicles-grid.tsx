@@ -46,8 +46,8 @@ export function FreeVehiclesGrid({ rows, view, totalDays }: { rows: FreeVehicleR
         value: (r) => r.ownership_type,
         render: (r) => OWNERSHIP[r.ownership_type] ?? r.ownership_type,
       },
-      { key: "trips", label: "Số chuyến nhận", width: 110, align: "right", kind: "number", value: (r) => r.trips },
-      { key: "busy_days", label: "Ngày có chuyến", width: 115, align: "right", kind: "number", value: (r) => r.busy_days },
+      { key: "trips", label: "Số chuyến trong kỳ", width: 110, align: "right", kind: "number", value: (r) => r.trips },
+      { key: "busy_days", label: "Ngày bận (chưa giao xong)", width: 115, align: "right", kind: "number", value: (r) => r.busy_days },
       {
         key: "free_days",
         label: "Ngày trống",
@@ -76,7 +76,7 @@ export function FreeVehiclesGrid({ rows, view, totalDays }: { rows: FreeVehicleR
       getRowId={(r) => r.id}
       defaultPinned={["plate_number"]}
       searchPlaceholder="Tìm biển số, loại xe, tài xế…"
-      emptyText={mode === "all" ? "Chưa có xe công ty nào đang hoạt động." : "Tất cả xe công ty đều đã có chuyến trong khoảng ngày này."}
+      emptyText={mode === "all" ? "Chưa có xe công ty nào đang hoạt động." : "Tất cả xe công ty đều đang bận (có chuyến chưa giao xong) trong khoảng ngày này."}
       toolbar={
         totalDays > 1 ? (
           <NativeSelect aria-label="Loại xe trống" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="h-8 w-auto text-sm">
@@ -86,7 +86,7 @@ export function FreeVehiclesGrid({ rows, view, totalDays }: { rows: FreeVehicleR
           </NativeSelect>
         ) : (
           <NativeSelect aria-label="Loại xe trống" value={mode === "none" ? "free" : mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="h-8 w-auto text-sm">
-            <option value="free">Xe chưa có chuyến</option>
+            <option value="free">Xe còn trống</option>
             <option value="all">Tất cả xe công ty</option>
           </NativeSelect>
         )

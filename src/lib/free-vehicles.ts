@@ -33,7 +33,7 @@ const MAX_TRIP_DAYS = 7;
 /**
  * Xe công ty (không tính xe thuê ngoài 3PL) và số ngày chưa có chuyến trong khoảng [tu, den].
  * Một ngày được coi là có chuyến nếu xe nhận hàng trong ngày hoặc đang chạy dở chuyến (đến ngày giao dự kiến;
- * chuyến đã giao thì tính đến ngày giao thực tế, không chờ duyệt chi phí hay đóng chuyến).
+ * chuyến đã giao thì xe trống ngay từ ngày giao thực tế, không chờ duyệt chi phí hay đóng chuyến).
  */
 export async function loadFreeVehicles(supabase: SupabaseClient, tu: string, den: string, opts: { vehicleId?: string; driverId?: string } = {}): Promise<FreeVehicleRow[]> {
   let vq = supabase
@@ -67,9 +67,13 @@ export async function loadFreeVehicles(supabase: SupabaseClient, tu: string, den
     const rows = (data ?? []) as { vehicle_id: string; pickup_at: string; expected_delivery_at: string | null; completed_at: string | null }[];
     for (const r of rows) {
       const start = todayVN(new Date(r.pickup_at));
-      // Đã giao xong (dù chi phí chưa duyệt, chưa đóng chuyến): xe trống từ ngày hôm sau ngày giao thực tế
-      const endAt = r.completed_at ?? r.expected_delivery_at;
-      const end = endAt ? todayVN(new Date(endAt)) : start;
+      // Đã giao xong (dù chi phí chưa duyệt, chưa đóng chuyến): xe trống ngay từ ngày giao thực tế
+      // (giao trong ngày nhận hàng thì ngày đó vẫn tính là xe trống để điều phối giao thêm đơn)
+      const end = r.completed_at
+        ? addDaysYMD(todayVN(new Date(r.completed_at)), -1)
+        : r.expected_delivery_at
+          ? todayVN(new Date(r.expected_delivery_at))
+          : start;
       const set = busy.get(r.vehicle_id) ?? new Set<string>();
       for (let d = start, i = 0; d <= end && i < MAX_TRIP_DAYS; d = addDaysYMD(d, 1), i++) if (d >= tu && d <= den) set.add(d);
       busy.set(r.vehicle_id, set);

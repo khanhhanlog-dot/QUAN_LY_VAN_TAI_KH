@@ -10,6 +10,7 @@ import { ReferenceSelect } from "@/components/entities/reference-select";
 import { assignShipment, vehicleDefaultDriver } from "@/app/(app)/dieu-phoi/actions";
 import { todayVN } from "@/lib/format";
 import { VehicleDayConflict, type VehicleDayState } from "./vehicle-day-conflict";
+import { MonthTripHint } from "./month-trip-hint";
 
 /** Phân công / đổi / gỡ tài xế và xe cho một chuyến */
 export function AssignDialog({
@@ -93,6 +94,7 @@ export function AssignDialog({
                 excludeShipmentId={shipmentId}
                 onStateChange={setDayState}
               />
+              <MonthTripHint kind="vehicle" id={vehicle.id} day={todayVN(new Date(pickupAt))} excludeShipmentId={shipmentId} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`d-${shipmentId}`}>Tài xế</Label>
@@ -104,6 +106,7 @@ export function AssignDialog({
                 initialLabel={driver.label}
                 onChange={(id, label) => setDriver({ id, label })}
               />
+              <MonthTripHint kind="driver" id={driver.id} day={todayVN(new Date(pickupAt))} excludeShipmentId={shipmentId} />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:justify-between">

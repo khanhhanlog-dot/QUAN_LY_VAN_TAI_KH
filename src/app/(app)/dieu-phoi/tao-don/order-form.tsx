@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReferenceSelect } from "@/components/entities/reference-select";
 import { EntityFormDialog } from "@/components/entities/entity-form-dialog";
 import { VehicleDayConflict, type VehicleDayState } from "@/components/dispatch/vehicle-day-conflict";
+import { MonthTripHint } from "@/components/dispatch/month-trip-hint";
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
@@ -810,6 +811,7 @@ function ShipmentEditor({
                     }
                   }}
                 />
+                {canAssign ? <MonthTripHint kind="vehicle" id={row.vehicleId} day={day} excludeShipmentId={row.id} /> : null}
                 {needsDayCheck(row) ? (
                   <VehicleDayConflict vehicleId={row.vehicleId} day={day} excludeShipmentId={row.id} sameForm={sameVehicle} onStateChange={(st) => onChange({ vehicleDay: st })} />
                 ) : null}
@@ -820,6 +822,7 @@ function ShipmentEditor({
               <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
                 <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} disabled={!canAssign} onChange={(v) => onChange({ driverId: v })} />
+                {canAssign ? <MonthTripHint kind="driver" id={row.driverId} day={day} excludeShipmentId={row.id} /> : null}
                 {row.orig && row.driverId !== row.orig.driverId && row.driverId ? (
                   <p className="text-xs text-amber-700">Đổi tài xế: chuyến sẽ chờ Giám đốc duyệt lại trước khi tài xế mới thấy chuyến.</p>
                 ) : null}

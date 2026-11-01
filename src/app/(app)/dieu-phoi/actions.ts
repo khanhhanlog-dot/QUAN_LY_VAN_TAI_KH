@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysYMD, startOfDayVN } from "@/lib/format";
+import { lastDayOfMonth, loadTrips, tripDay } from "@/lib/trip-counts";
 import { ActionError, requirePermission, runAction, toUserMessage, type ActionResult } from "@/lib/auth/action";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { moduleCustomFields, parseNumberVN, splitCustom, validateRecord } from "@/lib/entities/record";
@@ -492,11 +493,78 @@ export async function vehicleTripsOnDay(input: z.input<typeof dayTripsSchema>): 
     if (error) throw error;
     const trips = (data ?? []) as VehicleDayTrip[];
     if (!trips.length) return trips;
-    // Chuyến đã giao xong trước ngày này thì xe đã trống (không chờ duyệt chi phí hay đóng chuyến)
-    const { data: done, error: e2 } = await supabase.from("shipments").select("id").in("id", trips.map((t) => t.id)).lt("completed_at", from);
+    // Chuyến đã giao xong trong ngày này hoặc trước đó thì xe đã trống (không chờ duyệt chi phí hay đóng chuyến),
+    // không cần xác nhận "Vẫn giao" hay nhập thứ tự chuyến
+    const { data: done, error: e2 } = await supabase
+      .from("shipments")
+      .select("id")
+      .in("id", trips.map((t) => t.id))
+      .lt("completed_at", startOfDayVN(addDaysYMD(p.data.day, 1)));
     if (e2) throw e2;
     const finished = new Set((done ?? []).map((r) => r.id as string));
     return trips.filter((t) => !finished.has(t.id));
+  });
+}
+
+/** Số chuyến trong tháng của một xe hoặc một tài xế */
+export type MonthTripCount = {
+  /** Tổng chuyến nhận hàng trong tháng (không tính chuyến đã hủy, không tính chuyến đang sửa) */
+  month: number;
+  /** Trong đó đã giao xong */
+  delivered: number;
+  /** Số chuyến nhận hàng đúng ngày đang chọn */
+  day: number;
+  /** Trung bình mỗi xe công ty / mỗi tài xế đang làm trong tháng, để so sánh */
+  avg: number;
+  /** Ít nhất, nhiều nhất trong các xe / tài xế */
+  min: number;
+  max: number;
+};
+
+const monthCountSchema = z.object({
+  kind: z.enum(["vehicle", "driver"]),
+  id: uuid,
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  excludeShipmentId: optUuid,
+});
+
+/** Xe / tài xế đã có bao nhiêu chuyến trong tháng của ngày nhận hàng, để điều phối chia chuyến đều */
+export async function monthTripCount(input: z.input<typeof monthCountSchema>): Promise<ActionResult<MonthTripCount>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.create", "dispatch.update");
+    const p = monthCountSchema.safeParse(input);
+    if (!p.success) throw new ActionError("Dữ liệu không hợp lệ");
+    const { kind, id, day, excludeShipmentId } = p.data;
+    const ym = day.slice(0, 7);
+    const supabase = await createClient();
+    const [trips, pool] = await Promise.all([
+      loadTrips(supabase, `${ym}-01`, lastDayOfMonth(ym)),
+      kind === "vehicle"
+        ? supabase.from("vehicles").select("id").eq("status", "active").is("archived_at", null).neq("ownership_type", "outsourced").limit(5000)
+        : supabase.from("drivers").select("id").eq("status", "active").is("archived_at", null).limit(5000),
+    ]);
+    if (pool.error) throw pool.error;
+    const key = kind === "vehicle" ? "vehicle_id" : "driver_id";
+    const counts = new Map<string, number>(((pool.data ?? []) as { id: string }[]).map((r) => [r.id, 0]));
+    const out = { month: 0, delivered: 0, day: 0 };
+    for (const t of trips) {
+      if (t.id === excludeShipmentId) continue;
+      const k = t[key];
+      if (!k) continue;
+      if (counts.has(k)) counts.set(k, counts.get(k)! + 1);
+      if (k === id) {
+        out.month++;
+        if (t.completed_at) out.delivered++;
+        if (tripDay(t) === day) out.day++;
+      }
+    }
+    const all = [...counts.values()];
+    return {
+      ...out,
+      avg: all.length ? Math.round((all.reduce((a, b) => a + b, 0) / all.length) * 10) / 10 : 0,
+      min: all.length ? Math.min(...all) : 0,
+      max: all.length ? Math.max(...all) : 0,
+    };
   });
 }
 

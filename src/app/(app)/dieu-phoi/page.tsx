@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Truck, ListChecks, FileSpreadsheet } from "lucide-react";
+import { Plus, Truck, ListChecks, ListOrdered, FileSpreadsheet } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysYMD, formatDate, startOfDayVN, todayVN } from "@/lib/format";
@@ -181,15 +181,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
 
       <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Chế độ xem">
         <ViewLink href={href({ xem: "", tt: "" })} active={!xem} icon={<ListChecks className="size-4" />} label="Chuyến" count={all.length} />
-        <ViewLink href={href({ xem: "xe-trong", tt: "" })} active={xem === "xe-trong"} icon={<Truck className="size-4" />} label="Xe chưa có đơn" count={freeCount} warn={freeCount > 0} />
+        <ViewLink href={href({ xem: "xe-trong", tt: "" })} active={xem === "xe-trong"} icon={<Truck className="size-4" />} label="Xe trống, giao thêm được" count={freeCount} warn={freeCount > 0} />
+        <Link href={`/so-chuyen?thang=${f.tu.slice(0, 7)}`} className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
+          <ListOrdered className="size-4" /> Số chuyến xe, tài xế trong tháng
+        </Link>
       </div>
 
       {xem ? (
         <Card className="overflow-hidden">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Xe công ty chưa có đơn {rangeText}</CardTitle>
+            <CardTitle className="text-base">Xe công ty còn trống {rangeText}</CardTitle>
             <CardDescription>
-              Chỉ tính xe công ty đang hoạt động (không tính xe thuê ngoài 3PL, xe bảo dưỡng hoặc ngừng hoạt động). Một ngày được coi là xe có chuyến khi xe nhận hàng trong ngày hoặc đang chạy dở chuyến đến ngày giao dự kiến; chuyến đã hủy không tính.
+              Chỉ tính xe công ty đang hoạt động (không tính xe thuê ngoài 3PL, xe bảo dưỡng hoặc ngừng hoạt động). Xe bận khi đang có chuyến chưa giao xong (từ ngày nhận hàng đến ngày giao dự kiến). Chuyến đã giao (kể cả đang chờ quyết toán) thì xe trống ngay từ ngày giao, giao thêm đơn được. Chuyến đã hủy không tính. Cột Số chuyến nhận đếm cả chuyến đã giao.
               {tx || xe ? " Đang lọc theo xe/tài xế phụ trách đã chọn." : ""}
             </CardDescription>
           </CardHeader>
