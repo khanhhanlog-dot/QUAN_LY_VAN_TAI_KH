@@ -529,7 +529,7 @@ const monthCountSchema = z.object({
 });
 
 /** Xe / tài xế đã có bao nhiêu chuyến trong tháng của ngày nhận hàng, để điều phối chia chuyến đều */
-export async function monthTripCount(input: z.input<typeof monthCountSchema>): Promise<ActionResult<MonthTripCount>> {
+export async function monthTripCount(input: z.input<typeof monthCountSchema>): Promise<ActionResult<MonthTripCount | null>> {
   return runAction(async () => {
     await requirePermission("dispatch.create", "dispatch.update");
     const p = monthCountSchema.safeParse(input);
@@ -537,6 +537,12 @@ export async function monthTripCount(input: z.input<typeof monthCountSchema>): P
     const { kind, id, day, excludeShipmentId } = p.data;
     const ym = day.slice(0, 7);
     const supabase = await createClient();
+    // Xe thuê ngoài 3PL không đếm số chuyến (chỉ xe nội bộ)
+    if (kind === "vehicle") {
+      const { data: v, error: ve } = await supabase.from("vehicles").select("ownership_type").eq("id", id).maybeSingle();
+      if (ve) throw ve;
+      if (!v || v.ownership_type === "outsourced") return null;
+    }
     const [trips, pool] = await Promise.all([
       loadTrips(supabase, `${ym}-01`, lastDayOfMonth(ym)),
       kind === "vehicle"

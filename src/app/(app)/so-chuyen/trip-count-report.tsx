@@ -65,10 +65,9 @@ export function TripCountReport({
   views: { vehicles: TableViewConfig | null; drivers: TableViewConfig | null; days: TableViewConfig | null };
 }) {
   const [tab, setTab] = useState<Tab>("xe");
-  const [scope, setScope] = useState<"company" | "all">("company");
   const [dayOf, setDayOf] = useState<"xe" | "tai-xe">("xe");
   const hasToday = today >= range.from && today <= range.to;
-  const shownVehicles = useMemo(() => vehicles.filter((v) => scope === "all" || v.company), [vehicles, scope]);
+  const shownVehicles = vehicles;
   const idleVehicles = vehicles.filter((v) => v.company && v.total === 0).length;
   const idleDrivers = drivers.filter((d) => d.status === "active" && d.total === 0).length;
 
@@ -181,13 +180,6 @@ export function TripCountReport({
     [days, dayOf, today],
   );
 
-  const scopeSelect = (
-    <NativeSelect aria-label="Xe hiển thị" value={scope} onChange={(e) => setScope(e.target.value as typeof scope)} className="h-8 w-auto text-sm">
-      <option value="company">Xe công ty đang hoạt động</option>
-      <option value="all">Gồm cả xe thuê ngoài, xe ngừng có chuyến</option>
-    </NativeSelect>
-  );
-
   return (
     <>
       <RangeBar range={range} today={today} />
@@ -233,7 +225,6 @@ export function TripCountReport({
               defaultPinned={["plate_number"]}
               searchPlaceholder="Tìm biển số, loại xe, tài xế…"
               emptyText="Chưa có xe nào."
-              toolbar={scopeSelect}
             />
           ) : tab === "tai-xe" ? (
             <ReportGrid
@@ -263,7 +254,6 @@ export function TripCountReport({
                     <option value="xe">Mỗi dòng một xe</option>
                     <option value="tai-xe">Mỗi dòng một tài xế</option>
                   </NativeSelect>
-                  {dayOf === "xe" ? scopeSelect : null}
                   {days.length >= 62 ? <span className="text-xs text-muted-foreground">Chỉ hiện 62 ngày đầu của kỳ.</span> : null}
                 </>
               }
@@ -272,7 +262,7 @@ export function TripCountReport({
         </CardContent>
       </Card>
       <p className="mt-2 text-xs text-muted-foreground">
-        Cột &quot;So với TB&quot;: số âm (xanh) là ít chuyến hơn trung bình, nên ưu tiên giao thêm; số dương lớn (vàng) là đã chạy nhiều. Trung bình xe chỉ tính xe công ty đang hoạt động, trung bình tài xế chỉ tính tài xế đang làm.
+        Cột &quot;So với TB&quot;: số âm (xanh) là ít chuyến hơn trung bình, nên ưu tiên giao thêm; số dương lớn (vàng) là đã chạy nhiều. Chỉ tính xe nội bộ, không tính xe thuê ngoài 3PL. Trung bình xe chỉ tính xe nội bộ đang hoạt động, trung bình tài xế chỉ tính tài xế đang làm.
       </p>
     </>
   );

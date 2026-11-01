@@ -106,7 +106,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const driverAvg = avgOf(activeDriverIds, byDriver);
 
   const vehicleRows: VehicleCountRow[] = vehicles
-    .filter((v) => activeCompany(v) || byVehicle.has(v.id))
+    // Chỉ xe nội bộ (không tính xe thuê ngoài 3PL): xe đang hoạt động, hoặc xe ngừng nhưng có chuyến trong kỳ
+    .filter((v) => v.ownership_type !== "outsourced" && (activeCompany(v) || byVehicle.has(v.id)))
     .map((v) => {
       const a = byVehicle.get(v.id) ?? newAcc();
       return {
