@@ -25,7 +25,20 @@ export const metadata: Metadata = { title: "Quản lý chuyến xe" };
 
 const PAGE_SIZE = 100;
 
-type Summary = { total: number; by_status: Record<string, { count: number; freight: number; surcharge: number; fuel: number; revenue: number }> };
+type Bucket = {
+  count: number;
+  freight: number;
+  surcharge: number;
+  fuel: number;
+  revenue: number;
+  transport: number;
+  pass_through: number;
+  declaration: number;
+  loading: number;
+  other: number;
+};
+type Summary = { total: number; by_status: Record<string, Bucket> };
+const MONEY_KEYS = ["transport", "pass_through", "declaration", "loading", "other"] as const;
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const me = await requirePagePermission("shipments.view");
@@ -59,17 +72,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const total = listRes.count ?? rows.length;
   const summary = sumRes.data as Summary;
   const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, summary.by_status[s.value]?.count ?? 0]));
+  // Thẻ tổng theo nhóm phí (không tính chuyến hủy)
   const money = Object.entries(summary.by_status)
     .filter(([st]) => st !== "cancelled" && (!f.tt || f.tt === "tre" || f.tt === "cho-duyet" || f.tt === st))
     .reduce(
-      (a, [, v]) => ({
-        freight: a.freight + Number(v.freight),
-        surcharge: a.surcharge + Number(v.surcharge),
-        fuel: a.fuel + Number(v.fuel),
-        revenue: a.revenue + Number(v.revenue),
-      }),
-      { freight: 0, surcharge: 0, fuel: 0, revenue: 0 },
+      (a, [, v]) => {
+        for (const k of MONEY_KEYS) a[k] += Number(v[k] ?? 0);
+        return a;
+      },
+      { transport: 0, pass_through: 0, declaration: 0, loading: 0, other: 0 },
     );
+  const moneyTotal = MONEY_KEYS.reduce((a, k) => a + money[k], 0);
 
   const href = (p: Partial<ShipmentFilters> & { trang?: number }) => {
     const merged = { ...f, ...p };
@@ -102,11 +115,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       />
       {me.permissions.has("reports.view") ? <ReportLinks /> : null}
       <ShipmentFilterBar filters={f} />
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Sum label="Cước vận chuyển" value={money.freight} />
-        <Sum label="Phụ phí" value={money.surcharge} />
-        <Sum label="Hỗ trợ dầu" value={money.fuel} />
-        <Sum label="Tổng doanh thu (không tính chuyến hủy)" value={money.revenue} strong />
+      <div className={`mb-3 grid grid-cols-2 gap-2 ${money.other ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-5"}`}>
+        <Sum label="Phí vận chuyển" hint="Đơn giá × (1 + % dầu) + phụ thu vé + hạ xa, BOT + neo xe" value={money.transport} />
+        <Sum label="Phí chi hộ" hint="Hạ + nâng + cược cont" value={money.pass_through} />
+        <Sum label="Phí tờ khai" value={money.declaration} />
+        <Sum label="Phí bốc xếp" hint="Bởi tài xế, 3-PL, bồi dưỡng" value={money.loading} />
+        {money.other ? <Sum label="Phí khác (chưa xếp nhóm)" value={money.other} /> : null}
+        <Sum label="Tổng khách phải trả" hint="Không tính chuyến hủy" value={moneyTotal} strong />
       </div>
       <Card className="overflow-hidden">
         <div className="flex flex-wrap gap-1 border-b px-4 py-3" role="tablist">
@@ -146,37 +161,57 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   );
 }
 
-function Sum({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+function Sum({ label, hint, value, strong }: { label: string; hint?: string; value: number; strong?: boolean }) {
   return (
-    <div className="rounded-lg border bg-card px-3 py-2">
+    <div className="rounded-lg border bg-card px-3 py-2" title={hint}>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={strong ? "font-semibold text-primary" : "font-medium"}>{formatVND(value)}</div>
+      {hint ? <div className="truncate text-[11px] text-muted-foreground">{hint}</div> : null}
     </div>
   );
 }
 
-type SumRow = { status: string; freight_amount: number; surcharge_amount: number; fuel_support_amount: number; total_revenue: number };
+type SumRow = { id: string; status: string; freight_amount: number; surcharge_amount: number; fuel_support_amount: number; total_revenue: number };
+type RoleRow = { shipment_id: string; transport_fee: number; pass_through_fee: number; declaration_fee: number; loading_fee: number; other_fee: number };
 
 /** Tổng hợp theo trạng thái khi có tìm kiếm nâng cao (hàm tổng hợp trong CSDL chỉ nhận bộ lọc cơ bản) */
 async function summarize(supabase: SupabaseClient, f: ShipmentFilters): Promise<{ data: Summary; error: null }> {
   const by: Summary["by_status"] = {};
   let total = 0;
+  const all: SumRow[] = [];
   for (let p = 0; p < 20; p++) {
-    const { data, error } = await applyShipmentFilters(supabase.from("shipment_list").select("status, freight_amount, surcharge_amount, fuel_support_amount, total_revenue"), f, { status: false })
+    const { data, error } = await applyShipmentFilters(supabase.from("shipment_list").select("id, status, freight_amount, surcharge_amount, fuel_support_amount, total_revenue"), f, { status: false })
       .order("id")
       .range(p * 1000, p * 1000 + 999);
     if (error) throw error;
     const rows = (data ?? []) as SumRow[];
-    for (const r of rows) {
-      const b = (by[r.status] ??= { count: 0, freight: 0, surcharge: 0, fuel: 0, revenue: 0 });
-      b.count++;
-      b.freight += Number(r.freight_amount);
-      b.surcharge += Number(r.surcharge_amount);
-      b.fuel += Number(r.fuel_support_amount);
-      b.revenue += Number(r.total_revenue);
-      total++;
-    }
+    all.push(...rows);
     if (rows.length < 1000) break;
+  }
+  // Tổng phí theo nhóm của các chuyến đã lọc (đọc theo lô 200 mã)
+  const roles = new Map<string, RoleRow>();
+  for (let i = 0; i < all.length; i += 200) {
+    const { data, error } = await supabase
+      .from("shipment_fee_role_totals")
+      .select("shipment_id, transport_fee, pass_through_fee, declaration_fee, loading_fee, other_fee")
+      .in("shipment_id", all.slice(i, i + 200).map((r) => r.id));
+    if (error) throw error;
+    for (const r of (data ?? []) as RoleRow[]) roles.set(r.shipment_id, r);
+  }
+  for (const r of all) {
+    const b = (by[r.status] ??= { count: 0, freight: 0, surcharge: 0, fuel: 0, revenue: 0, transport: 0, pass_through: 0, declaration: 0, loading: 0, other: 0 });
+    const x = roles.get(r.id);
+    b.count++;
+    b.freight += Number(r.freight_amount);
+    b.surcharge += Number(r.surcharge_amount);
+    b.fuel += Number(r.fuel_support_amount);
+    b.revenue += Number(r.total_revenue);
+    b.transport += x ? Number(x.transport_fee) : Number(r.freight_amount) + Number(r.surcharge_amount) + Number(r.fuel_support_amount);
+    b.pass_through += Number(x?.pass_through_fee ?? 0);
+    b.declaration += Number(x?.declaration_fee ?? 0);
+    b.loading += Number(x?.loading_fee ?? 0);
+    b.other += Number(x?.other_fee ?? 0);
+    total++;
   }
   return { data: { total, by_status: by }, error: null };
 }

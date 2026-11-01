@@ -50,3 +50,23 @@ update public.fee_groups set report_role = 'loading' where code = 'BOCXEP';
 
 \o
 \echo 'TẤT CẢ KIỂM THỬ NHÓM PHÍ ĐỀU ĐẠT'
+
+-- 0037: tổng theo nhóm cho thẻ Quản lý chuyến
+\o /dev/null
+select tests.login('00000000-0000-0000-0000-0000000000a2');
+set role authenticated;
+select public.set_shipment_fees((select id from t_sp), jsonb_build_array(
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Phí neo xe'), 'amount', 300000),
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Phí nâng'), 'amount', 250000),
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Phí tờ khai theo cont'), 'amount', 500000),
+  jsonb_build_object('fee_type_id', (select id from public.fee_types where name = 'Phí bồi dưỡng'), 'amount', 100000)));
+select tests.assert((select transport_fee from public.shipment_fee_role_totals where shipment_id = (select id from t_sp)) = (select base from t_sp) + 300000,
+  'Phí vận chuyển = cước + phụ phí + dầu + phí neo xe');
+select tests.assert((select (pass_through_fee, declaration_fee, loading_fee, other_fee) = (250000::numeric, 500000::numeric, 100000::numeric, 0::numeric)
+  from public.shipment_fee_role_totals where shipment_id = (select id from t_sp)), 'Chi hộ, tờ khai, bốc xếp tách đúng nhóm');
+select tests.assert((select sum((v ->> 'loading')::numeric) from jsonb_each(public.shipment_list_summary('2000-01-01', '2100-01-01') -> 'by_status') as e(k, v)) >= 100000,
+  'Tổng hợp Quản lý chuyến có phí bốc xếp');
+select public.set_shipment_fees((select id from t_sp), '[]'::jsonb);
+reset role;
+\o
+\echo 'TẤT CẢ KIỂM THỬ TỔNG THEO NHÓM PHÍ ĐỀU ĐẠT'
