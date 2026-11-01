@@ -124,6 +124,7 @@ const feeSchema = z.object({
   fee_type_id: z.string().max(40).optional(),
   amount: z.union([z.number(), z.string()]).optional(),
   note: z.string().max(500, "Ghi chú phí tối đa 500 ký tự").optional(),
+  declaration_type_id: z.string().max(40).optional(),
 });
 const feesSchema = z.array(feeSchema).max(100, "Mỗi chuyến tối đa 100 dòng phí");
 
@@ -132,7 +133,7 @@ function feeRows(fees: z.infer<typeof feesSchema>, prefix: string) {
   return fees.map((f, j) => {
     const a = f.amount === undefined || f.amount === "" ? null : parseNumberVN(f.amount, true);
     if (a !== null && (Number.isNaN(a) || a < 0)) throw new ActionError(`${prefix}dòng phí ${j + 1}: số tiền không hợp lệ`);
-    return { fee_type_id: f.fee_type_id ?? "", amount: a ?? "", note: f.note ?? "" };
+    return { fee_type_id: f.fee_type_id ?? "", amount: a ?? "", note: f.note ?? "", declaration_type_id: f.declaration_type_id ?? "" };
   });
 }
 

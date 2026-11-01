@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Banknote, HandCoins, PiggyBank, Receipt, TrendingUp } from "lucide-react";
+import { Banknote, HandCoins, Layers, PiggyBank, Receipt, TrendingUp } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
@@ -77,6 +78,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       <PageHeader
         title="Báo cáo"
         description="Số liệu thật tính trực tiếp từ chuyến, chi phí đã duyệt và phiếu thu chi. Mọi bảng đều tìm kiếm nâng cao, chọn cột và xuất Excel được."
+        actions={
+          <Link href="/bao-cao/nhom-phi" className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-sm font-medium text-primary hover:bg-muted">
+            <Layers className="size-4" /> Chi phí theo nhóm (ngày, tuần, tháng, năm)
+          </Link>
+        }
       />
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5 [&>*]:min-w-0">
         <Kpi icon={TrendingUp} tone="blue" label="Doanh thu tháng này" value={cur?.revenue ?? 0} note={`${cur?.trips ?? 0} chuyến`} />

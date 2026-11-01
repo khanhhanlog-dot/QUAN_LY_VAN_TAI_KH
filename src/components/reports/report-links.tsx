@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
 
-const LINKS = [
+const LINKS: { href?: string; tab?: string; label: string }[] = [
+  { href: "/bao-cao/nhom-phi", label: "Chi phí theo nhóm" },
   { tab: "report_freight", label: "Cước vận chuyển" },
   { tab: "report_pass_through", label: "Phí chi hộ" },
   { tab: "report_loading", label: "Bốc xếp" },
@@ -16,7 +17,7 @@ export function ReportLinks() {
         <BarChart3 className="size-3.5" /> Báo cáo:
       </span>
       {LINKS.map((l) => (
-        <Link key={l.tab} href={`/bao-cao?tab=${l.tab}`} className="text-primary hover:underline">
+        <Link key={l.label} href={l.href ?? `/bao-cao?tab=${l.tab}`} className={l.href ? "font-medium text-primary hover:underline" : "text-primary hover:underline"}>
           {l.label}
         </Link>
       ))}

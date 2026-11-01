@@ -15,7 +15,7 @@ import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
 import { PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
 import { ItemsEditor, itemsPayload, newItem, type ItemLine } from "./items-editor";
-import { FeesEditor, feeTotals, feesPayload, newFee, type FeeLine } from "./fees-editor";
+import { FeesEditor, feeTotals, feesPayload, newFee, useFeeCatalog, type FeeLine } from "./fees-editor";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { PRICING_UNITS } from "@/lib/status";
 import { createOrder, customerDefaultPayer, quoteShipment, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -360,7 +360,8 @@ function ShipmentEditor({
           : base === "total_revenue"
             ? Math.round(((freight + surcharge) * rate) / 100)
             : null;
-  const fees = feeTotals(row.fees);
+  const [feeCatalog] = useFeeCatalog();
+  const fees = feeTotals(row.fees, feeCatalog);
   const id = (k: string) => `s${row.key}-${k}`;
   const generalFields = shipmentFields.filter((f) => !PRICE_FIELD_TYPES.includes(f.type));
   const priceFields = shipmentFields.filter((f) => PRICE_FIELD_TYPES.includes(f.type));
@@ -590,13 +591,20 @@ function ShipmentEditor({
               ) : null,
             }}
           />
-          <FeesEditor value={row.fees} onChange={(fees) => onChange({ fees })} idPrefix={`s${row.key}-fee-`} />
+          <FeesEditor
+            value={row.fees}
+            onChange={(fees) => onChange({ fees })}
+            idPrefix={`s${row.key}-fee-`}
+            freightBase={quoteReady && (chosen || manual) ? (fuel === null ? null : freight + surcharge + fuel) : 0}
+          />
           {quoteReady && (chosen || manual) ? (
             <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                   <Money label={`Cước (${formatNumber(qty)} × ${formatVND(unitPrice)})`} value={freight} />
                   <Money label="Phụ phí" value={surcharge} />
                   <Money label={rate !== null ? `Hỗ trợ dầu ${formatNumber(rate)}%` : "Hỗ trợ dầu"} value={fuel} note={fuel === null ? "Tính theo định mức khi lưu" : undefined} />
-                  {fees.revenue ? <Money label="Phí khác (tính doanh thu)" value={fees.revenue} /> : null}
+                  {fees.freight ? <Money label="Phụ thu nhóm cước" value={fees.freight} /> : null}
+                  <Money label="Tổng cước" value={fuel === null ? null : freight + surcharge + fuel + fees.freight} strong />
+                  {fees.revenue - fees.freight ? <Money label="Phí khác (tính doanh thu)" value={fees.revenue - fees.freight} /> : null}
                   <Money label="Tổng doanh thu dự kiến" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue} strong />
                   {fees.passThrough ? <Money label="Chi hộ (không tính doanh thu)" value={fees.passThrough} /> : null}
                   {fees.passThrough ? <Money label="Khách phải trả" value={fuel === null ? null : freight + surcharge + fuel + fees.revenue + fees.passThrough} strong /> : null}

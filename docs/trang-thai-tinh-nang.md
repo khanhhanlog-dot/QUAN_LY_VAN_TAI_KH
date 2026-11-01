@@ -219,3 +219,14 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Phí bốc xếp bản chất là chi hộ nhưng không xuất hóa đơn; phí nâng, hạ, cược cont là chi hộ có hóa đơn. Loại phí bật "Thuộc nhóm bốc xếp" không còn hiện ở báo cáo Phí chi hộ, chỉ ở báo cáo Bốc xếp. Khách phải trả vẫn gồm mọi khoản chi hộ.
 - report_fee_lines thêm cột is_loading; report_pass_through_fees lọc `not is_loading`. Tệp nâng cấp: supabase/deploy/nang-cap-tach-boc-xep-chi-ho.sql.
 - Chi bốc xếp: tài xế tự bốc thì tài xế nhập (Tài xế trả, hoàn qua lương); 3PL/nhà thầu thuê công nhân trả tiền mặt thì văn phòng nhập ở chuyến (Công ty trả + Nhà thầu nhận tiền), áp dụng cả chuyến xe 3PL.
+
+## Nhóm phí và báo cáo chi phí theo nhóm (migration 0035) – 01/11/2026
+- Mọi bảng có đường kẻ dọc giữa các cột (tiêu đề và dữ liệu), quy tắc chung trong globals.css.
+- Danh mục mới: **Nhóm phí** (fee_groups, vai trò khi tổng kết: freight = cộng vào Tổng cước, pass_through, declaration = có ô Loại tờ khai, loading = đưa vào báo cáo Bốc xếp, other) và **Loại tờ khai** (declaration_types: Xanh, Vàng, Đỏ). Loại phí thu khách có ô Nhóm phí; chọn nhóm vai trò Bốc xếp thì tự bật "Thuộc nhóm bốc xếp".
+- Có sẵn theo yêu cầu khách: Phí vận chuyển (Cước vận chuyển, Phụ phí, % hỗ trợ dầu lấy từ khung giá + Phụ thu vé SP-ITC, Phụ thu hạ rỗng xa + BOT, Phí neo xe); Phí chi hộ (Phí hạ, Phí nâng, Phí cược cont); Phí tờ khai (Loại tờ khai + Phí tờ khai theo cont); Phí bốc xếp (Bốc xếp bởi tài xế, Bốc xếp bởi 3-PL, Phí bồi dưỡng). Loại phí cũ được xếp nhóm theo cờ bốc xếp / chi hộ.
+- Tổng cước = cước + phụ phí + hỗ trợ dầu + phí thuộc nhóm vai trò freight (report_shipment_profit.freight_total, thêm cột freight_fee_amount).
+- Ô nhập phí (tạo đơn ở Điều phối, Sửa phí ở chuyến) dựng lại theo nhóm: mỗi nhóm liệt kê sẵn loại phí, chỉ gõ số tiền; nhóm Tờ khai có ô Loại tờ khai; "Phí khác" để chọn/thêm nhanh loại phí ngoài nhóm. shipment_fees.declaration_type_id; set_shipment_fees nhận declaration_type_id (chỉ chọn loại tờ khai thì lưu 0 đ).
+- Báo cáo **Chi phí theo nhóm** (/bao-cao/nhom-phi; lối vào ở Điều phối, Quản lý chuyến, Báo cáo): lọc Từ ngày–đến ngày, Tuần, Tháng, Năm; chia bảng theo ngày/tuần/tháng. Thẻ tổng bên thu (từng nhóm phí) và bên chi (theo "Nhóm chi phí" của hạng mục chi phí chuyến đã duyệt, Bảo trì sửa chữa, Kiểm định bảo hiểm từ Bảo dưỡng sửa chữa xe, Ứng tiền đã duyệt/đã chuyển). Bảng: Tổng theo kỳ, Từng chuyến, Theo loại phí, Bên chi chi tiết; tìm kiếm, tìm nâng cao, chọn/kéo/giãn cột, tải Excel (CSV).
+- Bảo dưỡng, sửa chữa xe thêm loại Vá lốp, Bảo hiểm; Đăng kiểm đổi tên Kiểm định.
+- View: report_fee_group_lines, report_cost_lines. Kiểm thử CSDL: supabase/tests/23_fee_groups_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-nhom-phi.sql.
+- Chưa làm: chi phí cầu đường import Excel theo số xe (chờ mẫu Excel của khách).

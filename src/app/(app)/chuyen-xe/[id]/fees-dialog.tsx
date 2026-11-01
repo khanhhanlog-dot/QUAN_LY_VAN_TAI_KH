@@ -7,8 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FeesEditor, feesPayload, newFee, type FeeKind, type FeeLine } from "@/app/(app)/dieu-phoi/tao-don/fees-editor";
 import { saveShipmentFees } from "@/app/(app)/dieu-phoi/actions";
+import { formatNumber } from "@/lib/format";
 
-export type ShipmentFee = { line_no: number; fee_type_id: string; fee_kind: FeeKind; amount: number; note: string | null; fee_type: { name: string } | null };
+export type ShipmentFee = {
+  line_no: number;
+  fee_type_id: string;
+  fee_kind: FeeKind;
+  amount: number;
+  note: string | null;
+  declaration_type_id: string | null;
+  declaration: { name: string } | null;
+  fee_type: { name: string; sort_order: number; fee_group: { id: string; name: string; report_role: string; sort_order: number } | null } | null;
+};
 
 /** Nhập, sửa các khoản phí thu khách của chuyến (bốc xếp, chi hộ…) */
 export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; code: string; fees: ShipmentFee[] }) {
@@ -23,17 +33,29 @@ export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; cod
         variant="outline"
         size="sm"
         onClick={() => {
-          setLines(fees.map((f) => newFee({ fee_type_id: f.fee_type_id, label: f.fee_type?.name ?? "", kind: f.fee_kind, amount: String(Number(f.amount)), note: f.note ?? "" })));
+          setLines(
+            fees.map((f) =>
+              newFee({
+                fee_type_id: f.fee_type_id,
+                label: f.fee_type?.name ?? "",
+                kind: f.fee_kind,
+                amount: formatNumber(Number(f.amount)),
+                note: f.note ?? "",
+                declaration_type_id: f.declaration_type_id ?? "",
+                declaration_label: f.declaration?.name ?? "",
+              }),
+            ),
+          );
           setOpen(true);
         }}
       >
         <Receipt /> {fees.length ? "Sửa phí thu khách" : "Thêm phí thu khách"}
       </Button>
       <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
-        <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Phí thu khách của chuyến {code}</DialogTitle>
-            <DialogDescription>Các khoản ngoài cước vận chuyển. Phí chi hộ có trong số khách phải trả nhưng không tính doanh thu. Chuyến đã lập công nợ thì không sửa được phí.</DialogDescription>
+            <DialogDescription>Phí theo nhóm: Phí vận chuyển (cộng vào Tổng cước), Chi hộ, Tờ khai, Bốc xếp. Phí chi hộ có trong số khách phải trả nhưng không tính doanh thu. Chuyến đã lập công nợ thì không sửa được phí.</DialogDescription>
           </DialogHeader>
           <FeesEditor value={lines} onChange={setLines} idPrefix="ct-fee-" />
           <DialogFooter>

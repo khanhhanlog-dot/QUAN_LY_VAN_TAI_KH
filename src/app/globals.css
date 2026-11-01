@@ -87,6 +87,18 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  /* Đường kẻ dọc giữa các cột (tiêu đề và dữ liệu) ở mọi bảng để dễ phân biệt cột */
+  th,
+  td {
+    border-right-width: 1px;
+  }
+  th:last-child,
+  td:last-child {
+    border-right-width: 0;
+  }
+  thead th {
+    border-right-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
+  }
 }
 
 /* Màn hình nhiều dữ liệu (Điều phối, Quản lý chuyến, Báo cáo): chữ và khoảng cách nhỏ lại để thấy nhiều chuyến hơn.

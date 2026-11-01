@@ -149,7 +149,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     loadCustomFields(supabase, "expenses"),
     supabase.from("shipment_items").select("line_no, item_code, item_name, quantity, unit, note, custom_fields").eq("shipment_id", id).order("line_no"),
     loadCustomFields(supabase, "shipment_items"),
-    supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, fee_type:fee_types(name)").eq("shipment_id", id).order("line_no"),
+    supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
   ]);
   for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
@@ -162,6 +162,22 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const docCount = docRes.count ?? 0;
   if (feeRes.error) throw feeRes.error;
   const fees = (feeRes.data ?? []) as unknown as ShipmentFee[];
+  // Phí theo nhóm: nhóm Cước vận chuyển cộng vào Tổng cước, các nhóm khác hiện riêng kèm cộng nhóm
+  const feeGroups = (() => {
+    const freight: ShipmentFee[] = [];
+    const map = new Map<string, { name: string; sort: number; lines: ShipmentFee[] }>();
+    for (const f of fees) {
+      const g = f.fee_type?.fee_group;
+      if (g?.report_role === "freight") {
+        freight.push(f);
+        continue;
+      }
+      const name = g?.name ?? "Phí khác";
+      if (!map.has(name)) map.set(name, { name, sort: g?.sort_order ?? 9999, lines: [] });
+      map.get(name)!.lines.push(f);
+    }
+    return { freight, others: [...map.values()].sort((a, b) => a.sort - b.sort) };
+  })();
   const canEditFees =
     (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && s.status !== "cancelled" && !x.receivable_id;
   const approvedCost = expenses.filter((e) => e.status === "approved").reduce((a, e) => a + Number(e.amount), 0);
@@ -301,24 +317,29 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <Line label={`Cước (${formatNumber(s.quantity)} ${unit} × ${formatVND(s.unit_price)})`} value={formatVND(s.freight_amount)} />
             <Line label="Phụ phí" value={formatVND(s.surcharge_amount)} />
             <Line label={s.fuel_support_rate !== null ? `Hỗ trợ dầu ${formatNumber(s.fuel_support_rate)}%` : "Hỗ trợ dầu"} value={formatVND(s.fuel_support_amount)} />
-            {fees
-              .filter((f) => f.fee_kind === "revenue")
-              .map((f) => (
-                <Line key={f.line_no} label={`${f.fee_type?.name ?? "Phí"}${f.note ? ` (${f.note})` : ""}`} value={formatVND(f.amount)} />
-              ))}
+            {feeGroups.freight.map((f) => (
+              <Line key={f.line_no} label={`${f.fee_type?.name ?? "Phí"}${f.note ? ` (${f.note})` : ""}`} value={formatVND(f.amount)} />
+            ))}
+            <div className="border-t pt-2">
+              <Line label="Tổng cước" value={<b>{formatVND(Number(s.freight_amount) + Number(s.surcharge_amount) + Number(s.fuel_support_amount) + feeGroups.freight.reduce((a, f) => a + Number(f.amount), 0))}</b>} />
+            </div>
+            {feeGroups.others.map((g) => (
+              <div key={g.name} className="space-y-1.5 border-t pt-2">
+                <div className="text-xs font-semibold text-muted-foreground">{g.name}</div>
+                {g.lines.map((f) => (
+                  <Line
+                    key={f.line_no}
+                    label={`${f.fee_type?.name ?? "Phí"}${f.declaration?.name ? ` · tờ khai ${f.declaration.name}` : ""}${f.fee_kind === "pass_through" ? " (chi hộ)" : ""}${f.note ? ` (${f.note})` : ""}`}
+                    value={formatVND(f.amount)}
+                  />
+                ))}
+                <Line label={`Cộng ${g.name.toLowerCase()}`} value={<b>{formatVND(g.lines.reduce((a, f) => a + Number(f.amount), 0))}</b>} />
+              </div>
+            ))}
             <div className="border-t pt-2">
               <Line label="Tổng doanh thu" value={<b className="text-primary">{formatVND(s.total_revenue)}</b>} />
             </div>
-            {Number(s.pass_through_amount) > 0 ? (
-              <div className="space-y-2 border-t pt-2">
-                {fees
-                  .filter((f) => f.fee_kind === "pass_through")
-                  .map((f) => (
-                    <Line key={f.line_no} label={`${f.fee_type?.name ?? "Chi hộ"} (chi hộ${f.note ? `, ${f.note}` : ""})`} value={formatVND(f.amount)} />
-                  ))}
-                <Line label="Khách phải trả" value={<b>{formatVND(s.amount_due)}</b>} />
-              </div>
-            ) : null}
+            {Number(s.pass_through_amount) > 0 ? <Line label="Khách phải trả (gồm chi hộ)" value={<b>{formatVND(s.amount_due)}</b>} /> : null}
             {canEditFees ? <FeesDialog shipmentId={s.id} code={s.shipment_code} fees={fees} /> : null}
             <div className="space-y-1 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
               <p>

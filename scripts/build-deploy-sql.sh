@@ -108,3 +108,5 @@ upgrade nang-cap-giam-doc-duyet-chuyen.sql "Giám đốc duyệt chuyến (có �
   supabase/migrations/20261101000033_trip_director_approval.sql supabase/migrations/20261101000034_trip_approval_delegation.sql
 upgrade nang-cap-tach-boc-xep-chi-ho.sql "Tách phí bốc xếp khỏi báo cáo phí chi hộ" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'report_fee_lines' and column_name = 'is_loading')" \
   supabase/migrations/20261030000032_loading_fee_split.sql
+upgrade nang-cap-nhom-phi.sql "Nhóm phí (vận chuyển, chi hộ, tờ khai, bốc xếp), loại tờ khai, báo cáo chi phí theo nhóm" "to_regclass('public.fee_groups') is not null" \
+  supabase/migrations/20261101000035_fee_groups.sql

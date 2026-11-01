@@ -15,6 +15,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       { key: "vehicle_types" },
       { key: "expense_categories" },
       { key: "fee_types" },
+      { key: "fee_groups" },
+      { key: "declaration_types" },
       { key: "banks" },
       { key: "company_bank_accounts" },
       { key: "payment_methods" },
