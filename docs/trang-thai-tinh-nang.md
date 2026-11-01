@@ -271,3 +271,11 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Lời/lỗ chuyến và báo cáo lợi nhuận (tháng, xe, tài xế, khách) trừ Cước + Chi phí khác trả 3PL; Chi hộ 3PL không trừ (đã thu lại của khách).
 - Trang **Xe thuê ngoài 3PL** (/thue-ngoai, quyền reports.view hoặc receivables.view): KPI tháng, bảng Chuyến 3PL (cước, chi hộ, đã trả, còn nợ, tình trạng, hạn, quá hạn; nút Chi phí / Trả tiền / Lịch sử từng dòng), bảng 3PL theo nhà xe theo tháng, nút **Trả tiền 3PL nhiều chuyến** (một nhà xe, tick chuyến, mỗi chuyến một phiếu chi cùng số giao dịch). Hai bảng cũng có ở Báo cáo.
 - CSDL: vehicles.supplier_id, shipments.carrier_supplier_id, payables.kind, bảng shipment_carrier_costs, view shipment_carrier_totals, report_carrier_trips, report_carrier_by_supplier; hàm set_shipment_carrier_costs, pay_carrier_payables. Kiểm thử: supabase/tests/29_carrier_costs_tests.sql.
+
+## Trò chuyện riêng và nhóm (migration 0043) – 01/11/2026
+
+- Trang mới /tro-chuyen "Trò chuyện" (nhóm menu Nhân sự, mọi nhân viên văn phòng; tài xế chưa dùng) và biểu tượng tin nhắn trên đầu trang có số tin chưa đọc, tự cập nhật.
+- Nhắn tin riêng 1-1 (mỗi cặp người chỉ một cuộc trò chuyện) và nhóm: đặt tên, chọn thành viên; mọi thành viên thêm người, đổi tên nhóm; quản trị nhóm mời người ra, giao/bỏ quyền quản trị; ai cũng rời nhóm được (quản trị cuối rời thì người vào sớm nhất thành quản trị).
+- Gửi chữ (Enter gửi, Shift+Enter xuống dòng, link bấm được), gửi kèm ảnh/PDF/Excel/Word ≤ 10 MB (chọn tệp hoặc dán ảnh), thu hồi tin của mình, đếm tin chưa đọc từng cuộc trò chuyện, tin mới hiện ngay (Supabase Realtime).
+- Tìm kiếm: ô tìm ở danh sách tìm theo tên người/nhóm (gõ không dấu được) và nội dung tin nhắn trong mọi cuộc trò chuyện; nút kính lúp tìm trong một cuộc trò chuyện; bấm kết quả mở đúng chỗ tin nhắn.
+- Bảo mật: chỉ thành viên đọc được tin và tệp của phòng (RLS + chính sách Storage thư mục chat/{phòng}/); ghi qua hàm chat_* (security definer). Kiểm thử: supabase/tests/30_chat_tests.sql.

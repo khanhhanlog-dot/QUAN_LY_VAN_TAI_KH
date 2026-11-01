@@ -124,3 +124,5 @@ upgrade nang-cap-de-nghi-chi.sql "Phiếu đề nghị chi, mua sắm (Giám đ�
   supabase/migrations/20261101000040_purchase_requests.sql
 upgrade nang-cap-chi-phi-3pl.sql "Chi phí và thanh toán xe thuê ngoài 3PL (cước, chi hộ phải trả nhà xe, báo cáo)" "to_regclass('public.shipment_carrier_costs') is not null" \
   supabase/migrations/20261101000042_carrier_costs.sql
+upgrade nang-cap-tro-chuyen.sql "Trò chuyện riêng và nhóm trong ứng dụng" "to_regclass('public.chat_messages') is not null" \
+  supabase/migrations/20261101000043_chat.sql

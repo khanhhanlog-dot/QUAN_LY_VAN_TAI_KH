@@ -9,14 +9,17 @@ import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { NavSearch } from "@/components/layout/nav-search";
 import { UserMenu } from "@/components/layout/user-menu";
+import { ChatBadge } from "@/components/chat/chat-badge";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireActiveUser();
   const supabase = await createClient();
-  const { count: unread } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .is("read_at", null);
+  const isStaff = user.roles.some((r) => r.code !== "driver");
+  const [{ count: unread }, chatUnread] = await Promise.all([
+    supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+    // Trước khi chạy nâng cấp CSDL Trò chuyện, hàm chưa có: coi như 0
+    isStaff ? supabase.rpc("chat_unread_total").then((r) => (typeof r.data === "number" ? r.data : 0)) : Promise.resolve(0),
+  ]);
 
   // Menu chỉ hiển thị mục người dùng có quyền (máy chủ vẫn kiểm tra quyền ở từng trang)
   const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => hasAny(user.permissions, i.anyOf)) })).filter(
@@ -40,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <MobileNav groups={groups} />
           <NavSearch groups={groups} />
           <div className="flex-1" />
+          {isStaff ? <ChatBadge initial={chatUnread} userId={user.id} /> : null}
           <Link href="/thong-bao" className="relative rounded-md p-2 hover:bg-accent" aria-label={`Thông báo (${unread ?? 0} chưa đọc)`}>
             <Bell className="size-5" />
             {unread ? (
