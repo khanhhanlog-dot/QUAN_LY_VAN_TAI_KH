@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { missingColumn } from "@/lib/supabase/missing-column";
 import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
 import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
@@ -124,6 +125,9 @@ function fmtChange(field: string, v: string | null): string {
   return /^-?\d+(\.\d+)?$/.test(v) ? formatNumber(v) : v;
 }
 
+const EXTRA_COLS =
+  "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, pod_photo_required, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, carrier_supplier_id, carrier:suppliers(name), vehicle:vehicles(ownership_type, supplier_id, supplier:suppliers(name))";
+
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const me = await requirePagePermission("shipments.view", "dispatch.view");
   const { id } = await params;
@@ -137,9 +141,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("shipments")
-      .select(
-        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, pod_photo_required, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, carrier_supplier_id, carrier:suppliers(name), vehicle:vehicles(ownership_type, supplier_id, supplier:suppliers(name))",
-      )
+      .select(EXTRA_COLS)
       .eq("id", id)
       .maybeSingle(),
     supabase.from("shipment_status_history").select("id, status_field, from_status, to_status, changed_by, changed_at, note").eq("shipment_id", id).order("changed_at").order("id"),
@@ -176,9 +178,19 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (carrierRes.error) throw carrierRes.error;
   const carrierCosts = (carrierRes.data ?? []) as unknown as CarrierCost[];
   const carrierPayable = (payableRes.data ?? null) as CarrierPayable | null;
-  for (const r of [rowRes, extraRes, histRes, asgRes, changeRes]) if (r.error) throw r.error;
+  // CSDL chưa nâng cấp 0054 (chưa có cột pod_photo_required): đọc lại không có cột này, coi như bắt buộc chụp
+  let extra = extraRes;
+  if (extra.error && missingColumn(extra.error, "pod_photo_required")) {
+    const retry = await supabase
+      .from("shipments")
+      .select(EXTRA_COLS.replace("pod_photo_required, ", ""))
+      .eq("id", id)
+      .maybeSingle();
+    extra = { ...retry, data: retry.data ? { ...(retry.data as object), pod_photo_required: true } : null } as typeof extraRes;
+  }
+  for (const r of [rowRes, extra, histRes, asgRes, changeRes]) if (r.error) throw r.error;
   const s = rowRes.data as ShipmentListRow | null;
-  const x = extraRes.data as Extra | null;
+  const x = extra.data as Extra | null;
   if (!s || !x) notFound();
   const history = (histRes.data ?? []) as History[];
   const assignments = (asgRes.data ?? []) as unknown as Assignment[];

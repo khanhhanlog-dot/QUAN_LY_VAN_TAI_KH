@@ -5,6 +5,7 @@ import { ChevronLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { missingColumn } from "@/lib/supabase/missing-column";
 import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { formatNumber } from "@/lib/format";
@@ -77,6 +78,9 @@ type ItemRow = {
 };
 
 /** Sửa toàn bộ đơn hàng bằng đúng biểu mẫu lúc tạo đơn, nạp sẵn mọi thông tin đã nhập */
+const SHIP_COLS =
+  "id, shipment_code, status, version, receivable_id, pickup_at, expected_delivery_at, pickup_location_id, delivery_location_id, empty_return_location_id, offroute_return_location_id, trip_order, vehicle_type_id, vehicle_id, driver_id, price_list_id, unit_price, pricing_unit, quantity, surcharge_amount, fuel_support_rate, fuel_support_base, fuel_support_amount, pricing_snapshot, notes, pod_photo_required, custom_fields";
+
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const me = await requirePagePermission("dispatch.update");
   const { id } = await params;
@@ -94,9 +98,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       .maybeSingle(),
     sb
       .from("shipments")
-      .select(
-        "id, shipment_code, status, version, receivable_id, pickup_at, expected_delivery_at, pickup_location_id, delivery_location_id, empty_return_location_id, offroute_return_location_id, trip_order, vehicle_type_id, vehicle_id, driver_id, price_list_id, unit_price, pricing_unit, quantity, surcharge_amount, fuel_support_rate, fuel_support_base, fuel_support_amount, pricing_snapshot, notes, pod_photo_required, custom_fields",
-      )
+      .select(SHIP_COLS)
       .eq("order_id", id)
       .neq("status", "cancelled")
       .order("sequence_in_order"),
@@ -105,7 +107,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     loadCustomFields(sb, "shipment_items"),
   ]);
   if (orderRes.error) throw orderRes.error;
-  if (shipRes.error) throw shipRes.error;
+  // CSDL chưa nâng cấp 0054 (chưa có cột pod_photo_required): đọc lại không có cột này, coi như bắt buộc chụp
+  let shipData = shipRes.data as unknown[] | null;
+  if (shipRes.error && missingColumn(shipRes.error, "pod_photo_required")) {
+    const retry = await sb.from("shipments").select(SHIP_COLS.replace("pod_photo_required, ", "")).eq("order_id", id).neq("status", "cancelled").order("sequence_in_order");
+    if (retry.error) throw retry.error;
+    shipData = ((retry.data ?? []) as object[]).map((r) => ({ ...r, pod_photo_required: true }));
+  } else if (shipRes.error) throw shipRes.error;
   const o = orderRes.data as unknown as {
     id: string;
     order_code: string;
@@ -118,7 +126,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     company: { id: string; name: string } | null;
   } | null;
   if (!o) notFound();
-  const ships = (shipRes.data ?? []) as unknown as ShipRow[];
+  const ships = (shipData ?? []) as unknown as ShipRow[];
   const ids = ships.map((s) => s.id);
   const [feeRes, itemRes, feeDocRes] = ids.length
     ? await Promise.all([
