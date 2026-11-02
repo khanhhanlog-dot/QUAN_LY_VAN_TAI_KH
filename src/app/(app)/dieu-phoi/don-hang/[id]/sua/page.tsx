@@ -10,6 +10,7 @@ import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { parseDriverAppSettings } from "@/lib/driver-link/settings";
 import { OrderForm, type EditOrderInit, type EditShipmentInit } from "../../../tao-don/order-form";
 
 export const metadata: Metadata = { title: "Sửa đơn hàng" };
@@ -47,6 +48,7 @@ type ShipRow = {
   fuel_support_amount: number;
   pricing_snapshot: { price_list_code?: string | null } | null;
   notes: string | null;
+  pod_photo_required: boolean;
   custom_fields: Record<string, unknown> | null;
 };
 
@@ -80,6 +82,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const sb = await createClient();
+  // Mặc định ô "Khách yêu cầu chụp chứng từ" (Cấu hình → Ứng dụng tài xế); CSDL chưa nâng cấp thì bật
+  const podPhotoDefault = parseDriverAppSettings((await sb.rpc("driver_app_settings")).data).delivery_photo_required;
   const [orderRes, shipRes, orderRows, shipRows, itemRows] = await Promise.all([
     sb
       .from("transport_orders")
@@ -91,7 +95,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     sb
       .from("shipments")
       .select(
-        "id, shipment_code, status, version, receivable_id, pickup_at, expected_delivery_at, pickup_location_id, delivery_location_id, empty_return_location_id, offroute_return_location_id, trip_order, vehicle_type_id, vehicle_id, driver_id, price_list_id, unit_price, pricing_unit, quantity, surcharge_amount, fuel_support_rate, fuel_support_base, fuel_support_amount, pricing_snapshot, notes, custom_fields",
+        "id, shipment_code, status, version, receivable_id, pickup_at, expected_delivery_at, pickup_location_id, delivery_location_id, empty_return_location_id, offroute_return_location_id, trip_order, vehicle_type_id, vehicle_id, driver_id, price_list_id, unit_price, pricing_unit, quantity, surcharge_amount, fuel_support_rate, fuel_support_base, fuel_support_amount, pricing_snapshot, notes, pod_photo_required, custom_fields",
       )
       .eq("order_id", id)
       .neq("status", "cancelled")
@@ -174,6 +178,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     fuelBase: s.fuel_support_base,
     fuelAmount: Number(s.fuel_support_amount),
     notes: s.notes ?? "",
+    podPhotoRequired: s.pod_photo_required ?? true,
     custom: s.custom_fields ?? {},
     items: items
       .filter((it) => it.shipment_id === s.id)
@@ -244,6 +249,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </Alert>
       ) : (
         <OrderForm
+          podPhotoDefault={podPhotoDefault}
           closeHref={`/dieu-phoi/don-hang/${o.id}`}
           edit={edit}
           canCreate={o.status === "open" && me.permissions.has("dispatch.create")}

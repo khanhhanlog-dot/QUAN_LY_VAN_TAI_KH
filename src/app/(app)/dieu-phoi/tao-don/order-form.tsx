@@ -46,6 +46,8 @@ type Row = {
   surchargeAmount: string;
   fuelSupportRate: string;
   notes: string;
+  /** Khách yêu cầu chụp chứng từ: tài xế bắt buộc chụp ảnh giao hàng */
+  podPhotoRequired: boolean;
   custom: Record<string, unknown>;
   /** Trường bổ sung kiểu tiền, %, số, công thức: nhập trong khung Giá */
   customPrice: Record<string, unknown>;
@@ -104,6 +106,7 @@ export type EditShipmentInit = {
   fuelBase: string | null;
   fuelAmount: number;
   notes: string;
+  podPhotoRequired: boolean;
   custom: Record<string, unknown>;
   items: Omit<ItemLine, "key">[];
   fees: Omit<FeeLine, "key">[];
@@ -136,7 +139,8 @@ const pick = (o: Record<string, unknown>, keys: string[]) => Object.fromEntries(
 const PRICE_FIELD_TYPES: FieldDef["type"][] = ["currency", "percent", "number", "formula"];
 
 let seq = 0;
-const newRow = (from?: Row): Row => ({
+/** pod = mặc định ô "Khách yêu cầu chụp chứng từ" cho chuyến mới (Cấu hình) */
+const newRow = (from?: Row, pod = true): Row => ({
   key: ++seq,
   pickupAt: from?.pickupAt ?? todayVN(),
   expectedDeliveryAt: from?.expectedDeliveryAt ?? "",
@@ -156,6 +160,7 @@ const newRow = (from?: Row): Row => ({
   surchargeAmount: from?.surchargeAmount ?? "",
   fuelSupportRate: from?.fuelSupportRate ?? "",
   notes: from?.notes ?? "",
+  podPhotoRequired: from?.podPhotoRequired ?? pod,
   custom: from?.custom ?? {},
   customPrice: from?.customPrice ?? {},
   items: (from?.items ?? []).map((l) => newItem(l)),
@@ -184,6 +189,7 @@ const rowFromShipment = (s: EditShipmentInit, generalKeys: string[], priceKeys: 
   surchargeAmount: String(s.surchargeAmount),
   fuelSupportRate: s.fuelSupportRate === null ? "" : String(s.fuelSupportRate),
   notes: s.notes,
+  podPhotoRequired: s.podPhotoRequired,
   custom: pick(s.custom, generalKeys),
   customPrice: pick(s.custom, priceKeys),
   items: s.items.map((l) => newItem(l)),
@@ -235,7 +241,10 @@ export function OrderForm({
   canCreate = true,
   canCancelTrips = false,
   closeHref,
+  podPhotoDefault = true,
 }: {
+  /** Đơn mới mặc định tích "Khách yêu cầu chụp chứng từ" */
+  podPhotoDefault?: boolean;
   order?: {
     id: string;
     code: string;
@@ -287,7 +296,7 @@ export function OrderForm({
       : {},
   );
   const [rows, setRows] = useState<Row[]>(() => {
-    if (!edit) return [{ ...newRow(), key: 0 }]; // khóa cố định để máy chủ và trình duyệt sinh cùng id
+    if (!edit) return [{ ...newRow(undefined, podPhotoDefault), key: 0 }]; // khóa cố định để máy chủ và trình duyệt sinh cùng id
     const priceKeys = shipmentFields.filter((f) => PRICE_FIELD_TYPES.includes(f.type)).map((f) => f.key);
     const generalKeys = shipmentFields.filter((f) => !PRICE_FIELD_TYPES.includes(f.type)).map((f) => f.key);
     // Khóa theo thứ tự để máy chủ và trình duyệt sinh cùng id
@@ -320,6 +329,7 @@ export function OrderForm({
     surchargeAmount: moneyOut(s.surchargeAmount),
     fuelSupportRate: num(s.fuelSupportRate),
     notes: s.notes,
+    podPhotoRequired: s.podPhotoRequired,
     custom: { ...s.custom, ...s.customPrice },
     items: itemsPayload(s.items),
     fees: feesPayload(s.fees),
@@ -532,7 +542,7 @@ export function OrderForm({
       {/* Thanh lưu/đóng luôn nổi ở đáy màn hình khi cuộn đơn dài */}
       <div className="sticky bottom-0 z-20 -mx-4 flex flex-col-reverse gap-2 border-t bg-background/95 px-4 py-3 sm:-mx-6 sm:px-6 backdrop-blur sm:flex-row sm:justify-between">
         {canCreate ? (
-          <Button variant="outline" onClick={() => setRows((rs) => [...rs, newRow()])} disabled={rows.length >= (edit ? 200 : 100)}>
+          <Button variant="outline" onClick={() => setRows((rs) => [...rs, newRow(undefined, podPhotoDefault)])} disabled={rows.length >= (edit ? 200 : 100)}>
             <Plus /> Thêm chuyến
           </Button>
         ) : (
@@ -925,6 +935,10 @@ function ShipmentEditor({
               <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("notes")}>Ghi chú cho tài xế</Label>
                 <Input id={id("notes")} value={row.notes} onChange={(e) => onChange({ notes: e.target.value })} maxLength={1000} />
+                <label htmlFor={id("pod")} className="flex items-center gap-2 pt-1 text-sm">
+                  <input id={id("pod")} type="checkbox" className="size-4" checked={row.podPhotoRequired} onChange={(e) => onChange({ podPhotoRequired: e.target.checked })} />
+                  Khách yêu cầu chụp chứng từ <span className="text-muted-foreground">(tài xế bắt buộc chụp ảnh giao hàng; không tích thì app tài xế bỏ qua bước chụp)</span>
+                </label>
               </div>
             ),
           }}

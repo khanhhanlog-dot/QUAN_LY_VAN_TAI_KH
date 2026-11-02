@@ -12,6 +12,8 @@ for f in supabase/migrations/*.sql; do
 done
 # Kiểm thử cũ viết trước khi có "Giám đốc duyệt chuyến": tắt tham số; tệp 21 tự bật lại
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "update public.system_settings set value = 'false' where key = 'dispatch.require_director_approval'" > /dev/null
+# Kiểm thử cũ viết trước khi có "phiếu chi phí": tài xế nhập từng khoản; tệp 37 tự bật lại
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "update public.system_settings set value = 'false' where key = 'driver.expense_sheet_photo'" > /dev/null
 for t in supabase/tests/0[1-9]_*.sql supabase/tests/[1-9][0-9]_*.sql; do
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1 | sed -E 's/^psql:[^:]+:[0-9]+: (NOTICE|ERROR):  /\1: /'
   [ "${PIPESTATUS[0]}" -eq 0 ] || exit 1

@@ -6,7 +6,7 @@ import { pickDriverView } from "@/lib/driver-view";
 import { parseDriverAppSettings, type DriverAppSettings } from "@/lib/driver-link/settings";
 import { PlateForm } from "./plate-form";
 import { AcceptButton, ChangeVehicleButton, CompleteButton, FindNextButton, StartButton } from "./trip-actions";
-import { AddExpenseButton, type ExpenseCategory } from "./expense-forms";
+import { AddExpenseButton, AddSheetButton, type ExpenseCategory } from "./expense-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,10 @@ type Trip = {
   expense_count: number;
   expense_total: number;
   outsourced: boolean;
+  /** Đơn yêu cầu chụp chứng từ (0054) */
+  pod_photo_required?: boolean;
+  /** Số ảnh phiếu chi phí đã gửi */
+  sheet_count?: number;
   /** Thứ tự chuyến của xe trong ngày (điều phối nhập khi xe chạy nhiều chuyến cùng ngày) */
   vehicle_day_order?: number | null;
   /** Thứ tự chuyến dùng để nhận chuyến (thứ tự của xe trong ngày hoặc từ kế hoạch) */
@@ -72,13 +76,20 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
   const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string; driver_name: string | null } | null) : null;
   if (!me) return <PlateForm />;
 
-  const [{ data, error }, fin, cfg] = await Promise.all([
+  const [{ data, error }, fin, cfg, flagRes] = await Promise.all([
     supabase.rpc("driver_link_trips", { p_token: token }),
     supabase.rpc("driver_link_categories", { p_token: token }),
     supabase.rpc("driver_app_settings"),
+    supabase.rpc("driver_link_trip_flags", { p_token: token }),
   ]);
   if (error) throw error;
-  const trips = (data ?? []) as Trip[];
+  // Cờ từng chuyến (CSDL chưa nâng cấp 0054 thì như trước: bắt buộc ảnh)
+  const flags = new Map(((flagRes.data ?? []) as { shipment_id: string; pod_photo_required: boolean; sheet_count: number }[]).map((f) => [f.shipment_id, f]));
+  const trips = ((data ?? []) as Trip[]).map((t) => ({
+    ...t,
+    pod_photo_required: flags.get(t.shipment_id)?.pod_photo_required ?? true,
+    sheet_count: Number(flags.get(t.shipment_id)?.sheet_count ?? 0),
+  }));
   const settings = parseDriverAppSettings(cfg.data);
   const categories = ((fin.data as { categories?: ExpenseCategory[] } | null)?.categories ?? []) as ExpenseCategory[];
 
@@ -186,7 +197,17 @@ function TripCard({ t, categories, settings }: { t: Trip; categories: ExpenseCat
       ) : t.status === "in_transit" ? (
         <>
           {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
-          <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} outsourced={t.outsourced} settings={settings} />
+          {t.pod_photo_required && settings.photos_enabled ? (
+            <p className="mt-2 rounded-lg bg-warning/10 p-2 text-center text-sm font-medium">Đơn này yêu cầu chụp chứng từ giao hàng</p>
+          ) : null}
+          <CompleteButton
+            shipmentId={t.shipment_id}
+            code={t.shipment_code}
+            categories={categories}
+            outsourced={t.outsourced}
+            settings={settings}
+            podPhotoRequired={t.pod_photo_required ?? true}
+          />
         </>
       ) : t.completed_at ? (
         <>
@@ -202,13 +223,19 @@ function TripCard({ t, categories, settings }: { t: Trip; categories: ExpenseCat
               <Receipt className="size-4 text-muted-foreground" />
               {Number(t.expense_count) > 0
                 ? `Chi phí: ${t.expense_count} khoản · ${formatVND(Number(t.expense_total))}`
-                : t.expense_declaration === "none"
+                : Number(t.sheet_count) > 0
+                  ? `Đã gửi ${t.sheet_count} ảnh phiếu chi phí, văn phòng sẽ nhập`
+                  : t.expense_declaration === "none"
                   ? "Đã xác nhận không phát sinh chi phí"
                   : "Chưa có chi phí"}
             </p>
           )}
           {t.status === "driver_completed" && !t.outsourced && settings.expense_enabled ? (
-            <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} photos={settings.photos_enabled} />
+            settings.expense_sheet_photo ? (
+              <AddSheetButton shipmentId={t.shipment_id} code={t.shipment_code} />
+            ) : (
+              <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} photos={settings.photos_enabled} />
+            )
           ) : null}
         </>
       ) : null}

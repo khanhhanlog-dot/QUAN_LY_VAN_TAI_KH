@@ -117,3 +117,10 @@ export async function addExpense(input: z.input<typeof expenseSchema>): Promise<
   // Nơi gọi tự router.refresh() khi gửi xong (xem completeTrip)
   return r.ok ? { ok: true, needsApproval: (r as { needs_approval?: boolean }).needs_approval } : { ok: false, error: r.error! };
 }
+
+/** Gửi thêm ảnh phiếu chi phí sau khi hoàn thành chuyến (văn phòng nhập chi phí theo phiếu) */
+export async function addExpenseSheet(input: { shipmentId: string; ticket: string }): Promise<Result> {
+  if (!z.uuid().safeParse(input.shipmentId).success || !z.uuid().safeParse(input.ticket).success) return { ok: false, error: "Dữ liệu không hợp lệ." };
+  const r = await callRpc("driver_link_add_sheet", { p_shipment_id: input.shipmentId, p_ticket: input.ticket }, "Không gửi được phiếu chi phí.");
+  return r.ok ? { ok: true } : { ok: false, error: r.error! };
+}

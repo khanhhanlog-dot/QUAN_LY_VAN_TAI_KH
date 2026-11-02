@@ -5,7 +5,7 @@ import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { uploadWithTicket } from "@/lib/driver-link/upload";
-import { addExpense, requestUploadTicket } from "./actions";
+import { addExpense, addExpenseSheet, requestUploadTicket } from "./actions";
 import { requestExpenseTicket, updateExpense } from "./tien/actions";
 import { PhotoPicker, type PickedFile } from "./photo-picker";
 
@@ -310,6 +310,56 @@ export function EditExpenseButton({ expense, categories, photos = true }: { expe
           <Err error={error} />
           <button type="button" disabled={pending} onClick={submit} className={`${bigBtn} bg-primary text-primary-foreground`}>
             {progress ?? (pending ? "Đang lưu…" : "Lưu thay đổi")}
+          </button>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Gửi thêm ảnh phiếu chi phí cho chuyến đã hoàn thành (văn phòng nhập chi phí theo phiếu) */
+export function AddSheetButton({ shipmentId, code }: { shipmentId: string; code: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function submit() {
+    start(async () => {
+      setError(null);
+      if (!files.length) return setError("Chụp ít nhất 1 ảnh phiếu chi phí.");
+      const up = await uploadLineFiles(() => requestUploadTicket(shipmentId, "expense"), files, setProgress);
+      if ("error" in up) {
+        setProgress(null);
+        return setError(up.error);
+      }
+      setProgress("Đang lưu…");
+      const r = await addExpenseSheet({ shipmentId, ticket: up.ticket! });
+      setProgress(null);
+      if (!r.ok) return setError(r.error);
+      setFiles([]);
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <button type="button" aria-label={`Gửi thêm phiếu chi phí ${code}`} onClick={() => setOpen(true)} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-card font-semibold">
+        <Receipt className="size-5" /> Gửi thêm phiếu chi phí
+      </button>
+      <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gửi thêm phiếu chi phí chuyến {code}</DialogTitle>
+            <DialogDescription>Chụp phiếu chi phí bị sót. Văn phòng nhập chi phí theo phiếu. Sau khi văn phòng đóng chuyến sẽ không gửi thêm được.</DialogDescription>
+          </DialogHeader>
+          <PhotoPicker value={files} onChange={setFiles} label="Chụp phiếu chi phí" kinds={[{ value: "receipt", label: "Phiếu chi phí" }]} />
+          <Err error={error} />
+          <button type="button" disabled={pending} onClick={submit} className={`${bigBtn} bg-primary text-primary-foreground`}>
+            {progress ?? (pending ? "Đang gửi…" : "Gửi phiếu chi phí")}
           </button>
         </DialogContent>
       </Dialog>

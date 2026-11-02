@@ -20,11 +20,18 @@ export default async function SettingsPage() {
   // Xóa dữ liệu thử: chỉ Super Admin/Admin (CSDL kiểm tra lại vai trò và mật khẩu)
   const isAdmin = me.roles.some((r) => r.code === "super_admin" || r.code === "admin");
   // Ứng dụng tài xế: các công tắc gom vào một thẻ ở đầu trang
-  const DRIVER_KEYS = ["driver.photos_enabled", "shipment.require_delivery_photo", "driver.expense_enabled"];
+  const DRIVER_KEYS = ["driver.photos_enabled", "shipment.require_delivery_photo", "driver.expense_enabled", "driver.expense_sheet_photo"];
   const DRIVER_LABEL: Record<string, { title: string; hint: string }> = {
     "driver.photos_enabled": { title: "Cho tài xế chụp ảnh", hint: "Tắt: ẩn mọi ô chụp ảnh (hoàn thành chuyến, hóa đơn chi phí), không bắt buộc ảnh ở đâu." },
-    "shipment.require_delivery_photo": { title: "Bắt buộc ảnh khi hoàn thành chuyến", hint: "Tắt: tài xế vẫn chụp được nhưng không chụp vẫn hoàn thành chuyến." },
+    "shipment.require_delivery_photo": {
+      title: "Đơn mới mặc định tích \"Khách yêu cầu chụp chứng từ\"",
+      hint: "Điều phối tích / bỏ tích ô này ở từng chuyến khi tạo, sửa đơn. Có tích: tài xế bắt buộc chụp ảnh giao hàng. Không tích: app tài xế bỏ qua bước chụp ảnh.",
+    },
     "driver.expense_enabled": { title: "Cho tài xế nhập chi phí", hint: "Tắt: hoàn thành chuyến không hỏi chi phí, ẩn Bổ sung chi phí; văn phòng nhập chi phí ở chi tiết chuyến." },
+    "driver.expense_sheet_photo": {
+      title: "Tài xế chụp phiếu chi phí thay cho nhập từng khoản",
+      hint: "Bật: hoàn thành chuyến mặc định Có chi phí, bắt buộc chụp phiếu chi phí; không chụp được thì phải chọn Không có chi phí. Điều phối / kế toán mở ảnh và nhập chi phí. Tắt: tài xế tự nhập từng khoản.",
+    },
   };
   const driverRows = DRIVER_KEYS.map((k) => (data ?? []).find((s) => s.key === k)).filter((s): s is NonNullable<typeof s> => Boolean(s));
   const otherRows = (data ?? []).filter((s) => !DRIVER_KEYS.includes(s.key));

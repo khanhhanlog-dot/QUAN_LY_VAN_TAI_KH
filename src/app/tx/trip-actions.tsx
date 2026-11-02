@@ -108,23 +108,31 @@ export function CompleteButton({
   categories,
   outsourced = false,
   settings,
+  podPhotoRequired,
 }: {
   shipmentId: string;
   code: string;
   categories: ExpenseCategory[];
   outsourced?: boolean;
   settings: DriverAppSettings;
+  /** Đơn yêu cầu chụp chứng từ (điều phối chọn khi tạo đơn) */
+  podPhotoRequired: boolean;
 }) {
   const photos = settings.photos_enabled;
-  const photoRequired = photos && settings.delivery_photo_required;
+  // Đơn không yêu cầu chụp chứng từ: bỏ qua bước chụp ảnh giao hàng
+  const photoRequired = photos && podPhotoRequired;
   // Tắt nhập chi phí (Cấu hình) hoặc xe 3PL: không hỏi chi phí
   const askExpense = settings.expense_enabled && !outsourced;
+  // Có chi phí: chụp phiếu chi phí, văn phòng nhập theo phiếu (thay cho tài xế nhập từng khoản)
+  const sheetMode = askExpense && settings.expense_sheet_photo;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [result, setResult] = useState<(typeof RESULTS)[number]["value"]>("full");
   const [note, setNote] = useState("");
-  const [expenseMode, setExpenseMode] = useState<"has" | "none" | null>(null);
+  // Chế độ phiếu chi phí: mặc định "Có chi phí"
+  const [expenseMode, setExpenseMode] = useState<"has" | "none" | null>(settings.expense_enabled && settings.expense_sheet_photo ? "has" : null);
+  const [sheets, setSheets] = useState<PickedFile[]>([]);
   const [lines, setLines] = useState<ExpenseLine[]>(() => [newLine()]);
   // Chuyến đã lưu hoàn thành nhưng còn khoản chi phí chưa gửi được: bấm lại chỉ gửi chi phí
   const [completed, setCompleted] = useState(false);
@@ -142,19 +150,23 @@ export function CompleteButton({
         if (result !== "full" && !note.trim()) return setError("Ghi lý do giao thiếu / không giao được.");
       }
       if (!expenseMode && askExpense) return setError('Chọn "Có chi phí" và nhập chi phí, hoặc chọn "Không phát sinh chi phí".');
-      if (askExpense && expenseMode === "has") {
+      if (!completed && sheetMode && expenseMode === "has" && !sheets.length)
+        return setError('Vui lòng chụp hình chứng từ chuyến có chi phí. Chuyến không có chi phí thì chọn "Không có chi phí".');
+      if (!completed && files.length + (sheetMode && expenseMode === "has" ? sheets.length : 0) > 10) return setError("Gửi tối đa 10 ảnh mỗi lần.");
+      if (askExpense && !sheetMode && expenseMode === "has") {
         const bad = lines.map((l, i) => lineError(l, categories, lines.length > 1 ? i + 1 : null, photos)).find(Boolean);
         if (bad) return setError(bad);
       }
       if (!completed) {
         // Không có ảnh (đã tắt chụp ảnh hoặc không bắt buộc): không xin vé tải ảnh
         let ticket: string | null = null;
-        if (files.length) {
+        const all = [...files, ...(sheetMode && expenseMode === "has" ? sheets : [])];
+        if (all.length) {
           const t = await requestUploadTicket(shipmentId, "delivery");
           if (!t.ok) return setError(t.error);
           try {
-            setProgress(`Đang gửi ảnh 0/${files.length}…`);
-            await uploadWithTicket(t.ticket, files.map((f) => ({ file: f.file, kind: f.kind })), (n) => setProgress(`Đang gửi ảnh ${n}/${files.length}…`));
+            setProgress(`Đang gửi ảnh 0/${all.length}…`);
+            await uploadWithTicket(t.ticket, all.map((f) => ({ file: f.file, kind: f.kind })), (n) => setProgress(`Đang gửi ảnh ${n}/${all.length}…`));
           } catch (e) {
             setProgress(null);
             return setError((e as Error).message);
@@ -169,7 +181,7 @@ export function CompleteButton({
         }
         setCompleted(true);
       }
-      if (askExpense && expenseMode === "has") {
+      if (askExpense && !sheetMode && expenseMode === "has") {
         const r = await submitLines(shipmentId, lines, setProgress);
         if (r.failed.length) {
           setProgress(null);
@@ -179,6 +191,7 @@ export function CompleteButton({
       }
       setProgress(null);
       setFiles([]);
+      setSheets([]);
       // Đóng hộp thoại trước, rồi mới chuyển sang màn hình "đã hoàn thành" (tránh kẹt màn hình khi thẻ chuyến đổi ngay lúc hộp thoại đang mở)
       setOpen(false);
       setFinished(true);
@@ -218,18 +231,16 @@ export function CompleteButton({
           <DialogHeader>
             <DialogTitle>Hoàn thành chuyến {code}</DialogTitle>
             <DialogDescription>
-              {!photos
-                ? "Chọn kết quả giao hàng rồi bấm gửi."
-                : photoRequired
-                  ? "Chụp ảnh hàng đã giao và phiếu giao hàng có chữ ký người nhận. Bắt buộc ít nhất 1 ảnh."
-                  : "Chụp ảnh hàng đã giao và phiếu giao hàng có chữ ký người nhận (không bắt buộc)."}
+              {photoRequired
+                ? "Đơn này yêu cầu chụp chứng từ: chụp ảnh hàng đã giao hoặc phiếu giao hàng có chữ ký người nhận. Bắt buộc ít nhất 1 ảnh."
+                : "Chọn kết quả giao hàng rồi bấm gửi."}
             </DialogDescription>
           </DialogHeader>
           {completed ? (
             <p className="rounded-lg bg-success/10 p-3 text-sm">Đã lưu hoàn thành chuyến. Gửi nốt các khoản chi phí bên dưới.</p>
           ) : (
             <>
-              {photos ? (
+              {photoRequired ? (
                 <PhotoPicker
                   value={files}
                   onChange={setFiles}
@@ -265,12 +276,12 @@ export function CompleteButton({
             </>
           )}
           <div hidden={completed || !askExpense}>
-            <div className="mb-1 text-sm font-medium">Chi phí chuyến (bắt buộc chọn)</div>
+            <div className="mb-1 text-sm font-medium">{sheetMode ? "Chi phí chuyến" : "Chi phí chuyến (bắt buộc chọn)"}</div>
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Chi phí chuyến">
               {(
                 [
                   ["has", "Có chi phí"],
-                  ["none", "Không phát sinh chi phí"],
+                  ["none", sheetMode ? "Không có chi phí" : "Không phát sinh chi phí"],
                 ] as const
               ).map(([v, label]) => (
                 <button
@@ -286,10 +297,15 @@ export function CompleteButton({
               ))}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Chi phí tài xế tự trả (dầu, cầu đường, bốc xếp…). Nhập sót thì bấm &quot;Bổ sung chi phí&quot; trên thẻ chuyến trước khi văn phòng đóng chuyến.
+              {sheetMode
+                ? "Có chi phí: chụp phiếu chi phí công ty phát (đã ghi từng loại phí), văn phòng sẽ nhập. Gửi sót thì bấm \"Gửi thêm phiếu chi phí\" trên thẻ chuyến."
+                : "Chi phí tài xế tự trả (dầu, cầu đường, bốc xếp…). Nhập sót thì bấm \"Bổ sung chi phí\" trên thẻ chuyến trước khi văn phòng đóng chuyến."}
             </p>
           </div>
-          {expenseMode === "has" && askExpense ? <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} photos={photos} /> : null}
+          {expenseMode === "has" && sheetMode && !completed ? (
+            <PhotoPicker value={sheets} onChange={setSheets} label="Chụp phiếu chi phí" kinds={[{ value: "receipt", label: "Phiếu chi phí" }]} />
+          ) : null}
+          {expenseMode === "has" && askExpense && !sheetMode ? <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} photos={photos} /> : null}
           <ErrorText error={error} />
           <button
             type="button"

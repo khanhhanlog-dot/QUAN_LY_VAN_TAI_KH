@@ -17,7 +17,7 @@ update public.expense_categories set requires_image = true where code = 'MEAL';
 
 -- Mặc định: bật cả ba
 set role anon;
-select tests.assert(public.driver_app_settings() = '{"photos_enabled": true, "delivery_photo_required": true, "expense_enabled": true}'::jsonb,
+select tests.assert(public.driver_app_settings() @> '{"photos_enabled": true, "delivery_photo_required": true, "expense_enabled": true}'::jsonb,
   'Mặc định: cho chụp ảnh, bắt buộc ảnh giao hàng, cho nhập chi phí');
 reset role;
 
@@ -44,8 +44,9 @@ select tests.assert((public.driver_link_complete(pg_temp.v('tok'), pg_temp.v('s1
   'Bật bắt buộc ảnh: không ảnh thì không hoàn thành được');
 reset role;
 
--- Tắt "bắt buộc ảnh giao hàng": hoàn thành không cần ảnh
+-- Đơn không yêu cầu chụp chứng từ (0054: thay cho tham số chung): hoàn thành không cần ảnh
 update public.system_settings set value = 'false' where key = 'shipment.require_delivery_photo';
+update public.shipments set pod_photo_required = false where id = pg_temp.v('s1')::uuid;
 set role anon;
 select tests.assert((public.driver_app_settings() ->> 'delivery_photo_required')::boolean = false
                     and (public.driver_app_settings() ->> 'photos_enabled')::boolean, 'Tắt bắt buộc ảnh: vẫn cho chụp');

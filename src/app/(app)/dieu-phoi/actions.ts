@@ -186,6 +186,8 @@ const shipmentBase = z.object({
   surchargeAmount: optNum("Phụ phí", { min: 0 }),
   fuelSupportRate: optNum("Tỷ lệ hỗ trợ dầu", { min: 0, max: 100 }),
   notes: z.string().max(1000).optional(),
+  /** Khách yêu cầu chụp chứng từ (không gửi = theo mặc định trong Cấu hình) */
+  podPhotoRequired: z.boolean().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
   items: itemsSchema.optional(),
   fees: feesSchema.optional(),
@@ -247,6 +249,13 @@ async function insertShipments(
   });
   if (error) throw error;
   const created = data as Created;
+  // Khách yêu cầu chụp chứng từ: chuyến mới lấy mặc định trong Cấu hình, chỉ ghi lại khi khác
+  for (const want of [true, false]) {
+    const ids = list.flatMap((s, i) => (s.podPhotoRequired === want && created.shipments[i] ? [created.shipments[i].id] : []));
+    if (!ids.length) continue;
+    const r = await supabase.from("shipments").update({ pod_photo_required: want }).in("id", ids).neq("pod_photo_required", want);
+    if (r.error) created.itemsError = `Chưa lưu được ô "Khách yêu cầu chụp chứng từ": ${toUserMessage(r.error)}. Mở chi tiết chuyến để sửa.`;
+  }
   // Hàng hóa từng chuyến: lỗi ở bước này không làm mất đơn đã tạo, báo lại để nhập ở chi tiết chuyến
   for (const [i, rows] of items.entries()) {
     if (!rows.length || !created.shipments[i]) continue;
@@ -879,6 +888,7 @@ export async function updateOrderFull(
           vehicle_type_id: s.vehicleTypeId ?? null,
           notes: s.notes?.trim() || null,
           custom_fields: plan.custom,
+          ...(s.podPhotoRequired === undefined ? {} : { pod_photo_required: s.podPhotoRequired }),
         };
         const routeChanged = s.pickupLocationId !== c.pickup_location_id || s.deliveryLocationId !== c.delivery_location_id;
         if (!c.receivable_id) {

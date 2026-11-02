@@ -39,6 +39,7 @@ type Extra = {
   dispatch_approved_at: string | null;
   dispatch_approved_on_behalf: boolean;
   photo_skip_reason: string | null;
+  pod_photo_required: boolean;
   vehicle: { ownership_type: string; supplier_id: string | null; supplier: { name: string } | null } | null;
   carrier_supplier_id: string | null;
   carrier: { name: string } | null;
@@ -137,7 +138,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase
       .from("shipments")
       .select(
-        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, carrier_supplier_id, carrier:suppliers(name), vehicle:vehicles(ownership_type, supplier_id, supplier:suppliers(name))",
+        "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, pod_photo_required, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, carrier_supplier_id, carrier:suppliers(name), vehicle:vehicles(ownership_type, supplier_id, supplier:suppliers(name))",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -157,7 +158,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
     canExpenses ? supabase.from("shipment_profit").select("*").eq("shipment_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
-  const [carrierRes, payableRes, feeDocRes] = await Promise.all([
+  const [carrierRes, payableRes, feeDocRes, sheetRes] = await Promise.all([
     canSeeCarrier
       ? supabase.from("shipment_carrier_costs").select("line_no, cost_kind, fee_type_id, description, quantity, unit_price, amount, ref_no, note, fee_type:fee_types(name)").eq("shipment_id", id).order("line_no")
       : Promise.resolve({ data: [], error: null }),
@@ -166,7 +167,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       : Promise.resolve({ data: null, error: null }),
     // Tệp hóa đơn PDF / ảnh của phí chi hộ (lỗi thì chỉ không hiện số tệp)
     supabase.from("documents").select("fee_type_id").eq("entity_type", "shipment_fee").eq("entity_id", id).is("archived_at", null),
+    // Ảnh phiếu chi phí tài xế gửi (văn phòng nhập chi phí theo phiếu)
+    supabase.from("documents").select("id", { count: "exact", head: true }).eq("entity_type", "shipment").eq("entity_id", id).eq("doc_type", "receipt").is("archived_at", null),
   ]);
+  const sheetCount = sheetRes.count ?? 0;
   const feeDocs = new Map<string, number>();
   for (const d of (feeDocRes.data ?? []) as { fee_type_id: string | null }[]) if (d.fee_type_id) feeDocs.set(d.fee_type_id, (feeDocs.get(d.fee_type_id) ?? 0) + 1);
   if (carrierRes.error) throw carrierRes.error;
@@ -646,7 +650,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 {x.delivery_result ? <Line label="Kết quả" value={RESULT_LABEL[x.delivery_result] ?? x.delivery_result} /> : null}
                 {x.completion_note ? <p className="rounded-md bg-muted/50 p-2">Ghi chú tài xế: {x.completion_note}</p> : null}
                 {x.expense_declaration ? (
-                  <Line label="Chi phí tài xế" value={x.expense_declaration === "none" ? "Tài xế xác nhận không phát sinh chi phí" : "Tài xế khai có chi phí (xem mục Chi phí)"} />
+                  <Line
+                    label="Chi phí tài xế"
+                    value={
+                      x.expense_declaration === "none"
+                        ? "Tài xế xác nhận không phát sinh chi phí"
+                        : sheetCount
+                          ? `Tài xế báo có chi phí, gửi ${sheetCount} ảnh phiếu chi phí`
+                          : "Tài xế khai có chi phí (xem mục Chi phí)"
+                    }
+                  />
+                ) : null}
+                {x.expense_declaration === "has" && sheetCount > 0 && !expenses.some((e) => e.paid_by === "driver" && e.status !== "cancelled") ? (
+                  <p data-sheet-todo className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                    Chờ nhập chi phí: mở <b>Chứng từ</b> ở trên (ảnh loại Biên lai / phiếu chi phí), rồi nhập từng khoản ở mục <b>Chi phí chuyến</b> bên dưới, nguồn chi &quot;Chi bởi tài xế&quot;.
+                  </p>
                 ) : null}
               </>
             ) : x.departed_pickup_at ? (
@@ -654,6 +672,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             ) : (
               <p className="text-muted-foreground">Tài xế chưa bắt đầu chạy.</p>
             )}
+            <Line label="Khách yêu cầu chụp chứng từ" value={x.pod_photo_required ? "Có (tài xế bắt buộc chụp)" : "Không"} />
             <Line label="Ảnh, chứng từ đã nộp" value={`${docCount} tệp`} />
           </CardContent>
         </Card>

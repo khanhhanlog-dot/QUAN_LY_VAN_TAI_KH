@@ -144,3 +144,5 @@ upgrade nang-cap-bat-tat-anh-chi-phi-tai-xe.sql "Bật / tắt chụp ảnh và 
   supabase/migrations/20261102000052_driver_app_toggles.sql
 upgrade nang-cap-hoa-don-chi-ho.sql "Đính kèm PDF / ảnh hóa đơn cho phí chi hộ" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'fee_type_id')" \
   supabase/migrations/20261102000053_pass_through_fee_files.sql
+upgrade nang-cap-chung-tu-phieu-chi-phi.sql "Chụp chứng từ theo yêu cầu của đơn, tài xế chụp phiếu chi phí" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'pod_photo_required')" \
+  supabase/migrations/20261102000054_pod_photo_expense_sheet.sql

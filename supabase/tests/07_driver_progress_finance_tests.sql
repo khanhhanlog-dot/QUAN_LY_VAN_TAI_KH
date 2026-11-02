@@ -63,7 +63,7 @@ values ('documents', 'tx/' || (select v from t_fin where k = 'ticket') || '/phot
 
 select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'), null) ->> 'error') like '%Không phát sinh chi phí%',
   'Hoàn thành chuyến phải khai có hay không có chi phí');
-select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'), null, p_no_expense => false) ->> 'error') like 'Cần ít nhất 1 ảnh%',
+select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'), null, p_no_expense => false) ->> 'error') like '%ít nhất 1 ảnh%',
   'Hoàn thành chuyến bắt buộc có ảnh');
 select tests.assert((public.driver_link_complete((select v from t_fin where k = 'tok'), (select v::uuid from t_fin where k = 's1'),
   (select v::uuid from t_fin where k = 'ticket'), 'partial', '', false) ->> 'ok')::boolean = false, 'Giao thiếu phải ghi lý do');

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isUuid, layoutOf, moduleCustomFields } from "@/lib/entities/record";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 import { PageHeader } from "@/components/layout/page-header";
+import { parseDriverAppSettings } from "@/lib/driver-link/settings";
 import { OrderForm } from "./order-form";
 
 export const metadata: Metadata = { title: "Tạo đơn hàng" };
@@ -16,6 +17,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
   const me = await requirePagePermission("dispatch.create");
   const { don } = await searchParams;
   const sb = await createClient();
+  // Mặc định ô "Khách yêu cầu chụp chứng từ" (Cấu hình → Ứng dụng tài xế); CSDL chưa nâng cấp thì bật
+  const podPhotoDefault = parseDriverAppSettings((await sb.rpc("driver_app_settings")).data).delivery_photo_required;
   const [orderRows, shipRows, itemRows] = await Promise.all([loadCustomFields(sb, "transport_orders"), loadCustomFields(sb, "shipments"), loadCustomFields(sb, "shipment_items")]);
   const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions);
   const shipmentFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
@@ -54,6 +57,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
         }
       />
       <OrderForm
+        podPhotoDefault={podPhotoDefault}
         closeHref={order ? `/dieu-phoi/don-hang/${order.id}` : "/dieu-phoi"}
         order={order}
         canCreatePriceList={me.permissions.has("price_lists.create")}
