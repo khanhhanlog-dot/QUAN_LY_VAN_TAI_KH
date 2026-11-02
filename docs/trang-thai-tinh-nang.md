@@ -308,3 +308,11 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Chi tiết chuyến → Doanh thu chuyến: dòng phí chi hộ có nút "PDF (n)" / "Đính kèm" để xem hoặc tải thêm ngay.
 - Lưu trữ: documents.entity_type = 'shipment_fee', entity_id = id chuyến, cột mới fee_type_id (loại phí). Gắn theo chuyến + loại phí nên sửa phí nhiều lần vẫn giữ tệp; không tính là chứng từ giao hàng, tài xế không thấy. Quyền như chứng từ khác (documents.create / documents.view).
 - Kiểm thử: supabase/tests/36_pass_through_fee_files_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-hoa-don-chi-ho.sql (dòng kiểm tra 33).
+
+## Thông tin tài xế gửi khách hàng (migration 0055) – 02/11/2026
+- Nút "Thông tin tài xế" (biểu tượng thẻ) ở: Điều phối (từng dòng chuyến + nút đầu trang cho mọi chuyến trong tab đang xem), Quản lý chuyến xe (cạnh tên tài xế + nút đầu trang cho trang đang xem), chi tiết chuyến.
+- Hộp thoại có sẵn văn bản đúng mẫu "Tên / Số xe / Số CCCD / Số GPLX" (nhiều chuyến cách nhau một dòng trống), sửa được trước khi chép, nút Sao chép. Bỏ qua chuyến hủy, chưa có tài xế.
+- Tài xế thiếu CCCD / GPLX: cảnh báo + ô điền nhanh "Lưu vào hồ sơ". Điều phối chỉ điền ô đang trống; người có quyền sửa giấy tờ tài xế sửa được mọi giá trị (trong hồ sơ tài xế).
+- Hồ sơ tài xế → Giấy tờ tùy thân: thêm Số GPLX, Hạng GPLX, Ngày hết hạn GPLX (bảng driver_sensitive).
+- Điều phối không có quyền xem giấy tờ trong hồ sơ vẫn xem được CCCD/GPLX qua hàm shipment_driver_info (cần dispatch.view hoặc shipments.view).
+- Kiểm thử: supabase/tests/38_driver_share_info_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-thong-tin-tai-xe.sql (dòng kiểm tra 35).

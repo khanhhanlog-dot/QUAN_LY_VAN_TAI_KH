@@ -35,6 +35,7 @@ import { CORRECT_CREW_STATUSES, UNACCEPT_STATUSES } from "@/lib/crew-change";
 import { VehicleOrderCell } from "./vehicle-order-cell";
 import { CancelDialog, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
+import { DriverInfoButton } from "./driver-info-button";
 
 type SortVal = string | number | null | undefined;
 type Col = {
@@ -247,6 +248,7 @@ export function DispatchTable({
   extraValues = {},
   canAddField = false,
   toolbar = true,
+  canFillDriver,
 }: {
   rows: ShipmentListRow[];
   canAssign: boolean;
@@ -264,9 +266,12 @@ export function DispatchTable({
   canAddField?: boolean;
   /** Hiện thanh công cụ (Cột, Lưu cấu hình) */
   toolbar?: boolean;
+  /** Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế (mặc định theo quyền phân công) */
+  canFillDriver?: boolean;
 }) {
+  const fillDriver = canFillDriver ?? canAssign;
   const [savePending, startSave] = useTransition();
-  const showActions = canAssign || canCancel || rows.some((r) => r.can_approve_dispatch);
+  const showActions = canAssign || canCancel || rows.some((r) => r.can_approve_dispatch || r.driver_id);
   const kindCol = extraColumns.find((c) => c.serviceKind);
 
   const cols = useMemo<Col[]>(() => {
@@ -321,14 +326,14 @@ export function DispatchTable({
         sortUndefined: "last" as const,
         cell: ({ row }) =>
           c.key === "actions" ? (
-            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} />
+            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canFillDriver={fillDriver} />
           ) : c.key === "vehicle_day_order" ? (
             <VehicleOrderCell r={row.original} editable={canAssign} />
           ) : (
             c.render(row.original, now)
           ),
       })),
-    [cols, canAssign, canCancel, now],
+    [cols, canAssign, canCancel, fillDriver, now],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -554,9 +559,10 @@ export function DispatchTable({
   );
 }
 
-function Actions({ r, canAssign, canCancel }: { r: ShipmentListRow; canAssign: boolean; canCancel: boolean }) {
+function Actions({ r, canAssign, canCancel, canFillDriver }: { r: ShipmentListRow; canAssign: boolean; canCancel: boolean; canFillDriver: boolean }) {
   return (
     <div className="flex flex-wrap justify-end gap-1">
+      {r.driver_id && r.status !== "cancelled" ? <DriverInfoButton compact shipmentIds={[r.id]} canFill={canFillDriver} /> : null}
       {r.can_approve_dispatch && r.dispatch_approval_request_id ? <TripApprovalButtons compact requestIds={[r.dispatch_approval_request_id]} label={r.shipment_code} /> : null}
       {canAssign && r.dispatch_approval === "rejected" && r.status === "assigned" ? (
         <ResubmitTripButton compact shipmentId={r.id} shipmentCode={r.shipment_code} reason={r.dispatch_reject_reason} />

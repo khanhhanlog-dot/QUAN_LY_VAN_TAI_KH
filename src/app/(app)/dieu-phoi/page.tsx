@@ -23,6 +23,7 @@ import { FreeVehiclesGrid } from "@/components/dispatch/free-vehicles-grid";
 import { cn } from "@/lib/utils";
 import { ReportLinks } from "@/components/reports/report-links";
 import { TripApprovalButtons } from "@/components/dispatch/trip-approval";
+import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 import { DelegateNotice, TripDelegationManager, type DelegationInfo } from "@/components/dispatch/trip-delegation";
 
 export const metadata: Metadata = { title: "Điều phối" };
@@ -114,6 +115,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const canCreate = me.permissions.has("dispatch.create");
   const canAssign = me.permissions.has("dispatch.update");
   const canCancel = me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete");
+  const canFillDriver = canAssign || (me.permissions.has("drivers.view_sensitive") && me.permissions.has("drivers.update"));
+  // Chép thông tin tài xế của các chuyến trong tab đang xem (bỏ chuyến hủy, chưa có tài xế)
+  const shareIds = rows.filter((r) => r.driver_id && r.status !== "cancelled").map((r) => r.id).slice(0, 500);
   const href = (p: { tt?: string; xem?: string }) => {
     const q = new URLSearchParams();
     if (f.tu !== today || f.den !== today) {
@@ -143,6 +147,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         actions={
           <>
             <TripDelegationManager info={delegation} />
+            {!xem ? (
+              <DriverInfoButton variant="outline" shipmentIds={shareIds} label={`Thông tin tài xế (${shareIds.length} chuyến)`} canFill={canFillDriver} />
+            ) : null}
             {canCreate ? (
               <Button variant="outline" asChild>
                 <Link href="/dieu-phoi/nhap-excel">
@@ -223,6 +230,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             rows={rows}
             canAssign={canAssign}
             canCancel={canCancel}
+            canFillDriver={canFillDriver}
             showDate={!single}
             emptyText={f.q ? "Không có chuyến phù hợp với từ khóa." : filtered ? "Không có chuyến phù hợp với bộ lọc." : all.length === 0 ? `Chưa có chuyến nào nhận hàng ${rangeText}.` : "Không có chuyến ở trạng thái này."}
           />

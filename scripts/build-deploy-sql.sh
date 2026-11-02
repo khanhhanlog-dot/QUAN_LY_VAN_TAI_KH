@@ -146,3 +146,5 @@ upgrade nang-cap-hoa-don-chi-ho.sql "Đính kèm PDF / ảnh hóa đơn cho phí
   supabase/migrations/20261102000053_pass_through_fee_files.sql
 upgrade nang-cap-chung-tu-phieu-chi-phi.sql "Chụp chứng từ theo yêu cầu của đơn, tài xế chụp phiếu chi phí" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'pod_photo_required')" \
   supabase/migrations/20261102000054_pod_photo_expense_sheet.sql
+upgrade nang-cap-thong-tin-tai-xe.sql "Nút Thông tin tài xế (tên, biển số, CCCD, GPLX) gửi khách hàng" "to_regprocedure('public.shipment_driver_info(uuid[])') is not null" \
+  supabase/migrations/20261102000055_driver_share_info.sql

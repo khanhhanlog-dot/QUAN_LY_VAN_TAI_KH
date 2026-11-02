@@ -32,6 +32,7 @@ import { ProfitCard, type ShipmentProfit } from "./profit-card";
 import { CarrierCard, type CarrierPayable } from "./carrier-card";
 import type { CarrierCost } from "@/components/finance/carrier-dialogs";
 import { DocumentsButton } from "@/components/finance/documents-button";
+import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
@@ -269,6 +270,13 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
         }
         actions={
           <>
+            {s.driver_id && s.status !== "cancelled" ? (
+              <DriverInfoButton
+                variant="outline"
+                shipmentIds={[s.id]}
+                canFill={me.permissions.has("dispatch.update") || (me.permissions.has("drivers.view_sensitive") && me.permissions.has("drivers.update"))}
+              />
+            ) : null}
             {(me.permissions.has("dispatch.update") || me.permissions.has("shipments.update")) && s.status !== "cancelled" ? <EditShipmentDialog s={s} /> : null}
             {canAssign ? (
               <AssignDialog

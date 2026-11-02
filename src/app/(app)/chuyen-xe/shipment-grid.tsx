@@ -32,6 +32,7 @@ import { LOCKED_STATUSES, PRICING_UNITS } from "@/lib/status";
 import { SHIPMENT_ADV_FIELDS, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
+import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 
 type Col = {
   key: string;
@@ -175,6 +176,7 @@ export function ShipmentGrid({
   customAdv,
   canAddField = false,
   canSeeProfit = false,
+  canFillDriver = false,
 }: {
   rows: ShipmentListRow[];
   canEdit: boolean;
@@ -186,6 +188,8 @@ export function ShipmentGrid({
   customAdv: AdvField[];
   canAddField?: boolean;
   canSeeProfit?: boolean;
+  /** Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế */
+  canFillDriver?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -236,10 +240,17 @@ export function ShipmentGrid({
         cell: ({ row }) => {
           const r = row.original;
           const editable = canEdit && c.edit && (c.edit === "notes" || !LOCKED_STATUSES.includes(r.status));
+          if (c.key === "driver_name" && r.driver_id)
+            return (
+              <div className="flex items-center gap-1">
+                <span className="min-w-0 flex-1 truncate">{r.driver_name}</span>
+                <DriverInfoButton compact shipmentIds={[r.id]} canFill={canFillDriver} />
+              </div>
+            );
           return editable ? <EditCell row={r} col={c} onSaved={(nr) => setRows((rs) => rs.map((x) => (x.id === nr.id ? nr : x)))} /> : c.render(r);
         },
       })),
-    [canEdit, allCols],
+    [canEdit, allCols, canFillDriver],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library

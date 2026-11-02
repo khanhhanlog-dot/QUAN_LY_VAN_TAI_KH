@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { TabLink } from "@/components/dispatch/tab-link";
 import { ShipmentFilterBar } from "./filter-bar";
 import { ShipmentGrid } from "./shipment-grid";
+import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 import { ExportShipmentsButton } from "./export-button";
 import { ReportLinks } from "@/components/reports/report-links";
 
@@ -69,6 +70,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   if (listRes.error) throw listRes.error;
   if (sumRes.error) throw sumRes.error;
   const listRows = (listRes.data ?? []) as ShipmentListRow[];
+  // Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế
+  const canFillDriver = me.permissions.has("dispatch.update") || (me.permissions.has("drivers.view_sensitive") && me.permissions.has("drivers.update"));
   // Lời/lỗ từng chuyến của trang đang xem (chỉ người có quyền xem chi phí hoặc báo cáo)
   const canSeeProfit = me.permissions.has("expenses.view") || me.permissions.has("reports.view");
   const profitRes =
@@ -80,6 +83,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     const p = profits.get(r.id);
     return p ? { ...r, trip_cost: p.trip_cost, vehicle_cost: p.vehicle_cost, profit: p.profit } : r;
   });
+  // Nút chép thông tin tài xế cho các chuyến đang xem (bỏ chuyến hủy, chưa có tài xế)
+  const shareIds = rows.filter((r) => r.driver_id && r.status !== "cancelled").map((r) => r.id).slice(0, 500);
   const total = listRes.count ?? rows.length;
   const summary = sumRes.data as Summary;
   const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, summary.by_status[s.value]?.count ?? 0]));
@@ -113,6 +118,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         description="Bảng tổng hợp, mỗi dòng một chuyến. Bấm vào ô có viền chấm để sửa nhanh; mọi thay đổi được ghi vào nhật ký hệ thống."
         actions={
           <>
+            <DriverInfoButton variant="outline" shipmentIds={shareIds} label={`Thông tin tài xế (${shareIds.length} chuyến)`} canFill={canFillDriver} />
             {me.permissions.has("dispatch.create") ? (
               <Button variant="outline" asChild>
                 <Link href="/dieu-phoi/nhap-excel?tu=chuyen-xe">
@@ -141,7 +147,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
             <TabLink key={s.value} href={href({ tt: s.value, trang: 1 })} active={f.tt === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
           ))}
         </div>
-        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} />
+        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} canFillDriver={canFillDriver} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
           <span>
             {total === 0 ? "Không có chuyến phù hợp" : `Dòng ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total} chuyến`}

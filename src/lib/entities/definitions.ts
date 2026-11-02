@@ -379,9 +379,12 @@ export const ENTITIES: Record<string, EntityDef> = {
     defaultSort: { key: "driver_id" },
     labelCols: ["national_id"],
     fields: [
-      { key: "national_id", label: "Số CCCD", type: "text", maxLength: 20 },
+      { key: "national_id", label: "Số CCCD", type: "text", maxLength: 20, placeholder: "Ví dụ: 084091007921" },
       { key: "national_id_issued_date", label: "Ngày cấp", type: "date" },
       { key: "national_id_issued_place", label: "Nơi cấp", type: "text", maxLength: 200 },
+      { key: "license_no", label: "Số GPLX", type: "text", maxLength: 30, placeholder: "Ví dụ: 790168005497", help: "Số giấy phép lái xe. Cùng số CCCD và biển số được chép gửi khách đăng ký xe (nút Thông tin tài xế ở Điều phối, Quản lý chuyến)" },
+      { key: "license_class", label: "Hạng GPLX", type: "text", maxLength: 20, placeholder: "Ví dụ: FC" },
+      { key: "license_expiry", label: "Ngày hết hạn GPLX", type: "date" },
     ],
   },
   driver_bank_accounts: {
