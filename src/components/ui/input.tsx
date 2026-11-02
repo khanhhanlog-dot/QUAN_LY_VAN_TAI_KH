@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { SearchSelect } from "./search-select";
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
@@ -28,7 +29,9 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   );
 }
 
+/** Ô chọn: có tìm kiếm (danh sách bật lên); chọn nhiều thì dùng <select> gốc */
 function NativeSelect({ className, ...props }: React.ComponentProps<"select">) {
+  if (!props.multiple && !props.size) return <SearchSelect className={className} {...props} />;
   return (
     <select
       data-slot="select"

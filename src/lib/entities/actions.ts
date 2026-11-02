@@ -6,6 +6,7 @@ import { ENTITIES } from "./definitions";
 import { entityAccess } from "./access";
 import { effectiveFields, isUuid, rowLabel, splitCustom, validateRecord } from "./record";
 import { loadCustomFields, sanitizeSearch, visibleCustomRows } from "./server";
+import { assertActiveRefs } from "./active-check";
 import type { EntityDef, TableViewConfig } from "./types";
 
 function entityOr404(key: string): EntityDef {
@@ -56,9 +57,25 @@ export async function saveRecord(entityKey: string, input: SaveInput): Promise<A
     const firstError = Object.values(errors)[0];
     if (firstError) throw new ActionError(firstError);
     const { columns, custom } = splitCustom(fields, data);
+    const pk = entity.pk ?? "id";
+
+    // Không cho chọn mới bản ghi đã ngừng hoạt động (VD khách hàng ngừng hoạt động); giá trị cũ giữ nguyên thì vẫn lưu được
+    const refFields = fields.filter((f) => f.type === "reference" && f.ref && ENTITIES[f.ref]?.activeFilter && data[f.key]);
+    if (refFields.length) {
+      let prev: Record<string, unknown> = {};
+      if (input.id) {
+        const { data: cur, error } = await supabase.from(entity.table).select("*").eq(pk, input.id).maybeSingle();
+        if (error) throw error;
+        prev = (cur as Record<string, unknown> | null) ?? {};
+      }
+      const prevCustom = (prev.custom_fields ?? {}) as Record<string, unknown>;
+      await assertActiveRefs(
+        supabase,
+        refFields.map((f) => ({ ref: f.ref!, id: String(data[f.key]), previous: (f.custom ? prevCustom[f.key] : prev[f.key]) as string | null, label: f.label })),
+      );
+    }
     if (entity.autoCode && "code" in columns && !columns.code) columns.code = "";
 
-    const pk = entity.pk ?? "id";
     const payload: Record<string, unknown> = { ...columns, ...(entity.fixed ?? {}) };
     if (entity.parentKey) payload[entity.parentKey] = input.parentId;
 

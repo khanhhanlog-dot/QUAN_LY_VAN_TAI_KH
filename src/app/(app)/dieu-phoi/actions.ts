@@ -6,6 +6,7 @@ import { addDaysYMD, startOfDayVN } from "@/lib/format";
 import { lastDayOfMonth, loadTrips, tripDay } from "@/lib/trip-counts";
 import { ActionError, requirePermission, runAction, toUserMessage, type ActionResult } from "@/lib/auth/action";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
+import { assertActiveRefs } from "@/lib/entities/active-check";
 import { moduleCustomFields, parseNumberVN, splitCustom, validateRecord } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 
@@ -303,6 +304,12 @@ export async function createOrder(input: CreateOrderInput): Promise<
     const d = p.data;
     if (!d.orderId && !d.customerId) throw new ActionError("Vui lòng chọn khách hàng.");
     const supabase = await createClient();
+    if (!d.orderId) {
+      await assertActiveRefs(supabase, [
+        { ref: "customers", id: d.customerId, label: "Khách hàng" },
+        { ref: "customers", id: d.payerCustomerId, label: "Khách thanh toán" },
+      ]);
+    }
     const [orderRows, shipRows, itemFieldRows] = await Promise.all([
       loadCustomFields(supabase, "transport_orders"),
       loadCustomFields(supabase, "shipments"),
@@ -452,7 +459,7 @@ export async function customerDefaultPayer(customerId: string): Promise<ActionRe
     if (error) throw error;
     const payerId = (data as { default_payer_customer_id?: string | null } | null)?.default_payer_customer_id;
     if (!payerId) return null;
-    const { data: p, error: e2 } = await supabase.from("customers").select("code, name").eq("id", payerId).maybeSingle();
+    const { data: p, error: e2 } = await supabase.from("customers").select("code, name").eq("id", payerId).eq("status", "active").maybeSingle();
     if (e2) throw e2;
     return p ? { id: payerId, label: `${p.name} – ${p.code}` } : null;
   });
@@ -748,6 +755,10 @@ export async function updateOrderFull(input: UpdateOrderFullInput): Promise<Acti
     const cur = orderRes.data;
     if (!cur) throw new ActionError("Không tìm thấy đơn hàng.");
     if (cur.status === "cancelled") throw new ActionError("Đơn hàng đã hủy, không sửa được.");
+    await assertActiveRefs(supabase, [
+      { ref: "customers", id: d.customerId, previous: cur.customer_id, label: "Khách hàng" },
+      { ref: "customers", id: d.payerCustomerId, previous: cur.payer_customer_id, label: "Khách thanh toán" },
+    ]);
     const curShips = new Map(((shipRes.data ?? []) as CurShipment[]).map((r) => [r.id, r]));
     const orderFields = moduleCustomFields("transport_orders", visibleCustomRows(orderRows, me.permissions), me.permissions);
     const shipFields = moduleCustomFields("shipments", visibleCustomRows(shipRows, me.permissions), me.permissions);
