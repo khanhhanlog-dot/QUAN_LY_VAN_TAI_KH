@@ -302,3 +302,9 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - "Hủy nhận / đổi xe" (chuyến Tài xế đã nhận / Đang vận chuyển): chọn xe mới (tài xế giữ nguyên hoặc đổi), bắt buộc lý do → chuyến về Chờ tài xế nhận trên xe mới. Giữ tài xế thì không phải Giám đốc duyệt lại; đổi tài xế thì duyệt lại. RPC unaccept_shipment.
 - "Sửa xe, TX" (Đang vận chuyển / Đã giao / Đã đóng): sửa thẳng số xe, tài xế, bắt buộc lý do, ghi nhật ký (audit_logs.reason). Chi phí tài xế tự trả của chuyến chưa vào bảng lương chuyển theo tài xế đúng. Chặn đổi tài xế khi bảng lương tháng hoàn thành của tài xế cũ/mới đã lập. RPC correct_shipment_crew.
 - Kiểm thử: supabase/tests/35_trip_vehicle_change_tests.sql, tests/driver-view.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-doi-xe-tai-xe.sql (dòng kiểm tra 29).
+
+## Đính kèm PDF / ảnh hóa đơn cho phí chi hộ (migration 0053) – 02/11/2026
+- Tạo đơn, Sửa toàn bộ đơn, Sửa phí thu khách ở chi tiết chuyến: mỗi dòng nhóm Phí chi hộ có nút 📎 ngay sau ô Số hóa đơn. Chọn PDF hoặc ảnh (tối đa 10 tệp, 10 MB mỗi tệp, không bắt buộc); tệp chờ và tải lên khi bấm Lưu. Chuyến đã có tệp thì hiện số tệp, bấm để xem, tải thêm.
+- Chi tiết chuyến → Doanh thu chuyến: dòng phí chi hộ có nút "PDF (n)" / "Đính kèm" để xem hoặc tải thêm ngay.
+- Lưu trữ: documents.entity_type = 'shipment_fee', entity_id = id chuyến, cột mới fee_type_id (loại phí). Gắn theo chuyến + loại phí nên sửa phí nhiều lần vẫn giữ tệp; không tính là chứng từ giao hàng, tài xế không thấy. Quyền như chứng từ khác (documents.create / documents.view).
+- Kiểm thử: supabase/tests/36_pass_through_fee_files_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-hoa-don-chi-ho.sql (dòng kiểm tra 33).

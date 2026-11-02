@@ -726,7 +726,9 @@ const CANCELLABLE = ["draft", "assigned", "accepted", "in_transit"];
  * trường bổ sung), thêm chuyến mới, hủy chuyến. Giữ các khóa: chuyến đã lập công nợ không đổi giá/phí/số lượng;
  * đổi tài xế đi qua assign_shipment nên chuyến phải chờ Giám đốc duyệt lại.
  */
-export async function updateOrderFull(input: UpdateOrderFullInput): Promise<ActionResult<{ created: number; cancelled: number; warning?: string }>> {
+export async function updateOrderFull(
+  input: UpdateOrderFullInput,
+): Promise<ActionResult<{ created: number; cancelled: number; warning?: string; newShipments: { index: number; id: string }[] }>> {
   return runAction(async () => {
     const me = await requirePermission("dispatch.update");
     const p = fullOrderSchema.safeParse(input);
@@ -929,6 +931,7 @@ export async function updateOrderFull(input: UpdateOrderFullInput): Promise<Acti
 
     // 4. Chuyến mới thêm khi sửa đơn
     let warning: string | undefined;
+    const newShipments: { index: number; id: string }[] = [];
     if (fresh.length) {
       const list = fresh.map((x) => ({
         ...x.s,
@@ -937,6 +940,7 @@ export async function updateOrderFull(input: UpdateOrderFullInput): Promise<Acti
       const created = await insertShipments(supabase, { id: d.orderId }, list, shipFields, itemFields, (j) => label(fresh[j].i));
       warning = created.itemsError;
       fresh.forEach((x, j) => {
+        if (created.shipments[j]) newShipments.push({ index: x.i, id: created.shipments[j].id });
         if (x.s.vehicleDayOrder && created.shipments[j])
           dayOrders.push({
             shipmentId: created.shipments[j].id,
@@ -949,7 +953,7 @@ export async function updateOrderFull(input: UpdateOrderFullInput): Promise<Acti
     revalidatePath(`/dieu-phoi/don-hang/${d.orderId}`);
     revalidatePath("/dieu-phoi", "layout");
     revalidatePath("/chuyen-xe", "layout");
-    return { created: fresh.length, cancelled, warning };
+    return { created: fresh.length, cancelled, warning, newShipments };
   });
 }
 

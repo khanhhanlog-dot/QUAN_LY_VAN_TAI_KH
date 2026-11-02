@@ -140,3 +140,5 @@ upgrade nang-cap-doi-xe-tai-xe.sql "Hủy nhận xe để đổi xe, sửa số 
   supabase/migrations/20261102000049_trip_vehicle_change.sql
 upgrade nang-cap-chi-phi-dau-ra.sql "Nhập chi phí đầu ra theo dòng ở chuyến, Nhóm chi phí trong Danh mục hệ thống" "to_regclass('public.expense_groups') is not null" \
   supabase/migrations/20261102000050_trip_costs_groups.sql
+upgrade nang-cap-hoa-don-chi-ho.sql "Đính kèm PDF / ảnh hóa đơn cho phí chi hộ" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'fee_type_id')" \
+  supabase/migrations/20261102000053_pass_through_fee_files.sql

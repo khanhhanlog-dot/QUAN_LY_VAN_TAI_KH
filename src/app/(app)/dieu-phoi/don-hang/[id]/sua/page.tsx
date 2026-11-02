@@ -116,7 +116,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!o) notFound();
   const ships = (shipRes.data ?? []) as unknown as ShipRow[];
   const ids = ships.map((s) => s.id);
-  const [feeRes, itemRes] = ids.length
+  const [feeRes, itemRes, feeDocRes] = ids.length
     ? await Promise.all([
         sb
           .from("shipment_fees")
@@ -124,11 +124,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           .in("shipment_id", ids)
           .order("line_no"),
         sb.from("shipment_items").select("shipment_id, line_no, item_code, item_name, quantity, unit, note, custom_fields").in("shipment_id", ids).order("line_no"),
+        // Tệp hóa đơn chi hộ đã đính kèm (lỗi thì chỉ không hiện số tệp)
+        sb.from("documents").select("entity_id, fee_type_id").eq("entity_type", "shipment_fee").in("entity_id", ids).is("archived_at", null),
       ])
     : [
         { data: [], error: null },
         { data: [], error: null },
+        { data: [], error: null },
       ];
+  const feeDocs = new Map<string, Record<string, number>>();
+  for (const d of (feeDocRes.data ?? []) as { entity_id: string; fee_type_id: string | null }[]) {
+    if (!d.fee_type_id) continue;
+    const m = feeDocs.get(d.entity_id) ?? {};
+    m[d.fee_type_id] = (m[d.fee_type_id] ?? 0) + 1;
+    feeDocs.set(d.entity_id, m);
+  }
   if (feeRes.error) throw feeRes.error;
   if (itemRes.error) throw itemRes.error;
   const fees = (feeRes.data ?? []) as unknown as FeeRow[];
@@ -175,6 +185,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         note: it.note ?? "",
         custom: it.custom_fields ?? {},
       })),
+    feeDocs: feeDocs.get(s.id),
     fees: fees
       .filter((f) => f.shipment_id === s.id)
       .map((f) => ({

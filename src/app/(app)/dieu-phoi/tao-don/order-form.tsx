@@ -17,7 +17,7 @@ import { AddFieldButton } from "@/components/entities/add-field-button";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
 import { FORM_SYSTEM_FIELDS, PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
 import { ItemsEditor, itemsPayload, newItem, type ItemLine } from "./items-editor";
-import { FeesEditor, feeTotals, feesPayload, newFee, useFeeCatalog, type FeeLine } from "./fees-editor";
+import { FeesEditor, countFeeFiles, feeTotals, feesPayload, newFee, uploadFeeFiles, useFeeCatalog, type FeeFiles, type FeeLine } from "./fees-editor";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { parseNumberVN } from "@/lib/entities/record";
 import { PRICING_UNITS } from "@/lib/status";
@@ -53,6 +53,10 @@ type Row = {
   items: ItemLine[];
   /** Phí khác thu khách (bốc xếp, chi hộ…) */
   fees: FeeLine[];
+  /** Tệp hóa đơn PDF / ảnh của phí chi hộ chờ tải lên khi lưu (theo loại phí) */
+  feeFiles?: FeeFiles;
+  /** Chuyến đã có: số tệp hóa đơn đã đính kèm theo loại phí */
+  feeDocs?: Record<string, number>;
   /** Kiểm tra xe đã có chuyến cùng ngày: xác nhận vẫn giao và thứ tự chuyến của xe trong ngày */
   vehicleDay?: VehicleDayState;
   /** keep = chuyến đã có, giữ giá đang lưu (sửa tay được); quote = tìm giá theo bảng giá như lúc tạo */
@@ -103,6 +107,8 @@ export type EditShipmentInit = {
   custom: Record<string, unknown>;
   items: Omit<ItemLine, "key">[];
   fees: Omit<FeeLine, "key">[];
+  /** Số tệp hóa đơn chi hộ đã đính kèm theo loại phí */
+  feeDocs?: Record<string, number>;
 };
 
 export type EditOrderInit = {
@@ -182,6 +188,7 @@ const rowFromShipment = (s: EditShipmentInit, generalKeys: string[], priceKeys: 
   customPrice: pick(s.custom, priceKeys),
   items: s.items.map((l) => newItem(l)),
   fees: s.fees.map((l) => newFee(l)),
+  feeDocs: s.feeDocs,
   priceMode: "keep",
   id: s.id,
   code: s.code,
@@ -347,6 +354,16 @@ export function OrderForm({
         return void toast.error(r.ok ? "Không lưu được đơn hàng" : r.error, {
           duration: 12000,
         });
+      // Tệp hóa đơn chi hộ: chuyến đã có tải theo id sẵn có, chuyến mới thêm theo id vừa tạo
+      const newIds = new Map(r.data.newShipments.map((x) => [x.index, x.id]));
+      const fileErrors: string[] = [];
+      for (const [i, s] of rows.entries()) {
+        const sid = s.id ?? newIds.get(i);
+        if (!sid || s.cancel !== undefined || !countFeeFiles(s.feeFiles)) continue;
+        const err = await uploadFeeFiles(sid, s.feeFiles);
+        if (err) fileErrors.push(`Chuyến ${i + 1}: ${err}`);
+      }
+      if (fileErrors.length) toast.warning(fileErrors.join(" "), { duration: 15000 });
       const extra = [r.data.created ? `thêm ${r.data.created} chuyến` : "", r.data.cancelled ? `hủy ${r.data.cancelled} chuyến` : ""].filter(Boolean).join(", ");
       toast.success(`Đã lưu đơn ${e.code}${extra ? ` (${extra})` : ""}.`);
       if (r.data.warning) toast.warning(r.data.warning, { duration: 15000 });
@@ -376,7 +393,15 @@ export function OrderForm({
         otherOrders: rows.flatMap((s) => (s.vehicleId ? (s.vehicleDay?.others ?? []) : [])),
       });
       if (!r.ok || !r.data) return void toast.error(r.ok ? "Không lưu được đơn hàng" : r.error);
+      const fileErrors: string[] = [];
+      for (const [i, s] of rows.entries()) {
+        const sid = r.data.shipments[i]?.id;
+        if (!sid || !countFeeFiles(s.feeFiles)) continue;
+        const err = await uploadFeeFiles(sid, s.feeFiles);
+        if (err) fileErrors.push(`${r.data.shipments[i].shipment_code}: ${err}`);
+      }
       toast.success(`Đã lưu ${r.data.shipments.length} chuyến vào đơn ${r.data.order_code}.`);
+      if (fileErrors.length) toast.warning(fileErrors.join(" "), { duration: 15000 });
       if (r.data.itemsError) toast.warning(r.data.itemsError, { duration: 15000 });
       router.push(`/dieu-phoi/don-hang/${r.data.order_id}`);
     });
@@ -1000,6 +1025,10 @@ function ShipmentEditor({
             value={row.fees}
             onChange={(fees) => onChange({ fees })}
             idPrefix={`s${row.key}-fee-`}
+            files={row.feeFiles}
+            onFilesChange={(feeFiles) => onChange({ feeFiles })}
+            shipmentId={row.id}
+            savedFiles={row.feeDocs}
             freightBase={priceReady ? (fuel === null ? null : freight + surcharge + fuel) : 0}
             freightLabel={freightFormula}
             freightHead={

@@ -175,21 +175,24 @@ export async function payAdvance(input: z.input<typeof paySchema>): Promise<Acti
 
 export type DocumentItem = { id: string; file_name: string; doc_type: string; mime_type: string; created_at: string; url: string | null };
 
-const DOC_ENTITIES = ["shipment", "shipment_expense", "advance_request", "purchase_request"] as const;
+const DOC_ENTITIES = ["shipment", "shipment_expense", "advance_request", "purchase_request", "shipment_fee"] as const;
 
 /** Chứng từ của một bản ghi, kèm đường dẫn xem tạm thời (10 phút) */
-export async function listDocuments(entityType: string, entityId: string): Promise<ActionResult<DocumentItem[]>> {
+export async function listDocuments(entityType: string, entityId: string, feeTypeId?: string): Promise<ActionResult<DocumentItem[]>> {
   return runAction(async () => {
     await requirePermission();
     if (!DOC_ENTITIES.includes(entityType as (typeof DOC_ENTITIES)[number]) || !uuid.safeParse(entityId).success) throw new ActionError("Dữ liệu không hợp lệ");
+    if (entityType === "shipment_fee" && !uuid.safeParse(feeTypeId).success) throw new ActionError("Dữ liệu không hợp lệ");
     const supabase = await createClient();
-    const { data, error } = await supabase
+    let q = supabase
       .from("documents")
       .select("id, file_name, doc_type, mime_type, created_at, storage_path")
       .eq("entity_type", entityType)
       .eq("entity_id", entityId)
-      .is("archived_at", null)
-      .order("created_at");
+      .is("archived_at", null);
+    // Tệp của phí chi hộ: theo chuyến + loại phí
+    if (entityType === "shipment_fee") q = q.eq("fee_type_id", feeTypeId!);
+    const { data, error } = await q.order("created_at");
     if (error) throw error;
     const rows = (data ?? []) as (Omit<DocumentItem, "url"> & { storage_path: string })[];
     if (!rows.length) return [];
@@ -201,10 +204,12 @@ export async function listDocuments(entityType: string, entityId: string): Promi
 const registerSchema = z.object({
   entityType: z.enum(DOC_ENTITIES),
   entityId: uuid,
+  /** Bắt buộc khi entityType = shipment_fee (tệp hóa đơn của một loại phí chi hộ) */
+  feeTypeId: uuid.optional(),
   files: z
     .array(
       z.object({
-        path: z.string().regex(/^(shipment|shipment_expense|advance_request|purchase_request)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp|heic|pdf)$/),
+        path: z.string().regex(/^(shipment|shipment_expense|advance_request|purchase_request|shipment_fee)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp|heic|pdf)$/),
         name: z.string().min(1).max(200),
         mime: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"]),
         size: z.number().int().positive().max(10485760),
@@ -221,6 +226,7 @@ export async function registerDocuments(input: z.input<typeof registerSchema>): 
     const me = await requirePermission("documents.create");
     const d = registerSchema.parse(input);
     if (d.files.some((f) => !f.path.startsWith(`${d.entityType}/${d.entityId}/`))) throw new ActionError("Đường dẫn tệp không hợp lệ");
+    if (d.entityType === "shipment_fee" && !d.feeTypeId) throw new ActionError("Chưa chọn loại phí của tệp");
     const supabase = await createClient();
     const { error } = await supabase.from("documents").insert(
       d.files.map((f) => ({
@@ -233,6 +239,7 @@ export async function registerDocuments(input: z.input<typeof registerSchema>): 
         entity_id: d.entityId,
         doc_type: f.docType,
         uploaded_by: me.id,
+        ...(d.entityType === "shipment_fee" ? { fee_type_id: d.feeTypeId } : {}),
       })),
     );
     if (error) throw error;
@@ -240,6 +247,7 @@ export async function registerDocuments(input: z.input<typeof registerSchema>): 
       await supabase.from("shipments").update({ document_status: "submitted" }).eq("id", d.entityId).in("document_status", ["missing", "rejected"]);
       revalidatePath(`/chuyen-xe/${d.entityId}`);
     }
+    if (d.entityType === "shipment_fee") revalidatePath(`/chuyen-xe/${d.entityId}`);
     if (d.entityType === "purchase_request") revalidatePath("/de-nghi");
     refreshFinance();
   }, "Đã tải chứng từ lên");

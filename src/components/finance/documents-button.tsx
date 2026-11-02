@@ -1,14 +1,14 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Images, Loader2, Upload } from "lucide-react";
+import { FileText, Images, Loader2, Paperclip, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDateTime } from "@/lib/format";
 import { listDocuments, type DocumentItem } from "@/lib/finance/actions";
-import { uploadStaffDocuments, type StaffFile } from "./upload";
+import { uploadStaffDocuments, type DocEntity, type StaffFile } from "./upload";
 
 export const DOC_TYPE_LABEL: Record<string, string> = {
   photo: "Ảnh hàng",
@@ -26,9 +26,15 @@ export function DocumentsButton({
   title,
   canUpload = false,
   variant = "ghost",
+  feeTypeId,
+  label,
 }: {
-  entityType: "shipment" | "shipment_expense" | "advance_request" | "purchase_request";
+  entityType: DocEntity;
   entityId: string;
+  /** Tệp hóa đơn của một loại phí chi hộ (entityType = shipment_fee, entityId = id chuyến) */
+  feeTypeId?: string;
+  /** Chữ trên nút (mặc định "Ảnh (n)" / "Chứng từ") */
+  label?: string;
   count: number;
   title: string;
   canUpload?: boolean;
@@ -39,12 +45,12 @@ export function DocumentsButton({
   const [docs, setDocs] = useState<DocumentItem[] | null>(null);
   const [loading, startLoad] = useTransition();
   const [uploading, startUpload] = useTransition();
-  const [docType, setDocType] = useState<StaffFile["docType"]>(entityType === "shipment" ? "delivery_note" : "receipt");
+  const [docType, setDocType] = useState<StaffFile["docType"]>(entityType === "shipment" ? "delivery_note" : entityType === "shipment_fee" ? "invoice" : "receipt");
   const input = useRef<HTMLInputElement>(null);
 
   function load() {
     startLoad(async () => {
-      const r = await listDocuments(entityType, entityId);
+      const r = await listDocuments(entityType, entityId, feeTypeId);
       if (r.ok) setDocs(r.data ?? []);
       else toast.error(r.error);
     });
@@ -64,7 +70,7 @@ export function DocumentsButton({
           load();
         }}
       >
-        <Images className="size-3.5" /> {count ? `Ảnh (${count})` : "Chứng từ"}
+        {entityType === "shipment_fee" ? <Paperclip className="size-3.5" /> : <Images className="size-3.5" />} {label ?? (count ? `Ảnh (${count})` : "Chứng từ")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-3xl">
@@ -92,6 +98,9 @@ export function DocumentsButton({
                   </a>
                   <div className="p-1.5 text-xs">
                     <div className="font-medium">{DOC_TYPE_LABEL[d.doc_type] ?? d.doc_type}</div>
+                    <div className="truncate" title={d.file_name}>
+                      {d.file_name}
+                    </div>
                     <div className="text-muted-foreground">{formatDateTime(d.created_at)}</div>
                   </div>
                 </li>
@@ -125,7 +134,7 @@ export function DocumentsButton({
                   if (!files.length) return;
                   if (files.some((f) => f.size > 10 * 1024 * 1024)) return toast.error("Mỗi tệp tối đa 10 MB");
                   startUpload(async () => {
-                    const r = await uploadStaffDocuments(entityType, entityId, files.map((file) => ({ file, docType })));
+                    const r = await uploadStaffDocuments(entityType, entityId, files.map((file) => ({ file, docType })), feeTypeId);
                     if (!r.ok) return void toast.error(r.error);
                     toast.success("Đã tải chứng từ lên");
                     load();
