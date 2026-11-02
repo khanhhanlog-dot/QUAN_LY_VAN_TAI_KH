@@ -85,7 +85,8 @@ export async function completeTrip(input: z.input<typeof completeSchema>): Promi
     { p_shipment_id: p.data.shipmentId, p_ticket: p.data.ticket, p_result: p.data.result, p_note: p.data.note ?? null, p_no_expense: p.data.noExpense },
     "Không hoàn thành được chuyến.",
   );
-  revalidatePath("/tx");
+  // Không revalidatePath ở đây: làm mới ngay sẽ gỡ thẻ chuyến khi hộp thoại hoàn thành còn mở (kẹt màn hình).
+  // Màn hình tài xế tự làm mới sau khi đóng hộp thoại (trang /tx luôn đọc dữ liệu mới).
   return r.ok ? { ok: true } : { ok: false, error: r.error! };
 }
 
@@ -113,7 +114,6 @@ export async function addExpense(input: z.input<typeof expenseSchema>): Promise<
     },
     "Không lưu được chi phí.",
   );
-  revalidatePath("/tx");
-  revalidatePath("/tx/tien");
+  // Nơi gọi tự router.refresh() khi gửi xong (xem completeTrip)
   return r.ok ? { ok: true, needsApproval: (r as { needs_approval?: boolean }).needs_approval } : { ok: false, error: r.error! };
 }

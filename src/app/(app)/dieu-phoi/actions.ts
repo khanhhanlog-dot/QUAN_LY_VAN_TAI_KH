@@ -1195,3 +1195,70 @@ export async function restoreShipment(input: z.input<typeof restoreSchema>): Pro
     revalidatePath("/ke-hoach");
   }, "Đã khôi phục chuyến về Chưa phân công. Phân công lại xe, tài xế.");
 }
+
+const crewSchema = z.object({
+  shipmentId: uuid,
+  vehicleId: uuid,
+  driverId: uuid,
+  reason: z.string().trim().min(3, "Nhập lý do (ít nhất 3 ký tự)").max(500, "Lý do tối đa 500 ký tự"),
+  /** Hủy nhận xe đổi sang xe khác: thứ tự xe mới (null = bỏ thứ tự) và thứ tự các chuyến khác của xe mới */
+  vehicleDayOrder: dayOrder.nullable().optional(),
+  otherOrders,
+});
+
+/** Hủy nhận xe (tài xế đã nhận / đang chạy, ví dụ xe hư): giao lại cho xe khác, chuyến về Chờ tài xế nhận */
+export async function unacceptShipment(input: z.input<typeof crewSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update");
+    const p = crewSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const d = p.data;
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("unaccept_shipment", {
+      p_shipment_id: d.shipmentId,
+      p_vehicle_id: d.vehicleId,
+      p_driver_id: d.driverId,
+      p_reason: d.reason,
+    });
+    if (error) throw error;
+    if ((data as { vehicle_changed?: boolean } | null)?.vehicle_changed) {
+      await setDayOrders(supabase, [...(d.otherOrders ?? []), ...(d.vehicleDayOrder ? [{ shipmentId: d.shipmentId, order: d.vehicleDayOrder }] : [])]);
+    }
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+  }, "Đã hủy nhận xe. Chuyến về Chờ tài xế nhận trên xe mới.");
+}
+
+/** Sửa số xe / tài xế của chuyến đang chạy, đã giao hoặc đã đóng (nhập sai), bắt buộc lý do */
+export async function correctShipmentCrew(input: z.input<typeof crewSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update", "shipments.update");
+    const p = crewSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("correct_shipment_crew", {
+      p_shipment_id: p.data.shipmentId,
+      p_vehicle_id: p.data.vehicleId,
+      p_driver_id: p.data.driverId,
+      p_reason: p.data.reason,
+    });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+  }, "Đã sửa xe, tài xế của chuyến.");
+}
+
+const orderOnlySchema = z.object({ shipmentId: uuid, order: dayOrder.nullable() });
+
+/** Sửa "Thứ tự xe" của một chuyến ngay trên bảng Điều phối (tài xế thấy chuyến có thứ tự nhỏ nhất trước) */
+export async function setVehicleOrder(input: z.input<typeof orderOnlySchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update", "dispatch.create");
+    const p = orderOnlySchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    await setDayOrders(supabase, [{ shipmentId: p.data.shipmentId, order: p.data.order }]);
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+  }, "Đã lưu thứ tự xe.");
+}

@@ -30,6 +30,8 @@ import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
+import { CORRECT_CREW_STATUSES, CrewChangeDialog, UNACCEPT_STATUSES } from "./crew-change-dialog";
+import { VehicleOrderCell } from "./vehicle-order-cell";
 import { CancelDialog, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 
@@ -186,7 +188,15 @@ const BASE_COLS: Col[] = [
   { key: "plate_number", label: "Biển số", width: 100, defaultHidden: true, sort: (r) => r.plate_number, render: (r) => r.plate_number },
   { key: "driver_name", label: "Tài xế", width: 150, defaultHidden: true, sort: (r) => r.driver_name, render: (r) => <div className="truncate">{r.driver_name}</div> },
   { key: "trip_order", label: "Thứ tự chuyến", width: 90, align: "right", defaultHidden: true, sort: (r) => r.trip_order, render: (r) => (r.trip_order ? formatNumber(r.trip_order) : "") },
-  { key: "vehicle_day_order", label: "Chuyến thứ mấy của xe", width: 100, align: "right", defaultHidden: true, sort: (r) => r.vehicle_day_order, render: (r) => (r.vehicle_day_order ? formatNumber(r.vehicle_day_order) : "") },
+  {
+    key: "vehicle_day_order",
+    label: "Thứ tự xe",
+    width: 84,
+    align: "right",
+    hint: "Thứ tự chạy của xe trong ngày (1, 2, 3…). Tài xế nhập số xe chỉ thấy chuyến có thứ tự nhỏ nhất, xong chuyến mới thấy chuyến tiếp theo. Bấm vào ô để sửa.",
+    sort: (r) => r.vehicle_day_order ?? r.trip_order,
+    render: () => null,
+  },
   { key: "plan_code", label: "Kế hoạch", width: 100, defaultHidden: true, sort: (r) => r.plan_code, render: (r) => r.plan_code },
   { key: "quantity", label: "SL", width: 64, align: "right", defaultHidden: true, sort: (r) => Number(r.quantity), render: (r) => formatNumber(r.quantity) },
   {
@@ -308,7 +318,14 @@ export function DispatchTable({
         accessorFn: c.sort ? (r: ShipmentListRow) => emptyToUndef(c.sort!(r)) : undefined,
         sortingFn: (a: Row<ShipmentListRow>, b: Row<ShipmentListRow>, id: string) => compareVals(a.getValue<SortVal>(id), b.getValue<SortVal>(id)),
         sortUndefined: "last" as const,
-        cell: ({ row }) => (c.key === "actions" ? <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} /> : c.render(row.original, now)),
+        cell: ({ row }) =>
+          c.key === "actions" ? (
+            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} />
+          ) : c.key === "vehicle_day_order" ? (
+            <VehicleOrderCell r={row.original} editable={canAssign} />
+          ) : (
+            c.render(row.original, now)
+          ),
       })),
     [cols, canAssign, canCancel, now],
   );
@@ -555,6 +572,24 @@ function Actions({ r, canAssign, canCancel }: { r: ShipmentListRow; canAssign: b
           pickupAt={r.pickup_at}
         />
       ) : null}
+      {canAssign
+        ? (["unaccept", "correct"] as const)
+            .filter((m) => (m === "unaccept" ? UNACCEPT_STATUSES : CORRECT_CREW_STATUSES).includes(r.status))
+            .map((mode) => (
+              <CrewChangeDialog
+                key={mode}
+                compact
+                mode={mode}
+                shipmentId={r.id}
+                shipmentCode={r.shipment_code}
+                driverId={r.driver_id}
+                driverLabel={r.driver_name ? `${r.driver_name} (${r.driver_code})` : null}
+                vehicleId={r.vehicle_id}
+                vehicleLabel={r.plate_number}
+                pickupAt={r.pickup_at}
+              />
+            ))
+        : null}
       {canAssign && !LOCKED_STATUSES.includes(r.status) ? (
         <Button asChild variant="ghost" size="sm" className="h-7 px-2" title={`Sửa toàn bộ đơn ${r.order_code}, mở tới chuyến ${r.shipment_code}`}>
           <Link href={`/dieu-phoi/don-hang/${r.order_id}/sua#chuyen-${r.shipment_code}`}>

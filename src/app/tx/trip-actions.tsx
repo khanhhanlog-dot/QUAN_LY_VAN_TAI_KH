@@ -1,7 +1,7 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flag, Play } from "lucide-react";
+import { CheckCircle2, Flag, Play, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { uploadWithTicket } from "@/lib/driver-link/upload";
@@ -111,6 +111,8 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
   const [lines, setLines] = useState<ExpenseLine[]>(() => [newLine()]);
   // Chuyến đã lưu hoàn thành nhưng còn khoản chi phí chưa gửi được: bấm lại chỉ gửi chi phí
   const [completed, setCompleted] = useState(false);
+  // Đã gửi xong (hoàn thành + chi phí): chuyển sang màn hình "đã hoàn thành" có nút Tìm chuyến khác
+  const [finished, setFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -154,11 +156,22 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
         }
       }
       setProgress(null);
-      setOpen(false);
       setFiles([]);
-      router.refresh();
+      // Đóng hộp thoại trước, rồi mới chuyển sang màn hình "đã hoàn thành" (tránh kẹt màn hình khi thẻ chuyến đổi ngay lúc hộp thoại đang mở)
+      setOpen(false);
+      setFinished(true);
     });
   }
+
+  useEffect(() => {
+    if (!finished || open) return;
+    const t = setTimeout(() => {
+      unlockBody();
+      router.replace(`/tx?xong=${shipmentId}`);
+      router.refresh();
+    }, 250);
+    return () => clearTimeout(t);
+  }, [finished, open, router, shipmentId]);
 
   return (
     <div className="mt-4">
@@ -175,7 +188,8 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
         onOpenChange={(o) => {
           if (pending) return;
           setOpen(o);
-          if (!o && completed) router.refresh();
+          // Đã lưu hoàn thành mà đóng hộp thoại (còn chi phí chưa gửi): vẫn sang màn hình đã hoàn thành
+          if (!o && completed) setFinished(true);
         }}
       >
         <DialogContent className="max-h-[92vh] overflow-y-auto">
@@ -258,5 +272,37 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Bỏ khóa bấm của trang nếu hộp thoại đóng không trọn (lỗi "không thoát ra được" trên điện thoại) */
+function unlockBody() {
+  if (typeof document === "undefined") return;
+  document.body.style.pointerEvents = "";
+  document.body.removeAttribute("data-scroll-locked");
+  document.body.style.overflow = "";
+}
+
+/** Sau khi hoàn thành chuyến (hoặc chưa có chuyến): tìm chuyến tiếp theo điều phối đã sắp cho xe */
+export function FindNextButton() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  useEffect(() => {
+    unlockBody();
+  }, []);
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        start(() => {
+          router.replace("/tx");
+          router.refresh();
+        })
+      }
+      className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary text-lg font-semibold text-primary-foreground disabled:opacity-60"
+    >
+      <Search className="size-6" /> {pending ? "Đang tìm…" : "Tìm chuyến khác"}
+    </button>
   );
 }

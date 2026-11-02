@@ -136,3 +136,5 @@ upgrade nang-cap-sua-khoi-phuc.sql "Sửa khôi phục chuyến hủy trước b
   supabase/migrations/20261102000047_restore_legacy_fix.sql
 upgrade nang-cap-them-lua-chon.sql "Nút + thêm lựa chọn ngay tại ô chọn của trường bổ sung" "to_regprocedure('public.add_field_option(uuid,text)') is not null" \
   supabase/migrations/20261102000048_inline_field_options.sql
+upgrade nang-cap-doi-xe-tai-xe.sql "Hủy nhận xe để đổi xe, sửa số xe / tài xế cả khi chuyến đã hoàn thành" "to_regprocedure('public.unaccept_shipment(uuid,uuid,uuid,text)') is not null" \
+  supabase/migrations/20261102000049_trip_vehicle_change.sql

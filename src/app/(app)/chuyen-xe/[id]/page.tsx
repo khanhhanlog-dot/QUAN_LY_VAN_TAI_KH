@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { AssignDialog } from "@/components/dispatch/assign-dialog";
+import { CORRECT_CREW_STATUSES, CrewChangeDialog, UNACCEPT_STATUSES } from "@/components/dispatch/crew-change-dialog";
 import { CancelDialog, RestoreShipmentButton } from "@/components/dispatch/cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "@/components/dispatch/trip-approval";
 import { shipmentCustomFields } from "@/lib/shipments-query";
@@ -257,6 +258,23 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 pickupAt={s.pickup_at}
               />
             ) : null}
+            {me.permissions.has("dispatch.update")
+              ? (["unaccept", "correct"] as const)
+                  .filter((m) => (m === "unaccept" ? UNACCEPT_STATUSES : CORRECT_CREW_STATUSES).includes(s.status))
+                  .map((m) => (
+                    <CrewChangeDialog
+                      key={m}
+                      mode={m}
+                      shipmentId={s.id}
+                      shipmentCode={s.shipment_code}
+                      driverId={s.driver_id}
+                      driverLabel={s.driver_name ? `${s.driver_name} (${s.driver_code})` : null}
+                      vehicleId={s.vehicle_id}
+                      vehicleLabel={s.plate_number}
+                      pickupAt={s.pickup_at}
+                    />
+                  ))
+              : null}
             {canCancel ? <CancelDialog shipmentId={s.id} shipmentCode={s.shipment_code} /> : null}
             {s.status === "cancelled" && (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) ? (
               <RestoreShipmentButton shipmentId={s.id} shipmentCode={s.shipment_code} />

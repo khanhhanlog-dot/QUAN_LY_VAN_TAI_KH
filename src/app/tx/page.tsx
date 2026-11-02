@@ -2,8 +2,9 @@ import { Clock, MapPin, Navigation, Phone, Receipt, Truck } from "lucide-react";
 import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
 import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { pickDriverView } from "@/lib/driver-view";
 import { PlateForm } from "./plate-form";
-import { AcceptButton, ChangeVehicleButton, CompleteButton, StartButton } from "./trip-actions";
+import { AcceptButton, ChangeVehicleButton, CompleteButton, FindNextButton, StartButton } from "./trip-actions";
 import { AddExpenseButton, type ExpenseCategory } from "./expense-forms";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,8 @@ type Trip = {
 
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
 
-export default async function DriverHome() {
+export default async function DriverHome({ searchParams }: { searchParams: Promise<{ xong?: string }> }) {
+  const { xong } = await searchParams;
   const token = await driverLinkToken();
   const supabase = anonClient();
   const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string; driver_name: string | null } | null) : null;
@@ -76,7 +78,9 @@ export default async function DriverHome() {
   if (error) throw error;
   const trips = (data ?? []) as Trip[];
   const categories = ((fin.data as { categories?: ExpenseCategory[] } | null)?.categories ?? []) as ExpenseCategory[];
-  const waiting = trips.filter((t) => t.status === "assigned").length;
+
+  // Tài xế chỉ thấy MỘT chuyến; xong chuyến bấm "Tìm chuyến khác" mới thấy chuyến tiếp theo
+  const { shown, justDone, current, after, recentDone } = pickDriverView(trips, xong);
 
   return (
     <div className="space-y-4">
@@ -87,105 +91,121 @@ export default async function DriverHome() {
           </div>
           <div>
             <div className="font-mono text-lg font-semibold">{me.plate}</div>
-            <div className="text-sm text-muted-foreground">{waiting > 0 ? `${waiting} chuyến chờ nhận` : "Không có chuyến chờ nhận"}</div>
+            <div className="text-sm text-muted-foreground">
+              {justDone ? "Đã hoàn thành chuyến" : current ? (after > 0 ? `Còn ${after} chuyến được sắp sau chuyến này` : "Chuyến đang làm") : "Chưa có chuyến"}
+            </div>
           </div>
         </div>
         <ChangeVehicleButton />
       </div>
 
-      {trips.length === 0 ? (
-        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">Xe chưa có chuyến nào được phân công.</div>
+      {shown ? (
+        <TripCard t={shown} categories={categories} />
       ) : (
-        <ul className="space-y-4">
-          {trips.map((t) => {
-            const st = STATUS[t.status] ?? { label: t.status, variant: "secondary" as const };
-            return (
-              <li key={t.shipment_id} data-trip={t.shipment_code} className={`rounded-2xl border-2 bg-card p-4 shadow-sm ${t.status === "assigned" ? "border-warning" : "border-transparent"}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-mono text-base font-semibold">{t.shipment_code}</div>
-                    {t.trip_rank ? <div className="text-sm font-semibold text-primary">Chuyến thứ {t.trip_rank} trong ngày</div> : null}
-                    <div className="text-sm text-muted-foreground">Tài xế: {t.driver_name}</div>
-                  </div>
-                  <Badge variant={st.variant}>{st.label}</Badge>
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
-                  <Clock className="size-4 shrink-0 text-primary" />
-                  <span>
-                    Nhận hàng ngày <strong>{formatDate(t.pickup_at)}</strong>
-                    {t.expected_delivery_at ? <> · Giao trong ngày {formatDate(t.expected_delivery_at)}</> : null}
-                  </span>
-                </div>
-
-                <Place label="Điểm nhận" name={t.pickup_name} address={t.pickup_address} contact={t.pickup_contact} phone={t.pickup_phone} maps={t.pickup_maps_url} gate={t.pickup_gate_instructions} />
-                <Place label="Điểm giao" name={t.delivery_name} address={t.delivery_address} contact={t.delivery_contact} phone={t.delivery_phone} maps={t.delivery_maps_url} gate={t.delivery_gate_instructions} />
-
-                {t.empty_return_name || t.offroute_return_name ? (
-                  <div className="mt-3 space-y-1 rounded-xl bg-muted px-3 py-2 text-sm">
-                    {t.empty_return_name ? (
-                      <div>
-                        Hạ rỗng: <strong>{t.empty_return_name}</strong>
-                        {t.empty_return_address ? <span className="text-muted-foreground"> · {t.empty_return_address}</span> : null}
-                      </div>
-                    ) : null}
-                    {t.offroute_return_name ? (
-                      <div className="text-amber-700 dark:text-amber-400">
-                        Hạ rỗng trái tuyến: <strong>{t.offroute_return_name}</strong>
-                        {t.offroute_return_address ? <span> · {t.offroute_return_address}</span> : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                  {t.vehicle_type_name ? <span>Loại xe: {t.vehicle_type_name}</span> : null}
-                  {t.quantity ? <span>Số lượng: {formatNumber(t.quantity)}</span> : null}
-                </div>
-                {t.notes ? <p className="mt-2 rounded-lg bg-warning/10 p-2 text-sm">Ghi chú: {t.notes}</p> : null}
-
-                {t.status === "assigned" && t.wait_for_code ? (
-                  <p data-wait-for={t.wait_for_code} className="mt-4 rounded-xl border border-warning bg-warning/10 p-3 text-center text-sm font-medium">
-                    Nhận chuyến thứ {t.wait_for_rank} ({t.wait_for_code}) trước, rồi mới nhận được chuyến này.
-                  </p>
-                ) : t.status === "assigned" ? (
-                  <AcceptButton shipmentId={t.shipment_id} code={t.shipment_code} />
-                ) : t.status === "accepted" ? (
-                  <>
-                    {t.accepted_at ? <p className="mt-3 text-center text-sm text-success">Đã nhận lúc {formatDateTime(t.accepted_at)}</p> : null}
-                    <StartButton shipmentId={t.shipment_id} code={t.shipment_code} />
-                  </>
-                ) : t.status === "in_transit" ? (
-                  <>
-                    {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
-                    <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} outsourced={t.outsourced} />
-                  </>
-                ) : t.completed_at ? (
-                  <>
-                    <p className="mt-3 text-center text-sm text-success">
-                      Hoàn thành lúc {formatDateTime(t.completed_at)}
-                      {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
-                    </p>
-                    {t.outsourced ? (
-                      <p className="mt-2 text-center text-sm text-muted-foreground">Xe thuê ngoài 3PL: không nhập chi phí tài xế</p>
-                    ) : (
-                      <p data-expense-summary className="mt-2 flex items-center justify-center gap-1.5 text-sm">
-                        <Receipt className="size-4 text-muted-foreground" />
-                        {Number(t.expense_count) > 0
-                          ? `Chi phí: ${t.expense_count} khoản · ${formatVND(Number(t.expense_total))}`
-                          : t.expense_declaration === "none"
-                            ? "Đã xác nhận không phát sinh chi phí"
-                            : "Chưa có chi phí"}
-                      </p>
-                    )}
-                    {t.status === "driver_completed" && !t.outsourced ? <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} /> : null}
-                  </>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        <div data-no-trip className="rounded-2xl border bg-card p-8 text-center font-medium text-muted-foreground">
+          Chưa có chuyến, chờ điều phối sắp xếp
+        </div>
       )}
+      {justDone || !shown ? <FindNextButton /> : null}
+
+      {recentDone.length ? (
+        <details className="rounded-2xl border bg-card p-3">
+          <summary className="cursor-pointer text-sm font-medium">Chuyến đã xong gần đây ({recentDone.length}): xem, bổ sung chi phí</summary>
+          <div className="mt-3 space-y-3">
+            {recentDone.map((t) => (
+              <TripCard key={t.shipment_id} t={t} categories={categories} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function TripCard({ t, categories }: { t: Trip; categories: ExpenseCategory[] }) {
+  const st = STATUS[t.status] ?? { label: t.status, variant: "secondary" as const };
+  return (
+    <div data-trip={t.shipment_code} className={`rounded-2xl border-2 bg-card p-4 shadow-sm ${t.status === "assigned" ? "border-warning" : "border-transparent"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-mono text-base font-semibold">{t.shipment_code}</div>
+          {t.trip_rank ? <div className="text-sm font-semibold text-primary">Chuyến thứ {t.trip_rank} trong ngày</div> : null}
+          <div className="text-sm text-muted-foreground">Tài xế: {t.driver_name}</div>
+        </div>
+        <Badge variant={st.variant}>{st.label}</Badge>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
+        <Clock className="size-4 shrink-0 text-primary" />
+        <span>
+          Nhận hàng ngày <strong>{formatDate(t.pickup_at)}</strong>
+          {t.expected_delivery_at ? <> · Giao trong ngày {formatDate(t.expected_delivery_at)}</> : null}
+        </span>
+      </div>
+
+      <Place label="Điểm nhận" name={t.pickup_name} address={t.pickup_address} contact={t.pickup_contact} phone={t.pickup_phone} maps={t.pickup_maps_url} gate={t.pickup_gate_instructions} />
+      <Place label="Điểm giao" name={t.delivery_name} address={t.delivery_address} contact={t.delivery_contact} phone={t.delivery_phone} maps={t.delivery_maps_url} gate={t.delivery_gate_instructions} />
+
+      {t.empty_return_name || t.offroute_return_name ? (
+        <div className="mt-3 space-y-1 rounded-xl bg-muted px-3 py-2 text-sm">
+          {t.empty_return_name ? (
+            <div>
+              Hạ rỗng: <strong>{t.empty_return_name}</strong>
+              {t.empty_return_address ? <span className="text-muted-foreground"> · {t.empty_return_address}</span> : null}
+            </div>
+          ) : null}
+          {t.offroute_return_name ? (
+            <div className="text-amber-700 dark:text-amber-400">
+              Hạ rỗng trái tuyến: <strong>{t.offroute_return_name}</strong>
+              {t.offroute_return_address ? <span> · {t.offroute_return_address}</span> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        {t.vehicle_type_name ? <span>Loại xe: {t.vehicle_type_name}</span> : null}
+        {t.quantity ? <span>Số lượng: {formatNumber(t.quantity)}</span> : null}
+      </div>
+      {t.notes ? <p className="mt-2 rounded-lg bg-warning/10 p-2 text-sm">Ghi chú: {t.notes}</p> : null}
+
+      {t.status === "assigned" && t.wait_for_code ? (
+        <p data-wait-for={t.wait_for_code} className="mt-4 rounded-xl border border-warning bg-warning/10 p-3 text-center text-sm font-medium">
+          Nhận chuyến thứ {t.wait_for_rank} ({t.wait_for_code}) trước, rồi mới nhận được chuyến này.
+        </p>
+      ) : t.status === "assigned" ? (
+        <AcceptButton shipmentId={t.shipment_id} code={t.shipment_code} />
+      ) : t.status === "accepted" ? (
+        <>
+          {t.accepted_at ? <p className="mt-3 text-center text-sm text-success">Đã nhận lúc {formatDateTime(t.accepted_at)}</p> : null}
+          <StartButton shipmentId={t.shipment_id} code={t.shipment_code} />
+        </>
+      ) : t.status === "in_transit" ? (
+        <>
+          {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
+          <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} outsourced={t.outsourced} />
+        </>
+      ) : t.completed_at ? (
+        <>
+          <p className="mt-3 text-center text-sm text-success">
+            Hoàn thành lúc {formatDateTime(t.completed_at)}
+            {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
+          </p>
+          {t.outsourced ? (
+            <p className="mt-2 text-center text-sm text-muted-foreground">Xe thuê ngoài 3PL: không nhập chi phí tài xế</p>
+          ) : (
+            <p data-expense-summary className="mt-2 flex items-center justify-center gap-1.5 text-sm">
+              <Receipt className="size-4 text-muted-foreground" />
+              {Number(t.expense_count) > 0
+                ? `Chi phí: ${t.expense_count} khoản · ${formatVND(Number(t.expense_total))}`
+                : t.expense_declaration === "none"
+                  ? "Đã xác nhận không phát sinh chi phí"
+                  : "Chưa có chi phí"}
+            </p>
+          )}
+          {t.status === "driver_completed" && !t.outsourced ? <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} /> : null}
+        </>
+      ) : null}
     </div>
   );
 }
