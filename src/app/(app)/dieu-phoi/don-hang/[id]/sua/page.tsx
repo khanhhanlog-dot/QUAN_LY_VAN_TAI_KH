@@ -1,3 +1,4 @@
+import { withErrorDetail } from "@/components/layout/page-error-detail";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -81,7 +82,11 @@ type ItemRow = {
 const SHIP_COLS =
   "id, shipment_code, status, version, receivable_id, pickup_at, expected_delivery_at, pickup_location_id, delivery_location_id, empty_return_location_id, offroute_return_location_id, trip_order, vehicle_type_id, vehicle_id, driver_id, price_list_id, unit_price, pricing_unit, quantity, surcharge_amount, fuel_support_rate, fuel_support_base, fuel_support_amount, pricing_snapshot, notes, pod_photo_required, custom_fields";
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  return withErrorDetail(() => PageInner(props));
+}
+
+async function PageInner({ params }: { params: Promise<{ id: string }> }) {
   const me = await requirePagePermission("dispatch.update");
   const { id } = await params;
   if (!isUuid(id)) notFound();

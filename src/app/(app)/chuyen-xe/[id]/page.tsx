@@ -1,3 +1,4 @@
+import { withErrorDetail } from "@/components/layout/page-error-detail";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -128,7 +129,11 @@ function fmtChange(field: string, v: string | null): string {
 const EXTRA_COLS =
   "receivable_id, pricing_snapshot, cancel_reason, cancelled_at, created_at, created_by, arrived_pickup_at, departed_pickup_at, arrived_delivery_at, completed_at, actual_km, delivery_result, completion_note, expense_declaration, expense_declared_at, photo_skip_reason, pod_photo_required, dispatch_approved_by, dispatch_approved_at, dispatch_approved_on_behalf, carrier_supplier_id, carrier:suppliers(name), vehicle:vehicles(ownership_type, supplier_id, supplier:suppliers(name))";
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  return withErrorDetail(() => PageInner(props));
+}
+
+async function PageInner({ params }: { params: Promise<{ id: string }> }) {
   const me = await requirePagePermission("shipments.view", "dispatch.view");
   const { id } = await params;
   if (!isUuid(id)) notFound();

@@ -1,3 +1,4 @@
+import { withErrorDetail } from "@/components/layout/page-error-detail";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -40,7 +41,11 @@ type Order = {
   company: { id: string; name: string } | null;
 };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  return withErrorDetail(() => PageInner(props));
+}
+
+async function PageInner({ params }: { params: Promise<{ id: string }> }) {
   const me = await requirePagePermission("dispatch.view", "shipments.view");
   const { id } = await params;
   if (!isUuid(id)) notFound();
