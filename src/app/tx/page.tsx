@@ -3,6 +3,7 @@ import { anonClient, driverLinkToken } from "@/lib/driver-link/server";
 import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { pickDriverView } from "@/lib/driver-view";
+import { parseDriverAppSettings, type DriverAppSettings } from "@/lib/driver-link/settings";
 import { PlateForm } from "./plate-form";
 import { AcceptButton, ChangeVehicleButton, CompleteButton, FindNextButton, StartButton } from "./trip-actions";
 import { AddExpenseButton, type ExpenseCategory } from "./expense-forms";
@@ -71,12 +72,14 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
   const me = token ? ((await supabase.rpc("driver_link_me", { p_token: token })).data as { plate: string; driver_name: string | null } | null) : null;
   if (!me) return <PlateForm />;
 
-  const [{ data, error }, fin] = await Promise.all([
+  const [{ data, error }, fin, cfg] = await Promise.all([
     supabase.rpc("driver_link_trips", { p_token: token }),
     supabase.rpc("driver_link_categories", { p_token: token }),
+    supabase.rpc("driver_app_settings"),
   ]);
   if (error) throw error;
   const trips = (data ?? []) as Trip[];
+  const settings = parseDriverAppSettings(cfg.data);
   const categories = ((fin.data as { categories?: ExpenseCategory[] } | null)?.categories ?? []) as ExpenseCategory[];
 
   // Tài xế chỉ thấy MỘT chuyến; xong chuyến bấm "Tìm chuyến khác" mới thấy chuyến tiếp theo
@@ -100,7 +103,7 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
       </div>
 
       {shown ? (
-        <TripCard t={shown} categories={categories} />
+        <TripCard t={shown} categories={categories} settings={settings} />
       ) : (
         <div data-no-trip className="rounded-2xl border bg-card p-8 text-center font-medium text-muted-foreground">
           Chưa có chuyến, chờ điều phối sắp xếp
@@ -110,10 +113,10 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
 
       {recentDone.length ? (
         <details className="rounded-2xl border bg-card p-3">
-          <summary className="cursor-pointer text-sm font-medium">Chuyến đã xong gần đây ({recentDone.length}): xem, bổ sung chi phí</summary>
+          <summary className="cursor-pointer text-sm font-medium">Chuyến đã xong gần đây ({recentDone.length}){settings.expense_enabled ? ": xem, bổ sung chi phí" : ""}</summary>
           <div className="mt-3 space-y-3">
             {recentDone.map((t) => (
-              <TripCard key={t.shipment_id} t={t} categories={categories} />
+              <TripCard key={t.shipment_id} t={t} categories={categories} settings={settings} />
             ))}
           </div>
         </details>
@@ -122,7 +125,7 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
   );
 }
 
-function TripCard({ t, categories }: { t: Trip; categories: ExpenseCategory[] }) {
+function TripCard({ t, categories, settings }: { t: Trip; categories: ExpenseCategory[]; settings: DriverAppSettings }) {
   const st = STATUS[t.status] ?? { label: t.status, variant: "secondary" as const };
   return (
     <div data-trip={t.shipment_code} className={`rounded-2xl border-2 bg-card p-4 shadow-sm ${t.status === "assigned" ? "border-warning" : "border-transparent"}`}>
@@ -183,17 +186,18 @@ function TripCard({ t, categories }: { t: Trip; categories: ExpenseCategory[] })
       ) : t.status === "in_transit" ? (
         <>
           {t.started_at ? <p className="mt-3 text-center text-sm text-primary">Bắt đầu chạy lúc {formatDateTime(t.started_at)}</p> : null}
-          <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} outsourced={t.outsourced} />
+          <CompleteButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} outsourced={t.outsourced} settings={settings} />
         </>
       ) : t.completed_at ? (
         <>
           <p className="mt-3 text-center text-sm text-success">
             Hoàn thành lúc {formatDateTime(t.completed_at)}
-            {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""} · {t.photo_count} ảnh
+            {t.delivery_result ? ` · ${RESULT_LABEL[t.delivery_result] ?? ""}` : ""}
+            {settings.photos_enabled || Number(t.photo_count) > 0 ? ` · ${t.photo_count} ảnh` : ""}
           </p>
           {t.outsourced ? (
             <p className="mt-2 text-center text-sm text-muted-foreground">Xe thuê ngoài 3PL: không nhập chi phí tài xế</p>
-          ) : (
+          ) : !settings.expense_enabled && Number(t.expense_count) === 0 ? null : (
             <p data-expense-summary className="mt-2 flex items-center justify-center gap-1.5 text-sm">
               <Receipt className="size-4 text-muted-foreground" />
               {Number(t.expense_count) > 0
@@ -203,7 +207,9 @@ function TripCard({ t, categories }: { t: Trip; categories: ExpenseCategory[] })
                   : "Chưa có chi phí"}
             </p>
           )}
-          {t.status === "driver_completed" && !t.outsourced ? <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} /> : null}
+          {t.status === "driver_completed" && !t.outsourced && settings.expense_enabled ? (
+            <AddExpenseButton shipmentId={t.shipment_id} code={t.shipment_code} categories={categories} photos={settings.photos_enabled} />
+          ) : null}
         </>
       ) : null}
     </div>

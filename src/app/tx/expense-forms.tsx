@@ -79,12 +79,15 @@ export function ExpenseLineFields({
   categories,
   onChange,
   imageHint,
+  photos = true,
 }: {
   line: ExpenseLine;
   idx: string;
   categories: ExpenseCategory[];
   onChange: (l: ExpenseLine) => void;
   imageHint?: string;
+  /** Cấu hình tắt chụp ảnh: ẩn ô chụp hóa đơn */
+  photos?: boolean;
 }) {
   const c = categories.find((x) => x.id === line.cat);
   const groups = [...new Set(categories.map((x) => x.group))];
@@ -104,7 +107,7 @@ export function ExpenseLineFields({
         </NativeSelect>
         {c ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            {c.requires_image ? "Bắt buộc chụp hóa đơn / biên lai. " : "Ảnh hóa đơn không bắt buộc. "}
+            {!photos ? "" : c.requires_image ? "Bắt buộc chụp hóa đơn / biên lai. " : "Ảnh hóa đơn không bắt buộc. "}
             {c.requires_approval ? "Cần Giám đốc duyệt." : "Không cần duyệt."}
           </p>
         ) : null}
@@ -117,22 +120,36 @@ export function ExpenseLineFields({
         <label htmlFor={`exp-note-${idx}`} className="mb-1 block text-sm font-medium">Ghi chú (không bắt buộc)</label>
         <Textarea id={`exp-note-${idx}`} value={line.note} onChange={(e) => onChange({ ...line, note: e.target.value })} maxLength={500} placeholder="Ví dụ: BOT Bình Dương lượt đi" />
       </div>
-      <PhotoPicker
-        value={line.files}
-        onChange={(files) => onChange({ ...line, files })}
-        label="Chụp hóa đơn"
-        kinds={[
-          { value: "receipt", label: "Biên lai" },
-          { value: "invoice", label: "Hóa đơn VAT" },
-        ]}
-      />
-      {imageHint ? <p className="text-xs text-muted-foreground">{imageHint}</p> : null}
+      {photos ? (
+        <>
+          <PhotoPicker
+            value={line.files}
+            onChange={(files) => onChange({ ...line, files })}
+            label="Chụp hóa đơn"
+            kinds={[
+              { value: "receipt", label: "Biên lai" },
+              { value: "invoice", label: "Hóa đơn VAT" },
+            ]}
+          />
+          {imageHint ? <p className="text-xs text-muted-foreground">{imageHint}</p> : null}
+        </>
+      ) : null}
     </div>
   );
 }
 
 /** Danh sách nhiều khoản chi phí (dùng trong bước Hoàn thành chuyến và Bổ sung chi phí) */
-export function ExpenseLinesEditor({ lines, onChange, categories }: { lines: ExpenseLine[]; onChange: (l: ExpenseLine[]) => void; categories: ExpenseCategory[] }) {
+export function ExpenseLinesEditor({
+  lines,
+  onChange,
+  categories,
+  photos = true,
+}: {
+  lines: ExpenseLine[];
+  onChange: (l: ExpenseLine[]) => void;
+  categories: ExpenseCategory[];
+  photos?: boolean;
+}) {
   const total = lines.reduce((s, l) => s + (l.amount ?? 0), 0);
   return (
     <div className="space-y-3">
@@ -146,7 +163,7 @@ export function ExpenseLinesEditor({ lines, onChange, categories }: { lines: Exp
               </button>
             ) : null}
           </div>
-          <ExpenseLineFields line={l} idx={String(i + 1)} categories={categories} onChange={(n) => onChange(lines.map((x) => (x.key === l.key ? n : x)))} />
+          <ExpenseLineFields line={l} idx={String(i + 1)} categories={categories} photos={photos} onChange={(n) => onChange(lines.map((x) => (x.key === l.key ? n : x)))} />
         </div>
       ))}
       <button type="button" onClick={() => onChange([...lines, newLine()])} className="flex w-full items-center justify-center gap-1 rounded-xl border border-dashed py-3 text-sm font-medium text-primary">
@@ -184,7 +201,7 @@ export async function submitLines(shipmentId: string, lines: ExpenseLine[], onPr
 }
 
 /** Bổ sung chi phí cho chuyến đã hoàn thành (khi văn phòng chưa đóng chuyến) */
-export function AddExpenseButton({ shipmentId, code, categories }: { shipmentId: string; code: string; categories: ExpenseCategory[] }) {
+export function AddExpenseButton({ shipmentId, code, categories, photos = true }: { shipmentId: string; code: string; categories: ExpenseCategory[]; photos?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<ExpenseLine[]>(() => [newLine()]);
@@ -195,7 +212,7 @@ export function AddExpenseButton({ shipmentId, code, categories }: { shipmentId:
   function submit() {
     start(async () => {
       setError(null);
-      const bad = lines.map((l, i) => lineError(l, categories, lines.length > 1 ? i + 1 : null)).find(Boolean);
+      const bad = lines.map((l, i) => lineError(l, categories, lines.length > 1 ? i + 1 : null, photos)).find(Boolean);
       if (bad) return setError(bad);
       const r = await submitLines(shipmentId, lines, setProgress);
       setProgress(null);
@@ -220,7 +237,7 @@ export function AddExpenseButton({ shipmentId, code, categories }: { shipmentId:
             <DialogTitle>Bổ sung chi phí chuyến {code}</DialogTitle>
             <DialogDescription>Nhập khoản bị sót. Sau khi văn phòng đóng chuyến sẽ không bổ sung được nữa.</DialogDescription>
           </DialogHeader>
-          <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} />
+          <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} photos={photos} />
           <Err error={error} />
           <button type="button" disabled={pending} onClick={submit} className={`${bigBtn} bg-primary text-primary-foreground`}>
             {progress ?? (pending ? "Đang gửi…" : "Gửi chi phí")}
@@ -234,7 +251,7 @@ export function AddExpenseButton({ shipmentId, code, categories }: { shipmentId:
 type EditableExpense = { id: string; code: string; amount: number; note: string | null; category_id: string; shipment_code: string; files: number };
 
 /** Sửa khoản chi phí chưa duyệt: lưu thành khoản mới, khoản cũ chuyển Đã hủy */
-export function EditExpenseButton({ expense, categories }: { expense: EditableExpense; categories: ExpenseCategory[] }) {
+export function EditExpenseButton({ expense, categories, photos = true }: { expense: EditableExpense; categories: ExpenseCategory[]; photos?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const init = (): ExpenseLine => ({ key: expense.id, cat: expense.category_id, amount: Number(expense.amount), note: (expense.note ?? "").replace(/\s*\(sửa từ [^)]+\)$/, ""), files: [] });
@@ -246,7 +263,7 @@ export function EditExpenseButton({ expense, categories }: { expense: EditableEx
   function submit() {
     start(async () => {
       setError(null);
-      const bad = lineError(line, categories, null, expense.files === 0);
+      const bad = lineError(line, categories, null, photos && expense.files === 0);
       if (bad) return setError(bad);
       const up = await uploadLineFiles(() => requestExpenseTicket(expense.id), line.files, setProgress);
       if ("error" in up) {
@@ -287,6 +304,7 @@ export function EditExpenseButton({ expense, categories }: { expense: EditableEx
             idx="edit"
             categories={categories}
             onChange={setLine}
+            photos={photos}
             imageHint={expense.files > 0 ? `Không chụp lại thì giữ ${expense.files} ảnh cũ.` : undefined}
           />
           <Err error={error} />

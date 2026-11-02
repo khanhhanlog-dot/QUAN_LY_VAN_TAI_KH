@@ -21,5 +21,6 @@ export async function updateSystemSetting(key: string, rawValue: string): Promis
     revalidatePath("/cau-hinh");
     revalidatePath("/dieu-phoi", "layout");
     revalidatePath("/chuyen-xe", "layout");
+    revalidatePath("/tx", "layout");
   }, "Đã lưu cấu hình.");
 }

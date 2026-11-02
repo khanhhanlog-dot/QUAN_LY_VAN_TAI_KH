@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { SettingValueEditor } from "./setting-row";
@@ -19,10 +19,38 @@ export default async function SettingsPage() {
   const canEdit = me.permissions.has("settings.configure");
   // Xóa dữ liệu thử: chỉ Super Admin/Admin (CSDL kiểm tra lại vai trò và mật khẩu)
   const isAdmin = me.roles.some((r) => r.code === "super_admin" || r.code === "admin");
+  // Ứng dụng tài xế: các công tắc gom vào một thẻ ở đầu trang
+  const DRIVER_KEYS = ["driver.photos_enabled", "shipment.require_delivery_photo", "driver.expense_enabled"];
+  const DRIVER_LABEL: Record<string, { title: string; hint: string }> = {
+    "driver.photos_enabled": { title: "Cho tài xế chụp ảnh", hint: "Tắt: ẩn mọi ô chụp ảnh (hoàn thành chuyến, hóa đơn chi phí), không bắt buộc ảnh ở đâu." },
+    "shipment.require_delivery_photo": { title: "Bắt buộc ảnh khi hoàn thành chuyến", hint: "Tắt: tài xế vẫn chụp được nhưng không chụp vẫn hoàn thành chuyến." },
+    "driver.expense_enabled": { title: "Cho tài xế nhập chi phí", hint: "Tắt: hoàn thành chuyến không hỏi chi phí, ẩn Bổ sung chi phí; văn phòng nhập chi phí ở chi tiết chuyến." },
+  };
+  const driverRows = DRIVER_KEYS.map((k) => (data ?? []).find((s) => s.key === k)).filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const otherRows = (data ?? []).filter((s) => !DRIVER_KEYS.includes(s.key));
   const purgeStatus = isAdmin ? ((await supabase.rpc("purge_password_status")).data as { is_set: boolean; updated_at: string | null } | null) : null;
   return (
     <>
       <PageHeader title="Cấu hình" description="Tham số hệ thống. Mỗi lần thay đổi được ghi nhật ký." />
+      {driverRows.length ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-base">Ứng dụng tài xế</CardTitle>
+            <CardDescription>Bật / tắt chụp ảnh và nhập chi phí trên điện thoại tài xế. Có tác dụng ngay, không cần tài xế cài lại.</CardDescription>
+          </CardHeader>
+          <CardContent className="divide-y">
+            {driverRows.map((s) => (
+              <div key={s.key} data-setting={s.key} className="flex items-center justify-between gap-4 py-3">
+                <div>
+                  <div className="font-medium">{DRIVER_LABEL[s.key]?.title ?? s.description}</div>
+                  <div className="text-sm text-muted-foreground">{DRIVER_LABEL[s.key]?.hint}</div>
+                </div>
+                <SettingValueEditor settingKey={s.key} value={s.value} canEdit={canEdit} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
       <FeeFormulaCard />
       <Card>
         <Table>
@@ -34,7 +62,7 @@ export default async function SettingsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(data ?? []).map((s) => (
+            {otherRows.map((s) => (
               <TableRow key={s.key}>
                 <TableCell>
                   <div className="font-medium">{s.description ?? s.key}</div>

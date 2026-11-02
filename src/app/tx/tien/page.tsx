@@ -5,6 +5,7 @@ import { formatDateTime, formatVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { AdvanceButton, CancelRequestButton, SignOutDriverButton } from "./money-forms";
 import { EditExpenseButton } from "../expense-forms";
+import { parseDriverAppSettings } from "@/lib/driver-link/settings";
 
 export const metadata: Metadata = { title: "Ứng tiền và chi phí" };
 export const dynamic = "force-dynamic";
@@ -72,7 +73,8 @@ export default async function DriverMoney() {
       </div>
     );
 
-  const [finRes, payRes] = await Promise.all([supabase.rpc("driver_me_finance"), supabase.rpc("driver_me_payrolls")]);
+  const [finRes, payRes, cfgRes] = await Promise.all([supabase.rpc("driver_me_finance"), supabase.rpc("driver_me_payrolls"), supabase.rpc("driver_app_settings")]);
+  const settings = parseDriverAppSettings(cfgRes.data);
   if (finRes.error) throw finRes.error;
   const f = finRes.data as Finance;
   const pay = (payRes.data ?? { ok: false, advance_balance: 0, payrolls: [] }) as Payrolls;
@@ -177,7 +179,7 @@ export default async function DriverMoney() {
               {e.reject_reason ? <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-sm">Lý do từ chối: {e.reject_reason}</p> : null}
               {e.editable ? (
                 <div className="mt-2 flex flex-wrap items-start gap-2">
-                  <EditExpenseButton expense={e} categories={f.categories} />
+                  {settings.expense_enabled ? <EditExpenseButton expense={e} categories={f.categories} photos={settings.photos_enabled} /> : null}
                   <CancelRequestButton kind="expense" id={e.id} />
                 </div>
               ) : null}

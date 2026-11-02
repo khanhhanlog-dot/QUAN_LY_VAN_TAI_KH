@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/input";
 import { uploadWithTicket } from "@/lib/driver-link/upload";
 import { acceptTrip, changeVehicle, completeTrip, requestUploadTicket, startTrip } from "./actions";
 import { PhotoPicker, type PickedFile } from "./photo-picker";
+import type { DriverAppSettings } from "@/lib/driver-link/settings";
 import { ExpenseLinesEditor, lineError, newLine, submitLines, type ExpenseCategory, type ExpenseLine } from "./expense-forms";
 
 export function AcceptButton({ shipmentId, code }: { shipmentId: string; code: string }) {
@@ -101,7 +102,23 @@ const RESULTS = [
   { value: "failed", label: "Không giao được" },
 ] as const;
 
-export function CompleteButton({ shipmentId, code, categories, outsourced = false }: { shipmentId: string; code: string; categories: ExpenseCategory[]; outsourced?: boolean }) {
+export function CompleteButton({
+  shipmentId,
+  code,
+  categories,
+  outsourced = false,
+  settings,
+}: {
+  shipmentId: string;
+  code: string;
+  categories: ExpenseCategory[];
+  outsourced?: boolean;
+  settings: DriverAppSettings;
+}) {
+  const photos = settings.photos_enabled;
+  const photoRequired = photos && settings.delivery_photo_required;
+  // Tắt nhập chi phí (Cấu hình) hoặc xe 3PL: không hỏi chi phí
+  const askExpense = settings.expense_enabled && !outsourced;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<PickedFile[]>([]);
@@ -121,33 +138,38 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
     start(async () => {
       setError(null);
       if (!completed) {
-        if (!files.length) return setError("Chụp ít nhất 1 ảnh hàng đã giao hoặc phiếu ký nhận.");
+        if (photoRequired && !files.length) return setError("Chụp ít nhất 1 ảnh hàng đã giao hoặc phiếu ký nhận.");
         if (result !== "full" && !note.trim()) return setError("Ghi lý do giao thiếu / không giao được.");
       }
-      if (!expenseMode && !outsourced) return setError('Chọn "Có chi phí" và nhập chi phí, hoặc chọn "Không phát sinh chi phí".');
-      if (expenseMode === "has") {
-        const bad = lines.map((l, i) => lineError(l, categories, lines.length > 1 ? i + 1 : null)).find(Boolean);
+      if (!expenseMode && askExpense) return setError('Chọn "Có chi phí" và nhập chi phí, hoặc chọn "Không phát sinh chi phí".');
+      if (askExpense && expenseMode === "has") {
+        const bad = lines.map((l, i) => lineError(l, categories, lines.length > 1 ? i + 1 : null, photos)).find(Boolean);
         if (bad) return setError(bad);
       }
       if (!completed) {
-        const t = await requestUploadTicket(shipmentId, "delivery");
-        if (!t.ok) return setError(t.error);
-        try {
-          setProgress(`Đang gửi ảnh 0/${files.length}…`);
-          await uploadWithTicket(t.ticket, files.map((f) => ({ file: f.file, kind: f.kind })), (n) => setProgress(`Đang gửi ảnh ${n}/${files.length}…`));
-        } catch (e) {
-          setProgress(null);
-          return setError((e as Error).message);
+        // Không có ảnh (đã tắt chụp ảnh hoặc không bắt buộc): không xin vé tải ảnh
+        let ticket: string | null = null;
+        if (files.length) {
+          const t = await requestUploadTicket(shipmentId, "delivery");
+          if (!t.ok) return setError(t.error);
+          try {
+            setProgress(`Đang gửi ảnh 0/${files.length}…`);
+            await uploadWithTicket(t.ticket, files.map((f) => ({ file: f.file, kind: f.kind })), (n) => setProgress(`Đang gửi ảnh ${n}/${files.length}…`));
+          } catch (e) {
+            setProgress(null);
+            return setError((e as Error).message);
+          }
+          ticket = t.ticket;
         }
         setProgress("Đang lưu…");
-        const r = await completeTrip({ shipmentId, ticket: t.ticket, result, note: note.trim() || undefined, noExpense: outsourced || expenseMode === "none" });
+        const r = await completeTrip({ shipmentId, ticket, result, note: note.trim() || undefined, noExpense: !askExpense || expenseMode === "none" });
         if (!r.ok) {
           setProgress(null);
           return setError(r.error);
         }
         setCompleted(true);
       }
-      if (expenseMode === "has") {
+      if (askExpense && expenseMode === "has") {
         const r = await submitLines(shipmentId, lines, setProgress);
         if (r.failed.length) {
           setProgress(null);
@@ -195,20 +217,28 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
         <DialogContent className="max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Hoàn thành chuyến {code}</DialogTitle>
-            <DialogDescription>Chụp ảnh hàng đã giao và phiếu giao hàng có chữ ký người nhận. Bắt buộc ít nhất 1 ảnh.</DialogDescription>
+            <DialogDescription>
+              {!photos
+                ? "Chọn kết quả giao hàng rồi bấm gửi."
+                : photoRequired
+                  ? "Chụp ảnh hàng đã giao và phiếu giao hàng có chữ ký người nhận. Bắt buộc ít nhất 1 ảnh."
+                  : "Chụp ảnh hàng đã giao và phiếu giao hàng có chữ ký người nhận (không bắt buộc)."}
+            </DialogDescription>
           </DialogHeader>
           {completed ? (
             <p className="rounded-lg bg-success/10 p-3 text-sm">Đã lưu hoàn thành chuyến. Gửi nốt các khoản chi phí bên dưới.</p>
           ) : (
             <>
-              <PhotoPicker
-                value={files}
-                onChange={setFiles}
-                kinds={[
-                  { value: "photo", label: "Ảnh hàng" },
-                  { value: "delivery_note", label: "Phiếu ký nhận" },
-                ]}
-              />
+              {photos ? (
+                <PhotoPicker
+                  value={files}
+                  onChange={setFiles}
+                  kinds={[
+                    { value: "photo", label: "Ảnh hàng" },
+                    { value: "delivery_note", label: "Phiếu ký nhận" },
+                  ]}
+                />
+              ) : null}
               <div>
                 <div className="mb-1 text-sm font-medium">Kết quả giao hàng</div>
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Kết quả giao hàng">
@@ -234,7 +264,7 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
               </div>
             </>
           )}
-          <div hidden={completed || outsourced}>
+          <div hidden={completed || !askExpense}>
             <div className="mb-1 text-sm font-medium">Chi phí chuyến (bắt buộc chọn)</div>
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Chi phí chuyến">
               {(
@@ -259,7 +289,7 @@ export function CompleteButton({ shipmentId, code, categories, outsourced = fals
               Chi phí tài xế tự trả (dầu, cầu đường, bốc xếp…). Nhập sót thì bấm &quot;Bổ sung chi phí&quot; trên thẻ chuyến trước khi văn phòng đóng chuyến.
             </p>
           </div>
-          {expenseMode === "has" && !outsourced ? <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} /> : null}
+          {expenseMode === "has" && askExpense ? <ExpenseLinesEditor lines={lines} onChange={setLines} categories={categories} photos={photos} /> : null}
           <ErrorText error={error} />
           <button
             type="button"

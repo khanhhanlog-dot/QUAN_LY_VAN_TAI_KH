@@ -140,3 +140,5 @@ upgrade nang-cap-doi-xe-tai-xe.sql "Hủy nhận xe để đổi xe, sửa số 
   supabase/migrations/20261102000049_trip_vehicle_change.sql
 upgrade nang-cap-chi-phi-dau-ra.sql "Nhập chi phí đầu ra theo dòng ở chuyến, Nhóm chi phí trong Danh mục hệ thống" "to_regclass('public.expense_groups') is not null" \
   supabase/migrations/20261102000050_trip_costs_groups.sql
+upgrade nang-cap-bat-tat-anh-chi-phi-tai-xe.sql "Bật / tắt chụp ảnh và nhập chi phí trên ứng dụng tài xế" "to_regprocedure('public.driver_app_settings()') is not null" \
+  supabase/migrations/20261102000052_driver_app_toggles.sql
