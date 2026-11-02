@@ -7,7 +7,7 @@ import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES } from "@/li
 import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
-import { CancelDialog } from "./cancel-dialog";
+import { CancelDialog, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 
 /** Bảng chuyến cho màn hình điều phối và chi tiết đơn hàng */
@@ -153,6 +153,7 @@ export function DispatchTable({
                       </Button>
                     ) : null}
                     {canCancel && CANCELLABLE_STATUSES.includes(r.status) ? <CancelDialog compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
+                    {canCancel && r.status === "cancelled" ? <RestoreShipmentButton compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
                   </div>
                 </td>
               ) : null}

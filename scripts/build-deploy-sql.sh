@@ -130,3 +130,5 @@ upgrade nang-cap-giao-viec.sql "Giao việc (Giám đốc giao việc, theo dõi
   supabase/migrations/20261101000044_tasks.sql
 upgrade nang-cap-lap-ke-hoach.sql "Lập kế hoạch (tạo đơn theo số cont, thứ tự chuyến, hạ rỗng trái tuyến, SĐT điểm nhận/giao)" "to_regclass('public.transport_plans') is not null" \
   supabase/migrations/20261102000045_transport_plans.sql
+upgrade nang-cap-tra-ve-ke-hoach.sql "Hủy đơn trả cont về Lập kế hoạch, khôi phục chuyến đã hủy" "to_regprocedure('public.restore_shipment(uuid)') is not null" \
+  supabase/migrations/20261102000046_plan_return_restore.sql

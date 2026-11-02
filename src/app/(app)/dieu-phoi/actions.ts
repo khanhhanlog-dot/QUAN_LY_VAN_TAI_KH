@@ -1167,3 +1167,20 @@ export async function revokeTripDelegation(id: string): Promise<ActionResult> {
     revalidatePath("/dieu-phoi", "layout");
   }, "Đã thu hồi ủy quyền.");
 }
+
+const restoreSchema = z.object({ shipmentId: uuid });
+
+/** Khôi phục chuyến đã hủy về "Chưa phân công" (mở lại đơn; cont đã trở về Lập kế hoạch được lấy lại) */
+export async function restoreShipment(input: z.input<typeof restoreSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.delete", "shipments.delete");
+    const p = restoreSchema.safeParse(input);
+    if (!p.success) throw new ActionError("Chuyến không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("restore_shipment", { p_shipment_id: p.data.shipmentId });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    revalidatePath("/ke-hoach");
+  }, "Đã khôi phục chuyến về Chưa phân công. Phân công lại xe, tài xế.");
+}

@@ -2,11 +2,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Ban, Loader2 } from "lucide-react";
+import { Ban, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label, Textarea } from "@/components/ui/input";
-import { cancelShipment } from "@/app/(app)/dieu-phoi/actions";
+import { cancelShipment, restoreShipment } from "@/app/(app)/dieu-phoi/actions";
 
 export function CancelDialog({ shipmentId, shipmentCode, compact }: { shipmentId: string; shipmentCode: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -54,6 +54,50 @@ export function CancelDialog({ shipmentId, shipmentCode, compact }: { shipmentId
               }
             >
               {pending ? <Loader2 className="animate-spin" /> : null} Xác nhận hủy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Khôi phục chuyến đã hủy về "Chưa phân công" */
+export function RestoreShipmentButton({ shipmentId, shipmentCode, compact }: { shipmentId: string; shipmentCode: string; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  return (
+    <>
+      <Button variant="outline" size="sm" className={compact ? "h-7 px-2" : undefined} onClick={() => setOpen(true)} title="Khôi phục chuyến đã hủy">
+        <RotateCcw /> Khôi phục
+      </Button>
+      <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Khôi phục chuyến {shipmentCode}</DialogTitle>
+            <DialogDescription>
+              Chuyến trở về trạng thái Chưa phân công (giữ nguyên giá, điểm nhận/giao). Đơn hàng đã hủy được mở lại. Nếu cont đã trở về Lập kế hoạch thì được lấy lại khỏi
+              kế hoạch. Sau đó phân công lại xe, tài xế.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+              Đóng
+            </Button>
+            <Button
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await restoreShipment({ shipmentId });
+                  if (!r.ok) return void toast.error(r.error);
+                  toast.success(r.message);
+                  setOpen(false);
+                  router.refresh();
+                })
+              }
+            >
+              {pending ? <Loader2 className="animate-spin" /> : <RotateCcw />} Khôi phục
             </Button>
           </DialogFooter>
         </DialogContent>

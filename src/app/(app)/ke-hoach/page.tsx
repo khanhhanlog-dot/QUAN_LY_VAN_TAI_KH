@@ -35,7 +35,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     <>
       <PageHeader
         title="Lập kế hoạch"
-        description="Nhận thông tin từ khách rồi nhập thành kế hoạch. Tích ô ở cột đầu tiên để tạo đơn trong Điều phối: số lượng cont bao nhiêu thì tạo bấy nhiêu đơn. Thứ tự chuyến bắt buộc tài xế nhận đúng thứ tự."
+        description="Nhận thông tin từ khách rồi nhập thành kế hoạch. Tích ô ở cột đầu tiên để tạo đơn trong Điều phối: số lượng cont bao nhiêu thì tạo bấy nhiêu đơn, kế hoạch rời khỏi danh sách. Hủy đơn ở Điều phối thì cont trở về đây; muốn bỏ hẳn thì xóa ở đây. Thứ tự chuyến bắt buộc tài xế nhận đúng thứ tự."
         actions={
           <Link href="/dieu-phoi" className="text-sm text-primary hover:underline">
             Mở Điều phối →

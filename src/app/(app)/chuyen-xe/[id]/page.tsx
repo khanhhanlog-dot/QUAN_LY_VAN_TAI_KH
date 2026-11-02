@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { AssignDialog } from "@/components/dispatch/assign-dialog";
-import { CancelDialog } from "@/components/dispatch/cancel-dialog";
+import { CancelDialog, RestoreShipmentButton } from "@/components/dispatch/cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "@/components/dispatch/trip-approval";
 import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
@@ -258,6 +258,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               />
             ) : null}
             {canCancel ? <CancelDialog shipmentId={s.id} shipmentCode={s.shipment_code} /> : null}
+            {s.status === "cancelled" && (me.permissions.has("dispatch.delete") || me.permissions.has("shipments.delete")) ? (
+              <RestoreShipmentButton shipmentId={s.id} shipmentCode={s.shipment_code} />
+            ) : null}
           </>
         }
       />
