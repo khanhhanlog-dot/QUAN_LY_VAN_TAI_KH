@@ -85,7 +85,7 @@ const ACTIONS_COL = "__actions";
 const LEAD_COL = "__lead";
 const isSysCol = (id: string) => id === ACTIONS_COL || id === LEAD_COL;
 
-function defaultView(fields: FieldDef[]): Required<Omit<TableViewConfig, "pageSize" | "rowHeight">> {
+function defaultView(fields: FieldDef[]): Required<Omit<TableViewConfig, "pageSize" | "rowHeight" | "sort">> {
   return {
     hidden: fields.filter((f) => !f.list).map((f) => f.key),
     order: [],

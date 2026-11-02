@@ -11,6 +11,7 @@ import { isUuid } from "@/lib/entities/record";
 import { loadTableView } from "@/lib/entities/server";
 import { advRefLabels, applyShipmentFilters, parseShipmentFilters, shipmentCustomFields } from "@/lib/shipments-query";
 import { loadFreeVehicles } from "@/lib/free-vehicles";
+import { dispatchExtraColumns } from "@/lib/dispatch-columns";
 import { PageHeader } from "@/components/layout/page-header";
 import { CompactDensity } from "@/components/layout/compact-density";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       .order("pickup_at")
       .limit(30),
     loadFreeVehicles(supabase, f.tu, f.den, { vehicleId: xe, driverId: tx }),
-    xem ? loadTableView(supabase, "dispatch_free_vehicles", me.id) : Promise.resolve(null),
+    loadTableView(supabase, xem ? "dispatch_free_vehicles" : "dispatch_list", me.id),
     advRefLabels(supabase, f.adv, advFields),
     // Chuyến chờ Giám đốc duyệt ở mọi ngày (tài xế chưa thấy)
     supabase
@@ -104,6 +105,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const approvalCount = all.filter((r) => r.dispatch_approval === "pending" || r.dispatch_approval === "rejected").length;
   const pendingAll = (approvalRes.data ?? []) as { id: string; dispatch_approval_request_id: string | null; can_approve_dispatch: boolean }[];
   const myApprovals = pendingAll.filter((r) => r.can_approve_dispatch && r.dispatch_approval_request_id).map((r) => r.dispatch_approval_request_id!);
+  const extras = xem ? { columns: [], values: {} } : await dispatchExtraColumns(supabase, me.permissions, [...all, ...upcoming]);
+  const tableProps = { view, extraColumns: extras.columns, extraValues: extras.values, canAddField: me.permissions.has("fields.configure") };
   const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, all.filter((r) => r.status === s.value).length]));
   const freeCount = free.filter((v) => v.free_days > 0).length;
   const filtered = Boolean(f.kh || xe || tx || f.q || f.adv.length);
@@ -216,6 +219,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             <p className="border-b bg-warning/10 px-4 py-2 text-xs">Chỉ hiển thị {MAX_ROWS} chuyến đầu tiên. Thu hẹp khoảng ngày hoặc thêm điều kiện lọc để xem đủ.</p>
           ) : null}
           <DispatchTable
+            {...tableProps}
             rows={rows}
             canAssign={canAssign}
             canCancel={canCancel}
@@ -232,7 +236,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             <CardDescription>Ngoài khoảng ngày đang xem, từ hôm nay trở đi, tối đa 30 chuyến gần nhất.</CardDescription>
           </CardHeader>
           <CardContent className="mt-4 border-t p-0">
-            <DispatchTable rows={upcoming} canAssign={canAssign} canCancel={canCancel} showDate />
+            <DispatchTable {...tableProps} toolbar={false} rows={upcoming} canAssign={canAssign} canCancel={canCancel} showDate />
           </CardContent>
         </Card>
       ) : null}

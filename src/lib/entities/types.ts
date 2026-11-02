@@ -141,6 +141,8 @@ export type TableViewConfig = {
   /** Chiều cao dòng (px) do người dùng kéo giãn */
   rowHeight?: number | null;
   pageSize?: number;
+  /** Sắp xếp đã lưu (bảng sắp xếp ở trình duyệt, ví dụ Điều phối) */
+  sort?: { id: string; desc: boolean }[];
 };
 
 /** Định nghĩa trường động đọc từ field_definitions (truyền được sang client) */

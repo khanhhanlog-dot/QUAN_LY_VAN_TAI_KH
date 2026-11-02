@@ -171,6 +171,10 @@ export async function saveTableView(tableKey: string, config: TableViewConfig): 
       density: config.density === "compact" ? "compact" : "normal",
       rowHeight: typeof config.rowHeight === "number" && config.rowHeight >= 28 && config.rowHeight <= 200 ? Math.round(config.rowHeight) : null,
       pageSize: [20, 50, 100].includes(config.pageSize ?? 0) ? config.pageSize : 20,
+      sort: (Array.isArray(config.sort) ? config.sort : [])
+        .filter((x) => x && typeof x.id === "string")
+        .slice(0, 3)
+        .map((x) => ({ id: x.id, desc: Boolean(x.desc) })),
     };
     const supabase = await createClient();
     const { error } = await supabase.rpc("save_table_view", { p_table_key: tableKey, p_config: clean });

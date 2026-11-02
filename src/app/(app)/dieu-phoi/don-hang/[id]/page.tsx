@@ -10,12 +10,13 @@ import { formatDate, formatDateTime, formatVND } from "@/lib/format";
 import type { ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
 import { CancelOrderDialog } from "./cancel-order-dialog";
-import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
+import { loadCustomFields, loadTableView, visibleCustomRows } from "@/lib/entities/server";
 import { formatValue, moduleCustomFields } from "@/lib/entities/record";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DispatchTable } from "@/components/dispatch/dispatch-table";
+import { dispatchExtraColumns } from "@/lib/dispatch-columns";
 
 export const metadata: Metadata = { title: "Đơn hàng" };
 
@@ -62,6 +63,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const rows = (shipRes.data ?? []) as ShipmentListRow[];
   const { data: names } = order.dispatcher_id ? await supabase.rpc("user_display_names", { p_ids: [order.dispatcher_id] }) : { data: null };
   const creator = (names as { display_name: string }[] | null)?.[0]?.display_name;
+  const [extras, view] = await Promise.all([dispatchExtraColumns(supabase, me.permissions, rows), loadTableView(supabase, "order_shipments", me.id)]);
   const live = rows.filter((r) => r.status !== "cancelled");
   const revenue = live.reduce((s, r) => s + Number(r.total_revenue), 0);
   const st = ORDER_STATUS[order.status] ?? {
@@ -143,6 +145,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </CardHeader>
         <CardContent className="mt-4 border-t p-0">
           <DispatchTable
+            tableKey="order_shipments"
+            view={view}
+            extraColumns={extras.columns}
+            extraValues={extras.values}
             rows={rows}
             showDate
             showOrder={false}

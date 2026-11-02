@@ -106,6 +106,7 @@ Cập nhật: 21/10/2026 · Ký hiệu: ✅ hoạt động (đã kiểm thử) �
 | Lọc theo khoảng ngày nhận hàng (từ ngày – đến ngày, tối đa 92 ngày, nút nhanh Hôm qua/Hôm nay/Ngày mai/7 ngày tới/Tháng này), công ty/khách hàng, số xe, tài xế, từ khóa, tìm kiếm nâng cao theo mọi cột của chuyến | ✅ | Liên kết cũ `?ngay=` vẫn chạy |
 | Báo cáo "Xe chưa có đơn": xe công ty đang hoạt động (không tính 3PL) còn trống trong ngày/khoảng ngày, số ngày trống và danh sách ngày trống | ✅ | Chuyến chạy nhiều ngày tính bận đến ngày giao dự kiến; bảng có tìm kiếm, tìm nâng cao, chọn/kéo/giãn cột, lưu cấu hình |
 | Cảnh báo khi giao xe đã có chuyến cùng ngày (khi phân công và khi tạo đơn); tích "Vẫn giao cho xe này" và bắt buộc nhập thứ tự chuyến của xe trong ngày (1, 2…) | ✅ | Migration 0023 (`shipments.vehicle_day_order`), app tài xế xếp chuyến trong ngày theo thứ tự này |
+| Bảng chuyến Điều phối (02/11/2026): kéo tiêu đề đổi thứ tự cột, bấm tiêu đề để sắp xếp (Shift sắp nhiều cột, ô trống luôn cuối), ẩn/hiện, cố định, kéo giãn cột/dòng, "Lưu cấu hình" theo từng người dùng (lưu cả sắp xếp); cột Loại hình vận chuyển, Loại cont và mọi trường bổ sung của chuyến/đơn | ✅ | Không migration. Loại cont = loại xe của chuyến. Loại hình vận chuyển = trường bổ sung có tên chứa "Loại hình" (chuyến ưu tiên, sau đó đơn hàng); chưa có thì cột trống và gợi ý bấm "Thêm cột (trường)". Chi tiết đơn hàng dùng cùng bảng, cấu hình lưu riêng (`order_shipments`) |
 
 ## Chưa triển khai
 
