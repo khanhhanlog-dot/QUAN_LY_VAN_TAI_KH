@@ -11,10 +11,6 @@ import { correctShipmentCrew, unacceptShipment } from "@/app/(app)/dieu-phoi/act
 import { todayVN } from "@/lib/format";
 import { VehicleDayConflict, type VehicleDayState } from "./vehicle-day-conflict";
 
-/** Trạng thái được "Hủy nhận xe" (tài xế đã nhận / đang chạy) */
-export const UNACCEPT_STATUSES = ["accepted", "in_transit"];
-/** Trạng thái được "Sửa xe, tài xế" trực tiếp (đã chạy / đã giao / đã đóng) */
-export const CORRECT_CREW_STATUSES = ["in_transit", "driver_completed", "closed"];
 
 /**
  * mode "unaccept": xe hư sau khi tài xế đã nhận → hủy phần nhận, chọn xe khác (tài xế khác nếu cần),

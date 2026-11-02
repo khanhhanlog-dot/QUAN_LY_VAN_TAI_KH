@@ -11,12 +11,8 @@ import { parseNumberVN } from "@/lib/entities/record";
 import { formatNumber, formatVND, formatDate, todayVN } from "@/lib/format";
 import { listOpenCarrierPayables, payCarrierPayables, saveCarrierCosts, type OpenCarrierPayable } from "@/lib/finance/carrier-actions";
 
-export type CarrierKind = "freight" | "pass_through" | "other";
-export const CARRIER_KIND_LABEL: Record<CarrierKind, string> = {
-  freight: "Cước 3PL",
-  pass_through: "Chi hộ 3PL",
-  other: "Chi phí khác",
-};
+import { CARRIER_KIND_LABEL, type CarrierKind } from "@/lib/finance/carrier-kind";
+export type { CarrierKind };
 
 export type CarrierCost = {
   line_no: number;

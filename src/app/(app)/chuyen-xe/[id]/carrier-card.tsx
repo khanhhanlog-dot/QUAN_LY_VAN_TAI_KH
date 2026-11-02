@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, formatVND } from "@/lib/format";
-import { CARRIER_KIND_LABEL, CarrierCostsDialog, type CarrierCost, type CarrierKind, type CustomerPassThrough } from "@/components/finance/carrier-dialogs";
+import { CarrierCostsDialog, type CarrierCost, type CustomerPassThrough } from "@/components/finance/carrier-dialogs";
+import { CARRIER_KIND_LABEL, type CarrierKind } from "@/lib/finance/carrier-kind";
 
 export type CarrierPayable = {
   id: string;
