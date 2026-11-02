@@ -91,6 +91,8 @@ export type EntityDef = {
   customModule?: string;
   /** Các trường hiện trong biểu mẫu tạo nhanh từ nút "+" */
   quickFields?: string[];
+  /** Nút "+" mở đủ mọi trường của danh mục (không rút gọn) */
+  quickFull?: boolean;
   /** Trang chi tiết (thay {id}) */
   detailPath?: string;
   /** Giá trị cố định khi ghi + điều kiện lọc khi đọc */

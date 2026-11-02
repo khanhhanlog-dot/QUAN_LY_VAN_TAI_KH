@@ -138,3 +138,5 @@ upgrade nang-cap-them-lua-chon.sql "Nút + thêm lựa chọn ngay tại ô ch�
   supabase/migrations/20261102000048_inline_field_options.sql
 upgrade nang-cap-doi-xe-tai-xe.sql "Hủy nhận xe để đổi xe, sửa số xe / tài xế cả khi chuyến đã hoàn thành" "to_regprocedure('public.unaccept_shipment(uuid,uuid,uuid,text)') is not null" \
   supabase/migrations/20261102000049_trip_vehicle_change.sql
+upgrade nang-cap-chi-phi-dau-ra.sql "Nhập chi phí đầu ra theo dòng ở chuyến, Nhóm chi phí trong Danh mục hệ thống" "to_regclass('public.expense_groups') is not null" \
+  supabase/migrations/20261102000050_trip_costs_groups.sql

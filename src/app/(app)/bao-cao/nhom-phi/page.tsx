@@ -34,7 +34,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const sp = await searchParams;
   const period = resolvePeriod(sp);
   const supabase = await createClient();
-  const [fees, costs, groups, viewPeriod, viewShip, viewFee, viewCost] = await Promise.all([
+  const [fees, costs, groups, expenseGroups, viewPeriod, viewShip, viewFee, viewCost] = await Promise.all([
     fetchAll<FeeGroupLine>(
       supabase,
       "report_fee_group_lines",
@@ -45,17 +45,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     fetchAll<CostLine>(
       supabase,
       "report_cost_lines",
-      "id, cost_kind, cost_group, cost_item, report_date, code, driver_name, plate_number, shipment_code, paid_by, supplier_name, amount, status, note",
+      "id, cost_kind, cost_group, cost_item, report_date, code, driver_name, plate_number, shipment_code, paid_by, supplier_name, amount, status, note, group_sort, ref_no",
       period.from,
       period.to,
     ),
     supabase.from("fee_groups").select("id, name, report_role, sort_order").eq("is_active", true).order("sort_order"),
+    supabase.from("expense_groups").select("name, sort_order").eq("is_active", true).order("sort_order").order("name"),
     loadTableView(supabase, "report_group_period", me.id),
     loadTableView(supabase, "report_group_shipments", me.id),
     loadTableView(supabase, "report_group_fee_types", me.id),
     loadTableView(supabase, "report_group_costs", me.id),
   ]);
   if (groups.error) throw groups.error;
+  if (expenseGroups.error) throw expenseGroups.error;
 
   return (
     <>
@@ -69,6 +71,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         fees={fees.map((f) => ({ ...f, amount: Number(f.amount) }))}
         costs={costs.map((c) => ({ ...c, amount: Number(c.amount) }))}
         groups={(groups.data ?? []) as { id: string; name: string; report_role: string; sort_order: number }[]}
+        expenseGroups={(expenseGroups.data ?? []) as { name: string; sort_order: number }[]}
         views={{ period: viewPeriod, ships: viewShip, feeTypes: viewFee, costs: viewCost }}
       />
     </>

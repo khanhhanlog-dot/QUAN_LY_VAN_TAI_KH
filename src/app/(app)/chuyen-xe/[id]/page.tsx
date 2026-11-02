@@ -20,8 +20,7 @@ import { ResubmitTripButton, TripApprovalButtons } from "@/components/dispatch/t
 import { shipmentCustomFields } from "@/lib/shipments-query";
 import { CustomFieldsCard } from "./custom-fields-card";
 import { formulaVars } from "@/lib/entities/definitions";
-import { ShipmentExpenseButton } from "./expense-button";
-import { ExpenseApproveButtons } from "./expense-approve";
+import { TripCostsCard, type TripCost } from "./trip-costs-card";
 import { ActForDriver } from "./act-for-driver";
 import { EditShipmentDialog } from "./edit-shipment-dialog";
 import { ItemsCard, type ShipmentItem } from "./items-card";
@@ -30,8 +29,6 @@ import { ProfitCard, type ShipmentProfit } from "./profit-card";
 import { CarrierCard, type CarrierPayable } from "./carrier-card";
 import type { CarrierCost } from "@/components/finance/carrier-dialogs";
 import { DocumentsButton } from "@/components/finance/documents-button";
-import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
-import { TONE_BADGE } from "@/lib/tones";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
@@ -70,7 +67,7 @@ type Assignment = {
   driver: { full_name: string; code: string } | null;
   vehicle: { plate_number: string } | null;
 };
-type Expense = { id: string; code: string; category_name: string; amount: number; status: string; paid_by: string; incurred_at: string; file_count: number; note: string | null; approval_request_id: string | null };
+type Expense = TripCost;
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
 type Change = { occurred_at: string; actor_name: string | null; field: string; old_value: string | null; new_value: string | null };
 
@@ -134,7 +131,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const canExpenses = me.permissions.has("expenses.view");
   const canSeeCarrier = ["dispatch.view", "receivables.view", "reports.view", "expenses.view"].some((k) => me.permissions.has(k as never));
   const canSeePayable = me.permissions.has("receivables.view");
-  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, expenseFields, itemRes, itemFieldRows, feeRes, profitRes] = await Promise.all([
+  const [custom, rowRes, extraRes, histRes, asgRes, changeRes, expRes, docRes, itemRes, itemFieldRows, feeRes, profitRes] = await Promise.all([
     shipmentCustomFields(supabase, me.permissions),
     supabase.from("shipment_list").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -152,10 +149,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       .order("assigned_at", { ascending: false }),
     supabase.rpc("shipment_change_history", { p_shipment_id: id }),
     canExpenses
-      ? supabase.from("expense_list").select("id, code, category_name, amount, status, paid_by, incurred_at, file_count, note, approval_request_id").eq("shipment_id", id).order("incurred_at")
+      ? supabase.from("expense_list").select("id, code, category_name, group_name, group_sort, amount, status, paid_by, incurred_at, file_count, note, ref_no, approval_request_id, payroll_id").eq("shipment_id", id).order("incurred_at").order("code")
       : Promise.resolve({ data: [], error: null }),
     supabase.from("documents").select("id", { count: "exact", head: true }).eq("entity_type", "shipment").eq("entity_id", id).is("archived_at", null),
-    loadCustomFields(supabase, "expenses"),
     supabase.from("shipment_items").select("line_no, item_code, item_name, quantity, unit, note, custom_fields").eq("shipment_id", id).order("line_no"),
     loadCustomFields(supabase, "shipment_items"),
     supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
@@ -179,6 +175,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const history = (histRes.data ?? []) as History[];
   const assignments = (asgRes.data ?? []) as unknown as Assignment[];
   const changes = (changeRes.data ?? []) as Change[];
+  if (expRes.error) throw expRes.error;
   const expenses = (expRes.data ?? []) as Expense[];
   // Khoản chờ duyệt mà người đang xem duyệt được: hiện nút Duyệt / Từ chối ngay tại dòng chi phí
   const pendingIds = expenses.filter((e) => e.status === "pending" && e.approval_request_id).map((e) => e.approval_request_id!);
@@ -460,11 +457,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             outsourced={x.vehicle?.ownership_type === "outsourced"}
             addExpense={
               me.permissions.has("expenses.create") && s.status !== "cancelled" ? (
-                <ShipmentExpenseButton
-                  shipment={{ id: s.id, label: s.shipment_code, driverId: s.driver_id, driverLabel: s.driver_name }}
-                  customRows={visibleCustomRows(expenseFields, me.permissions)}
-                  canAddField={me.permissions.has("fields.configure")}
-                />
+                <a href="#chi-phi-dau-ra" className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-sm font-medium hover:bg-muted">
+                  + Nhập chi phí đầu ra
+                </a>
               ) : null
             }
           />
@@ -653,63 +648,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         />
 
         {canExpenses ? (
-          <Card className="lg:col-span-3">
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-base">Chi phí chuyến</CardTitle>
-              {me.permissions.has("expenses.create") ? (
-                <ShipmentExpenseButton
-                  shipment={{ id: s.id, label: s.shipment_code, driverId: s.driver_id, driverLabel: s.driver_name }}
-                  customRows={visibleCustomRows(expenseFields, me.permissions)}
-                  canAddField={me.permissions.has("fields.configure")}
-                />
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              {expenses.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chưa có chi phí.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-xs text-muted-foreground">
-                      <tr>
-                        <th className="py-1 pr-3">Mã</th>
-                        <th className="py-1 pr-3">Loại</th>
-                        <th className="py-1 pr-3 text-right">Số tiền</th>
-                        <th className="py-1 pr-3">Người trả</th>
-                        <th className="py-1 pr-3">Trạng thái</th>
-                        <th className="py-1 pr-3">Ngày</th>
-                        <th className="py-1" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {expenses.map((e) => {
-                        const st = MONEY_STATUS.find((o) => o.value === e.status);
-                        return (
-                          <tr key={e.id} className="border-t">
-                            <td className="py-1.5 pr-3 font-mono text-xs">{e.code}</td>
-                            <td className="py-1.5 pr-3">
-                              {e.category_name}
-                              {e.note ? <span className="block text-xs text-muted-foreground">{e.note}</span> : null}
-                            </td>
-                            <td className="py-1.5 pr-3 text-right tabular-nums">{formatVND(e.amount)}</td>
-                            <td className="py-1.5 pr-3">{PAID_BY.find((o) => o.value === e.paid_by)?.label}</td>
-                            <td className="py-1.5 pr-3">{st ? <Badge variant={TONE_BADGE[st.tone!]}>{st.label}</Badge> : e.status}</td>
-                            <td className="py-1.5 pr-3">{formatDateTime(e.incurred_at)}</td>
-                            <td className="py-1.5 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                {e.approval_request_id && approvable.has(e.approval_request_id) ? <ExpenseApproveButtons row={approvable.get(e.approval_request_id)!} /> : null}
-                                <DocumentsButton entityType="shipment_expense" entityId={e.id} count={Number(e.file_count)} title={`Chứng từ ${e.code}`} />
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TripCostsCard
+            shipmentId={s.id}
+            shipmentCode={s.shipment_code}
+            costs={expenses}
+            approvable={Object.fromEntries(approvable)}
+            canCreate={me.permissions.has("expenses.create") && s.status !== "cancelled"}
+            canCancel={me.permissions.has("expenses.update") || me.permissions.has("expenses.delete")}
+            canCancelOwnPending={me.permissions.has("expenses.create")}
+          />
         ) : null}
       </div>
     </>

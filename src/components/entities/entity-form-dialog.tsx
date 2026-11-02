@@ -22,7 +22,7 @@ type Values = Record<string, unknown>;
 export function formFields(entityKey: string, customRows: CustomFieldRow[], quick: boolean): FieldDef[] {
   const entity = getEntity(entityKey);
   const all = effectiveFields(entity, customRows).filter((f) => !f.hideInForm && f.key !== entity.parentKey);
-  if (!quick) return all;
+  if (!quick || entity.quickFull) return all;
   const q = new Set(entity.quickFields ?? []);
   return all.filter((f) => q.has(f.key) || (f.required && f.defaultValue === undefined && !f.readOnly && f.type !== "formula"));
 }
@@ -121,7 +121,7 @@ export function EntityFormDialog({
   const title = readOnly
     ? `Chi tiết ${entity.singular}`
     : quick
-      ? `Thêm nhanh ${entity.singular}`
+      ? `${entity.quickFull ? "Thêm" : "Thêm nhanh"} ${entity.singular}${entity.quickFull ? " vào Danh mục hệ thống" : ""}`
       : isEdit
         ? `Sửa ${entity.singular}${record?.code ? ` ${record.code}` : ""}`
         : `Thêm ${entity.singular}`;
@@ -134,11 +134,15 @@ export function EntityFormDialog({
         if (o) form.reset(toFormValues(fields, record ?? null));
       }}
     >
-      <DialogContent className={cn(quick ? "max-w-lg" : "max-w-3xl")} onInteractOutside={(e) => form.formState.isDirty && e.preventDefault()}>
+      <DialogContent className={cn(quick && !entity.quickFull ? "max-w-lg" : "max-w-3xl")} onInteractOutside={(e) => form.formState.isDirty && e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {quick ? "Chỉ cần các thông tin chính; bổ sung chi tiết sau trong danh mục." : "Trường có dấu * là bắt buộc."}
+            {quick && !entity.quickFull
+              ? "Chỉ cần các thông tin chính; bổ sung chi tiết sau trong danh mục."
+              : quick
+                ? "Nhập đầy đủ như trong Danh mục hệ thống để báo cáo tổng hợp đúng. Trường có dấu * là bắt buộc."
+                : "Trường có dấu * là bắt buộc."}
           </DialogDescription>
           {canAddField && entity.customModule && !quick && !readOnly ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">

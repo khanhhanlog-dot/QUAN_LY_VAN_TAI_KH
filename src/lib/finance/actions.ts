@@ -67,6 +67,7 @@ const expenseSchema = z.object({
   supplierId: uuid.optional(),
   driverId: uuid.optional(),
   note: z.string().max(1000).optional(),
+  refNo: z.string().trim().max(100, "Số chứng từ tối đa 100 ký tự").optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
   clientRequestId: uuid,
 });
@@ -88,12 +89,32 @@ export async function createExpense(input: z.input<typeof expenseSchema>): Promi
       p_custom: custom,
       p_client_request_id: d.clientRequestId,
       p_supplier_id: d.paidBy === "company" ? (d.supplierId ?? null) : null,
+      p_ref_no: d.refNo || null,
     });
     if (error) throw error;
     refreshFinance();
     revalidatePath(`/chuyen-xe/${d.shipmentId}`);
     return data as string;
   }, "Đã lưu chi phí");
+}
+
+const cancelExpenseSchema = z.object({
+  expenseId: uuid,
+  shipmentId: uuid.optional(),
+  reason: z.string().trim().min(1, "Nhập lý do hủy").max(500),
+});
+
+/** Hủy khoản chi nhập sai (giữ lịch sử; muốn sửa thì hủy rồi nhập lại) */
+export async function cancelExpense(input: z.input<typeof cancelExpenseSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("expenses.create", "expenses.update", "expenses.delete");
+    const d = cancelExpenseSchema.parse(input);
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("cancel_shipment_expense", { p_expense_id: d.expenseId, p_reason: d.reason });
+    if (error) throw error;
+    refreshFinance();
+    if (d.shipmentId) revalidatePath(`/chuyen-xe/${d.shipmentId}`);
+  }, "Đã hủy khoản chi");
 }
 
 const decideSchema = z.object({

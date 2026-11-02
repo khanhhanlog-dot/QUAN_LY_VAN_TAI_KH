@@ -152,10 +152,10 @@ export function CreateExpenseDialog({ open, onOpenChange, customRows, canAddFiel
           <Field label="Ngày phát sinh" htmlFor="exp-date" help="Để trống là hôm nay">
             <Input id="exp-date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          <Field label="Người trả tiền" htmlFor="exp-paidby" help="Tài xế tự trả: được cộng lại cho tài xế khi đối soát lương cuối tháng">
+          <Field label="Nguồn chi" htmlFor="exp-paidby" help="Chi bởi tài xế: được cộng lại cho tài xế khi đối soát lương cuối tháng">
             <NativeSelect id="exp-paidby" value={paidBy} onChange={(e) => setPaidBy(e.target.value as "driver" | "company")}>
-              <option value="company">Công ty trả</option>
-              <option value="driver">Tài xế tự trả</option>
+              <option value="company">Chi bởi công ty</option>
+              <option value="driver">Chi bởi tài xế</option>
             </NativeSelect>
           </Field>
           {paidBy === "company" ? (
