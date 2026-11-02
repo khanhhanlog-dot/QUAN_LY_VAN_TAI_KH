@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Paperclip, Plus, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+import { DocumentsButton } from "@/components/finance/documents-button";
+import { uploadStaffDocuments } from "@/components/finance/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +30,21 @@ export type FeeLine = {
   quantity: string;
   unit_price: string;
 };
+
+/** Tệp PDF / ảnh hóa đơn chờ tải lên theo loại phí chi hộ (tải sau khi lưu chuyến) */
+export type FeeFiles = Record<string, File[]>;
+
+/** Tải các tệp hóa đơn chờ của phí chi hộ lên chuyến vừa lưu; trả về câu báo lỗi (nếu có) */
+export async function uploadFeeFiles(shipmentId: string, files: FeeFiles | undefined): Promise<string | null> {
+  let failed = 0;
+  for (const [feeTypeId, list] of Object.entries(files ?? {})) {
+    if (!list.length) continue;
+    const r = await uploadStaffDocuments("shipment_fee", shipmentId, list.map((file) => ({ file, docType: "invoice" as const })), feeTypeId);
+    if (!r.ok) failed += list.length;
+  }
+  return failed ? `${failed} tệp hóa đơn chi hộ chưa tải lên được. Mở chi tiết chuyến để đính kèm lại.` : null;
+}
+export const countFeeFiles = (files: FeeFiles | undefined) => Object.values(files ?? {}).reduce((a, l) => a + l.length, 0);
 
 export type FeeGroup = { id: string; name: string; report_role: FeeGroupRole; description: string | null };
 export type FeeTypeRow = { id: string; name: string; fee_kind: FeeKind; fee_group_id: string | null; description: string | null };
@@ -128,6 +146,81 @@ const ROW_HEAD: Record<FeeGroupRole, string[]> = {
   loading: ["Loại phí", "Số lượng", "Đơn giá (đ)", "Số tiền (đ)", "Ghi chú"],
 };
 
+// Phí chi hộ có nút đính kèm hóa đơn PDF / ảnh ngay sau ô Số hóa đơn
+const PASS_COLS_ATTACH = "sm:grid-cols-[minmax(0,10rem)_8.5rem_8.5rem_auto_minmax(0,1fr)]";
+const PASS_HEAD_ATTACH = ["Loại phí", "Số tiền (đ)", "Số hóa đơn", "Hóa đơn PDF", "Ghi chú"];
+const MAX_FILES = 10;
+const MAX_SIZE = 10 * 1024 * 1024;
+
+/** Nút đính kèm PDF / ảnh hóa đơn của một phí chi hộ: tệp chọn xong chờ, tải lên khi bấm Lưu */
+function FeeAttach({
+  name,
+  pending,
+  onPending,
+  shipmentId,
+  feeTypeId,
+  saved,
+}: {
+  name: string;
+  pending: File[];
+  onPending: (files: File[]) => void;
+  shipmentId?: string;
+  feeTypeId: string;
+  saved: number;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 px-2"
+        title="Đính kèm hóa đơn PDF hoặc ảnh (không bắt buộc, tối đa 10 tệp, 10 MB mỗi tệp). Tệp được tải lên khi bấm Lưu."
+        aria-label={`${name}: đính kèm hóa đơn PDF`}
+        onClick={() => input.current?.click()}
+      >
+        <Paperclip className="size-3.5" />
+        {pending.length ? <span className="tabular-nums">+{pending.length}</span> : <span className="sm:hidden">Đính kèm</span>}
+      </Button>
+      {pending.length ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
+          title={`Bỏ tệp chờ tải: ${pending.map((f) => f.name).join(", ")}`}
+          aria-label={`${name}: bỏ ${pending.length} tệp chờ tải`}
+          onClick={() => onPending([])}
+        >
+          <X className="size-3.5" />
+        </Button>
+      ) : null}
+      {shipmentId && saved ? (
+        <DocumentsButton entityType="shipment_fee" entityId={shipmentId} feeTypeId={feeTypeId} count={saved} title={`Hóa đơn ${name}`} label={`${saved}`} canUpload />
+      ) : null}
+      <input
+        ref={input}
+        type="file"
+        multiple
+        accept="application/pdf,image/*"
+        className="hidden"
+        aria-label={`${name}: chọn tệp hóa đơn`}
+        onChange={(e) => {
+          const picked = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          if (!picked.length) return;
+          if (picked.some((f) => f.size > MAX_SIZE)) return void toast.error("Mỗi tệp tối đa 10 MB");
+          if (picked.some((f) => f.type !== "application/pdf" && !f.type.startsWith("image/"))) return void toast.error("Chỉ nhận PDF hoặc ảnh");
+          const all = [...pending, ...picked];
+          if (all.length > MAX_FILES) toast.warning(`Mỗi loại phí tối đa ${MAX_FILES} tệp mỗi lần lưu`);
+          onPending(all.slice(0, MAX_FILES));
+        }}
+      />
+    </div>
+  );
+}
+
 export const FEE_KIND_LABEL: Record<FeeKind, string> = { revenue: "Tính doanh thu", pass_through: "Chi hộ" };
 
 /**
@@ -141,6 +234,10 @@ export function FeesEditor({
   freightBase,
   freightHead,
   freightLabel,
+  files,
+  onFilesChange,
+  shipmentId,
+  savedFiles,
 }: {
   value: FeeLine[];
   onChange: (lines: FeeLine[]) => void;
@@ -151,6 +248,12 @@ export function FeesEditor({
   freightHead?: ReactNode;
   /** Diễn giải phần cước (vd. "Đơn giá × (1 + 39%)") hiện ở dòng tổng nhóm Phí vận chuyển */
   freightLabel?: string;
+  /** Tệp hóa đơn chờ tải lên của các phí chi hộ; có onFilesChange thì hiện nút đính kèm cạnh Số hóa đơn */
+  files?: FeeFiles;
+  onFilesChange?: (files: FeeFiles) => void;
+  /** Chuyến đã lưu: số tệp đã đính kèm theo loại phí (xem lại được ngay) */
+  shipmentId?: string;
+  savedFiles?: Record<string, number>;
 }) {
   const [catalog, reload] = useFeeCatalog();
   const latest = useRef(value);
@@ -230,7 +333,9 @@ export function FeesEditor({
           const gTypes = types.filter((t) => t.fee_group_id === g.id);
           const isFreight = g.id === firstFreight;
           const role = g.report_role;
-          const cols = ROW_COLS[role];
+          const attach = role === "pass_through" && Boolean(onFilesChange);
+          const cols = attach ? PASS_COLS_ATTACH : ROW_COLS[role];
+          const head = attach ? PASS_HEAD_ATTACH : ROW_HEAD[role];
           const sum = groupSum(g);
           return (
             <fieldset key={g.id} className={cn("rounded-lg border p-2.5", isFreight && "border-primary/40")}>
@@ -238,8 +343,8 @@ export function FeesEditor({
               {isFreight && freightHead ? <div className="mb-1.5 space-y-1.5">{freightHead}</div> : null}
               {gTypes.length ? (
                 <div className={cn("mb-1 hidden gap-1.5 text-[11px] text-muted-foreground sm:grid", cols)}>
-                  {ROW_HEAD[role].map((h, i) => (
-                    <span key={i} className={i > 0 && h !== "Ghi chú" && h !== "Loại tờ khai" && !h.startsWith("Số ") ? "text-right" : undefined}>
+                  {head.map((h, i) => (
+                    <span key={i} className={i > 0 && h !== "Ghi chú" && h !== "Loại tờ khai" && h !== "Hóa đơn PDF" && !h.startsWith("Số ") ? "text-right" : undefined}>
                       {h}
                     </span>
                   ))}
@@ -303,6 +408,21 @@ export function FeesEditor({
                         <>
                           {moneyInput}
                           {refInput("Số hóa đơn")}
+                          {attach ? (
+                            <FeeAttach
+                              name={t.name}
+                              pending={files?.[t.id] ?? []}
+                              onPending={(list) => {
+                                const next = { ...(files ?? {}) };
+                                if (list.length) next[t.id] = list;
+                                else delete next[t.id];
+                                onFilesChange!(next);
+                              }}
+                              shipmentId={shipmentId}
+                              feeTypeId={t.id}
+                              saved={savedFiles?.[t.id] ?? 0}
+                            />
+                          ) : null}
                           {noteInput}
                         </>
                       ) : role === "loading" ? (

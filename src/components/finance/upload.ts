@@ -6,7 +6,10 @@ import { registerDocuments } from "@/lib/finance/actions";
 export type StaffFile = { file: File; docType: "photo" | "delivery_note" | "receipt" | "invoice" | "other" };
 
 /** Nhân viên tải chứng từ lên Storage (quyền documents.create kiểm tra trong chính sách Storage) rồi ghi vào bảng chứng từ */
-export async function uploadStaffDocuments(entityType: "shipment" | "shipment_expense" | "advance_request" | "purchase_request", entityId: string, items: StaffFile[]) {
+export type DocEntity = "shipment" | "shipment_expense" | "advance_request" | "purchase_request" | "shipment_fee";
+
+/** feeTypeId: bắt buộc với shipment_fee (tệp hóa đơn của một loại phí chi hộ, entityId = id chuyến) */
+export async function uploadStaffDocuments(entityType: DocEntity, entityId: string, items: StaffFile[], feeTypeId?: string) {
   const supabase = createClient();
   const files = [];
   for (const it of items) {
@@ -19,5 +22,5 @@ export async function uploadStaffDocuments(entityType: "shipment" | "shipment_ex
     files.push({ path, name: it.file.name.slice(0, 200), mime: mime as "image/jpeg", size: blob.size, docType: it.docType });
   }
   if (!files.length) return { ok: true as const };
-  return registerDocuments({ entityType, entityId, files });
+  return registerDocuments({ entityType, entityId, feeTypeId, files });
 }

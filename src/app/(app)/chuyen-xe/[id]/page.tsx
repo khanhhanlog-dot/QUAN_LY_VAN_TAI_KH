@@ -157,14 +157,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
     canExpenses ? supabase.from("shipment_profit").select("*").eq("shipment_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
-  const [carrierRes, payableRes] = await Promise.all([
+  const [carrierRes, payableRes, feeDocRes] = await Promise.all([
     canSeeCarrier
       ? supabase.from("shipment_carrier_costs").select("line_no, cost_kind, fee_type_id, description, quantity, unit_price, amount, ref_no, note, fee_type:fee_types(name)").eq("shipment_id", id).order("line_no")
       : Promise.resolve({ data: [], error: null }),
     canSeePayable
       ? supabase.from("payables").select("id, code, amount, paid_amount, status, due_date, invoice_no").eq("shipment_id", id).eq("kind", "carrier").neq("status", "cancelled").maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    // Tệp hóa đơn PDF / ảnh của phí chi hộ (lỗi thì chỉ không hiện số tệp)
+    supabase.from("documents").select("fee_type_id").eq("entity_type", "shipment_fee").eq("entity_id", id).is("archived_at", null),
   ]);
+  const feeDocs = new Map<string, number>();
+  for (const d of (feeDocRes.data ?? []) as { fee_type_id: string | null }[]) if (d.fee_type_id) feeDocs.set(d.fee_type_id, (feeDocs.get(d.fee_type_id) ?? 0) + 1);
   if (carrierRes.error) throw carrierRes.error;
   const carrierCosts = (carrierRes.data ?? []) as unknown as CarrierCost[];
   const carrierPayable = (payableRes.data ?? null) as CarrierPayable | null;
@@ -396,7 +400,24 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   <Line
                     key={f.line_no}
                     label={`${f.fee_type?.name ?? "Phí"}${f.declaration?.name ? ` · tờ khai ${f.declaration.name}` : ""}${f.quantity != null && f.unit_price != null ? ` · ${formatNumber(f.quantity)} × ${formatNumber(f.unit_price)}` : ""}${f.ref_no ? ` · số ${f.ref_no}` : ""}${f.fee_kind === "pass_through" ? " (chi hộ)" : ""}${f.note ? ` (${f.note})` : ""}`}
-                    value={formatVND(f.amount)}
+                    value={
+                      f.fee_kind === "pass_through" || f.fee_type?.fee_group?.report_role === "pass_through" ? (
+                        <span className="inline-flex items-center gap-1">
+                          <DocumentsButton
+                            entityType="shipment_fee"
+                            entityId={s.id}
+                            feeTypeId={f.fee_type_id}
+                            count={feeDocs.get(f.fee_type_id) ?? 0}
+                            title={`Hóa đơn ${f.fee_type?.name ?? "phí chi hộ"} · chuyến ${s.shipment_code}`}
+                            label={feeDocs.get(f.fee_type_id) ? `PDF (${feeDocs.get(f.fee_type_id)})` : "Đính kèm"}
+                            canUpload={me.permissions.has("documents.create") && s.status !== "cancelled"}
+                          />
+                          {formatVND(f.amount)}
+                        </span>
+                      ) : (
+                        formatVND(f.amount)
+                      )
+                    }
                   />
                 ))}
                 <Line label={`Cộng ${g.name.toLowerCase()}`} value={<b>{formatVND(g.lines.reduce((a, f) => a + Number(f.amount), 0))}</b>} />
@@ -406,7 +427,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <Line label="Tổng doanh thu" value={<b className="text-primary">{formatVND(s.total_revenue)}</b>} />
             </div>
             {Number(s.pass_through_amount) > 0 ? <Line label="Khách phải trả (gồm chi hộ)" value={<b>{formatVND(s.amount_due)}</b>} /> : null}
-            {canEditFees ? <FeesDialog shipmentId={s.id} code={s.shipment_code} fees={fees} /> : null}
+            {canEditFees ? <FeesDialog shipmentId={s.id} code={s.shipment_code} fees={fees} feeDocs={Object.fromEntries(feeDocs)} /> : null}
             <div className="space-y-1 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
               <p>
                 Giá:{" "}

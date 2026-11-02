@@ -142,3 +142,5 @@ upgrade nang-cap-chi-phi-dau-ra.sql "Nhập chi phí đầu ra theo dòng ở ch
   supabase/migrations/20261102000050_trip_costs_groups.sql
 upgrade nang-cap-bat-tat-anh-chi-phi-tai-xe.sql "Bật / tắt chụp ảnh và nhập chi phí trên ứng dụng tài xế" "to_regprocedure('public.driver_app_settings()') is not null" \
   supabase/migrations/20261102000052_driver_app_toggles.sql
+upgrade nang-cap-hoa-don-chi-ho.sql "Đính kèm PDF / ảnh hóa đơn cho phí chi hộ" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'fee_type_id')" \
+  supabase/migrations/20261102000053_pass_through_fee_files.sql

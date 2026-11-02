@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Loader2, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FeesEditor, feesPayload, newFee, numText, type FeeKind, type FeeLine } from "@/app/(app)/dieu-phoi/tao-don/fees-editor";
+import { FeesEditor, countFeeFiles, feesPayload, newFee, numText, uploadFeeFiles, type FeeFiles, type FeeKind, type FeeLine } from "@/app/(app)/dieu-phoi/tao-don/fees-editor";
 import { saveShipmentFees } from "@/app/(app)/dieu-phoi/actions";
 import { formatNumber } from "@/lib/format";
 
@@ -24,10 +24,11 @@ export type ShipmentFee = {
 };
 
 /** Nhập, sửa các khoản phí thu khách của chuyến (bốc xếp, chi hộ…) */
-export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; code: string; fees: ShipmentFee[] }) {
+export function FeesDialog({ shipmentId, code, fees, feeDocs }: { shipmentId: string; code: string; fees: ShipmentFee[]; feeDocs?: Record<string, number> }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<FeeLine[]>([]);
+  const [files, setFiles] = useState<FeeFiles>({});
   const [pending, start] = useTransition();
 
   return (
@@ -52,6 +53,7 @@ export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; cod
               }),
             ),
           );
+          setFiles({});
           setOpen(true);
         }}
       >
@@ -63,7 +65,7 @@ export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; cod
             <DialogTitle>Phí thu khách của chuyến {code}</DialogTitle>
             <DialogDescription>Phí theo nhóm: Phí vận chuyển (cộng vào Tổng cước), Chi hộ, Tờ khai, Bốc xếp. Phí chi hộ có trong số khách phải trả nhưng không tính doanh thu. Chuyến đã lập công nợ thì không sửa được phí.</DialogDescription>
           </DialogHeader>
-          <FeesEditor value={lines} onChange={setLines} idPrefix="ct-fee-" />
+          <FeesEditor value={lines} onChange={setLines} idPrefix="ct-fee-" files={files} onFilesChange={setFiles} shipmentId={shipmentId} savedFiles={feeDocs} />
           <DialogFooter>
             <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>
               Đóng
@@ -74,6 +76,10 @@ export function FeesDialog({ shipmentId, code, fees }: { shipmentId: string; cod
                 start(async () => {
                   const r = await saveShipmentFees({ shipmentId, fees: feesPayload(lines) });
                   if (!r.ok) return void toast.error(r.error);
+                  if (countFeeFiles(files)) {
+                    const err = await uploadFeeFiles(shipmentId, files);
+                    if (err) toast.warning(err, { duration: 15000 });
+                  }
                   toast.success(r.message);
                   setOpen(false);
                   router.refresh();
