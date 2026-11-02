@@ -6,6 +6,7 @@ import { AdvanceRowActions, ApprovalRowActions, ExpenseRowActions, type RowActio
 import { CreateLeaveDialog, HandoverRowActions, LeaveRowActions } from "@/components/leave/leave-dialogs";
 import { CreateTaskDialog, TaskRowActions } from "@/components/tasks/task-dialogs";
 import { CreatePurchaseRequestDialog, PurchaseRowActions } from "./purchase-dialogs";
+import { PlanTick } from "@/components/plans/plan-tick";
 import { BillingRowActions, CarrierRowActions, PayableRowActions, PaymentRowActions, PayrollRowActions, ReceivableRowActions } from "./payroll-debt-actions";
 
 /** Biểu mẫu nghiệp vụ thay cho biểu mẫu chung khi bấm "Tạo …" trên bảng (EntityDef.createAction) */
@@ -35,6 +36,11 @@ export const ROW_ACTIONS: Record<string, ComponentType<RowActionProps>> = {
   leave_handover: HandoverRowActions,
   task: TaskRowActions,
   purchase_request: PurchaseRowActions,
+};
+
+/** Ô thao tác ở cột đầu tiên của dòng (EntityDef.leadAction) */
+export const LEAD_ACTIONS: Record<string, ComponentType<RowActionProps>> = {
+  plan: PlanTick,
 };
 
 /** Độ rộng cột thao tác (px) theo loại nút */

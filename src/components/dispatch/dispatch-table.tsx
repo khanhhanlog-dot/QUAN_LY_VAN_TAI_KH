@@ -36,7 +36,7 @@ export function DispatchTable({
           <tr>
             <th className="py-2 pr-3 pl-4 font-medium">Ngày nhận</th>
             <th className="px-3 py-2 font-medium">{showOrder ? "Chuyến / Khách hàng" : "Mã chuyến"}</th>
-            <th className="px-3 py-2 font-medium">Tuyến</th>
+            <th className="px-3 py-2 font-medium">Tuyến đường</th>
             <th className="px-3 py-2 font-medium">Xe / Tài xế</th>
             <th className="px-3 py-2 font-medium">Trạng thái</th>
             {showActions ? <th className="px-4 py-2 font-medium text-right">Thao tác</th> : null}
@@ -69,6 +69,13 @@ export function DispatchTable({
                   {showOrder && r.vehicle_type_name ? " · " : null}
                   {r.vehicle_type_name}
                 </div>
+                {r.trip_order || r.plan_code ? (
+                  <div className="truncate text-xs text-muted-foreground">
+                    {r.trip_order ? <b className="text-primary">Thứ tự {r.trip_order}</b> : null}
+                    {r.trip_order && r.plan_code ? " · " : null}
+                    {r.plan_code ? <Link href={`/ke-hoach?q=${encodeURIComponent(r.plan_code)}`} className="hover:text-primary hover:underline">KH {r.plan_code}</Link> : null}
+                  </div>
+                ) : null}
               </td>
               <td className="max-w-60 px-3 py-1.5">
                 <div className="truncate" title={r.pickup_name ?? undefined}>
@@ -78,6 +85,16 @@ export function DispatchTable({
                   <ArrowRight className="size-3.5 shrink-0" />
                   <span className="truncate">{r.delivery_name}</span>
                 </div>
+                {r.empty_return_name ? (
+                  <div className="truncate text-xs text-muted-foreground" title={`Điểm hạ rỗng: ${r.empty_return_name}`}>
+                    Hạ rỗng: {r.empty_return_name}
+                  </div>
+                ) : null}
+                {r.offroute_return_name ? (
+                  <div className="truncate text-xs font-medium text-amber-700 dark:text-amber-400" title={`Điểm hạ rỗng trái tuyến: ${r.offroute_return_name}`}>
+                    Hạ rỗng trái tuyến: {r.offroute_return_name}
+                  </div>
+                ) : null}
               </td>
               <td className="px-3 py-1.5 whitespace-nowrap">
                 {r.driver_id ? (

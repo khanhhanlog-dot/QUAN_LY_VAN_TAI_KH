@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BadgeCheck, BarChart3, Building2, Bus, CalendarOff, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
+  BadgeCheck, BarChart3, Building2, Bus, CalendarOff, CalendarRange, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
   ListOrdered, MessageCircle, Receipt, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
-  BadgeCheck, BarChart3, Building2, Bus, CalendarOff, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
+  BadgeCheck, BarChart3, Building2, Bus, CalendarOff, CalendarRange, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
   ListOrdered, MessageCircle, Receipt, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow,
 };
 

@@ -52,7 +52,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { ExportButton, ImportDialog } from "./excel-buttons";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
 import { AddFieldButton } from "./add-field-button";
-import { CREATE_ACTIONS, ROW_ACTIONS, ROW_ACTION_WIDTH } from "@/components/finance/registry";
+import { CREATE_ACTIONS, LEAD_ACTIONS, ROW_ACTIONS, ROW_ACTION_WIDTH } from "@/components/finance/registry";
 
 type Row = Record<string, unknown>;
 
@@ -81,6 +81,9 @@ export type EntityTableProps = {
 };
 
 const ACTIONS_COL = "__actions";
+/** Cột thao tác đứng đầu bảng (ví dụ ô tích tạo đơn từ kế hoạch), luôn cố định bên trái */
+const LEAD_COL = "__lead";
+const isSysCol = (id: string) => id === ACTIONS_COL || id === LEAD_COL;
 
 function defaultView(fields: FieldDef[]): Required<Omit<TableViewConfig, "pageSize" | "rowHeight">> {
   return {
@@ -109,7 +112,9 @@ export function EntityTable(props: EntityTableProps) {
   );
   const [order, setOrder] = useState<ColumnOrderState>(() => initial.order ?? []);
   const [sizing, setSizing] = useState<ColumnSizingState>(() => initial.widths ?? {});
-  const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: initial.pinned ?? base.pinned, right: [ACTIONS_COL] }));
+  const LeadAction = entity.leadAction ? LEAD_ACTIONS[entity.leadAction] : undefined;
+  const leftPins = (pins: string[]) => (LeadAction ? [LEAD_COL, ...pins.filter((p) => p !== LEAD_COL)] : pins);
+  const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: leftPins(initial.pinned ?? base.pinned), right: [ACTIONS_COL] }));
   const [density, setDensity] = useState<"compact" | "normal">(initial.density ?? "normal");
   const [rowHeight, setRowHeight] = useState<number | null>(props.view?.rowHeight ?? null);
   const [dragCol, setDragCol] = useState<string | null>(null);
@@ -169,7 +174,7 @@ export function EntityTable(props: EntityTableProps) {
 
   function dropColumn(target: string) {
     if (!dragCol || dragCol === target) return;
-    const ids = table.getAllLeafColumns().map((c) => c.id).filter((x) => x !== ACTIONS_COL);
+    const ids = table.getAllLeafColumns().map((c) => c.id).filter((x) => !isSysCol(x));
     const from = ids.indexOf(dragCol);
     const to = ids.indexOf(target);
     if (from < 0 || to < 0) return;
@@ -240,6 +245,17 @@ export function EntityTable(props: EntityTableProps) {
         return <span title={text.length > 40 ? text : undefined}>{text}</span>;
       },
     }));
+    if (LeadAction) {
+      cols.unshift({
+        id: LEAD_COL,
+        header: entity.leadAction === "plan" ? "Tạo đơn" : "",
+        size: 76,
+        enableResizing: false,
+        enableSorting: false,
+        enableHiding: false,
+        cell: ({ row }) => <LeadAction row={row.original} onDone={() => router.refresh()} />,
+      });
+    }
     cols.push({
       id: ACTIONS_COL,
       header: "",
@@ -309,14 +325,14 @@ export function EntityTable(props: EntityTableProps) {
   });
 
   const pageCount = Math.max(1, Math.ceil(total / size));
-  const leafColumns = table.getAllLeafColumns().filter((c) => c.id !== ACTIONS_COL);
+  const leafColumns = table.getAllLeafColumns().filter((c) => !isSysCol(c.id));
 
   function currentConfig(): TableViewConfig {
     return {
       hidden: Object.entries(visibility).filter(([, v]) => !v).map(([k]) => k),
-      order: table.getAllLeafColumns().map((c) => c.id).filter((id) => id !== ACTIONS_COL),
+      order: table.getAllLeafColumns().map((c) => c.id).filter((id) => !isSysCol(id)),
       widths: sizing,
-      pinned: pinning.left ?? [],
+      pinned: (pinning.left ?? []).filter((id) => id !== LEAD_COL),
       density,
       rowHeight,
       pageSize: size,
@@ -324,7 +340,7 @@ export function EntityTable(props: EntityTableProps) {
   }
 
   function moveColumn(id: string, delta: number) {
-    const ids = table.getAllLeafColumns().map((c) => c.id).filter((x) => x !== ACTIONS_COL);
+    const ids = table.getAllLeafColumns().map((c) => c.id).filter((x) => !isSysCol(x));
     const i = ids.indexOf(id);
     const j = i + delta;
     if (i < 0 || j < 0 || j >= ids.length) return;
@@ -461,7 +477,7 @@ export function EntityTable(props: EntityTableProps) {
                   setVisibility(Object.fromEntries(fields.map((f) => [f.key, !base.hidden.includes(f.key)])));
                   setOrder([]);
                   setSizing({});
-                  setPinning({ left: base.pinned, right: [ACTIONS_COL] });
+                  setPinning({ left: leftPins(base.pinned), right: [ACTIONS_COL] });
                   setDensity("normal");
                   setRowHeight(null);
                   toast.success(r.message);
@@ -475,7 +491,7 @@ export function EntityTable(props: EntityTableProps) {
             <ExportButton
               entityKey={entityKey}
               params={{ q: props.q, sort: props.sort, dir: props.dir, filters: props.filters, adv: props.adv }}
-              visibleColumns={table.getVisibleLeafColumns().map((c) => c.id).filter((id) => id !== ACTIONS_COL)}
+              visibleColumns={table.getVisibleLeafColumns().map((c) => c.id).filter((id) => !isSysCol(id))}
             />
           ) : null}
           {access.import ? <ImportDialog entityKey={entityKey} revalidate={props.revalidate} /> : null}
@@ -509,24 +525,24 @@ export function EntityTable(props: EntityTableProps) {
                     <th
                       key={h.id}
                       style={pinStyle(col, true)}
-                      draggable={col.id !== ACTIONS_COL && !col.getIsResizing()}
+                      draggable={!isSysCol(col.id) && !col.getIsResizing()}
                       onDragStart={(e) => {
                         setDragCol(col.id);
                         e.dataTransfer.effectAllowed = "move";
                         e.dataTransfer.setData("text/plain", col.id);
                       }}
                       onDragOver={(e) => {
-                        if (dragCol && col.id !== ACTIONS_COL) e.preventDefault();
+                        if (dragCol && !isSysCol(col.id)) e.preventDefault();
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
                         dropColumn(col.id);
                       }}
                       onDragEnd={() => setDragCol(null)}
-                      title={col.id !== ACTIONS_COL ? "Kéo để đổi vị trí cột" : undefined}
+                      title={!isSysCol(col.id) ? "Kéo để đổi vị trí cột" : undefined}
                       className={cn(
                         "relative border-b bg-muted text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
-                        col.id !== ACTIONS_COL && "cursor-grab active:cursor-grabbing",
+                        !isSysCol(col.id) && "cursor-grab active:cursor-grabbing",
                         dragCol === col.id && "opacity-50",
                         cellPad,
                       )}

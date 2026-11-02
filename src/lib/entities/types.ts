@@ -115,6 +115,8 @@ export type EntityDef = {
   readOnlyRows?: boolean;
   /** Nút "Thêm mới" mở biểu mẫu nghiệp vụ riêng (khóa trong bảng đăng ký components/finance/registry) */
   createAction?: string;
+  /** Ô thao tác ở cột ĐẦU TIÊN của mỗi dòng (ví dụ ô tích tạo đơn từ kế hoạch; khóa trong LEAD_ACTIONS) */
+  leadAction?: string;
   /** Nút thao tác trên từng dòng (khóa trong bảng đăng ký components/finance/registry) */
   rowActions?: string;
   /** Mọi thao tác ghi cần đúng một quyền này (ví dụ approvals.configure) */

@@ -324,6 +324,23 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 ) : null}
               </Item>
               <Item label="Loại xe">{s.vehicle_type_name ?? "–"}</Item>
+              {s.empty_return_name || s.offroute_return_name ? (
+                <Item label="Hạ rỗng">
+                  {s.empty_return_name ?? "–"}
+                  {s.offroute_return_name ? <span className="block font-medium text-amber-700 dark:text-amber-400">Trái tuyến: {s.offroute_return_name}</span> : null}
+                </Item>
+              ) : null}
+              {s.trip_order || s.plan_code ? (
+                <Item label="Thứ tự chuyến / kế hoạch">
+                  {s.trip_order ? `Thứ tự ${s.trip_order}` : "–"}
+                  {s.plan_code ? <span className="text-muted-foreground"> · kế hoạch {s.plan_code}</span> : null}
+                </Item>
+              ) : null}
+              <Item label="SĐT điểm nhận / giao">
+                {s.pickup_phone ? <a href={`tel:${s.pickup_phone.replace(/[^0-9+]/g, "")}`} className="text-primary hover:underline">{s.pickup_phone}</a> : "–"}
+                {" / "}
+                {s.delivery_phone ? <a href={`tel:${s.delivery_phone.replace(/[^0-9+]/g, "")}`} className="text-primary hover:underline">{s.delivery_phone}</a> : "–"}
+              </Item>
               <Item label="Ngày nhận hàng">{formatDate(s.pickup_at)}</Item>
               <Item label="Ngày giao dự kiến">{s.expected_delivery_at ? formatDate(s.expected_delivery_at) : "–"}</Item>
               <Item label="Xe">{s.plate_number ?? "Chưa chọn"}</Item>

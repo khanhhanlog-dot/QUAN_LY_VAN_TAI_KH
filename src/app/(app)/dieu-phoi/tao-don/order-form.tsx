@@ -30,6 +30,11 @@ type Row = {
   expectedDeliveryAt: string;
   pickupLocationId: string;
   deliveryLocationId: string;
+  /** Điểm hạ rỗng, điểm hạ rỗng trái tuyến (không bắt buộc) */
+  emptyReturnLocationId: string;
+  offrouteReturnLocationId: string;
+  /** Thứ tự chuyến: tài xế phải nhận đúng thứ tự trong ngày */
+  tripOrder: string;
   vehicleTypeId: string;
   vehicleId: string;
   driverId: string;
@@ -79,6 +84,9 @@ export type EditShipmentInit = {
   expectedDeliveryDate: string;
   pickupLocationId: string;
   deliveryLocationId: string;
+  emptyReturnLocationId: string;
+  offrouteReturnLocationId: string;
+  tripOrder: number | null;
   vehicleTypeId: string;
   vehicleId: string;
   driverId: string;
@@ -128,6 +136,9 @@ const newRow = (from?: Row): Row => ({
   expectedDeliveryAt: from?.expectedDeliveryAt ?? "",
   pickupLocationId: from?.pickupLocationId ?? "",
   deliveryLocationId: from?.deliveryLocationId ?? "",
+  emptyReturnLocationId: from?.emptyReturnLocationId ?? "",
+  offrouteReturnLocationId: from?.offrouteReturnLocationId ?? "",
+  tripOrder: "",
   vehicleTypeId: from?.vehicleTypeId ?? "",
   vehicleId: "",
   driverId: "",
@@ -153,6 +164,9 @@ const rowFromShipment = (s: EditShipmentInit, generalKeys: string[], priceKeys: 
   expectedDeliveryAt: s.expectedDeliveryDate,
   pickupLocationId: s.pickupLocationId,
   deliveryLocationId: s.deliveryLocationId,
+  emptyReturnLocationId: s.emptyReturnLocationId,
+  offrouteReturnLocationId: s.offrouteReturnLocationId,
+  tripOrder: s.tripOrder === null ? "" : String(s.tripOrder),
   vehicleTypeId: s.vehicleTypeId,
   vehicleId: s.vehicleId,
   driverId: s.driverId,
@@ -286,6 +300,9 @@ export function OrderForm({
     expectedDeliveryAt: endIso(s.expectedDeliveryAt),
     pickupLocationId: s.pickupLocationId,
     deliveryLocationId: s.deliveryLocationId,
+    emptyReturnLocationId: s.emptyReturnLocationId,
+    offrouteReturnLocationId: s.offrouteReturnLocationId,
+    tripOrder: s.tripOrder.trim() === "" ? null : Number(s.tripOrder),
     vehicleTypeId: s.vehicleTypeId,
     vehicleId: s.vehicleId,
     driverId: s.driverId,
@@ -780,6 +797,31 @@ function ShipmentEditor({
               <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("delivery")}>Điểm giao *</Label>
                 <ReferenceSelect id={id("delivery")} refKey="locations" value={row.deliveryLocationId} onChange={(v) => routeChange({ deliveryLocationId: v, priceListId: "" })} />
+              </div>
+            ),
+            empty_return_location_id: (
+              <div className="space-y-1 lg:col-span-2">
+                <Label htmlFor={id("empty-return")}>Điểm hạ rỗng</Label>
+                <ReferenceSelect id={id("empty-return")} refKey="locations" value={row.emptyReturnLocationId} onChange={(v) => onChange({ emptyReturnLocationId: v })} />
+              </div>
+            ),
+            offroute_return_location_id: (
+              <div className="space-y-1 lg:col-span-2">
+                <Label htmlFor={id("offroute-return")}>Điểm hạ rỗng trái tuyến</Label>
+                <ReferenceSelect id={id("offroute-return")} refKey="locations" value={row.offrouteReturnLocationId} onChange={(v) => onChange({ offrouteReturnLocationId: v })} />
+              </div>
+            ),
+            trip_order: (
+              <div className="space-y-1">
+                <Label htmlFor={id("trip-order")}>Thứ tự chuyến</Label>
+                <Input
+                  id={id("trip-order")}
+                  inputMode="numeric"
+                  placeholder="1, 2…"
+                  title="Tài xế phải nhận chuyến đúng thứ tự trong ngày"
+                  value={row.tripOrder}
+                  onChange={(e) => onChange({ tripOrder: e.target.value.replace(/\D/g, "").slice(0, 2) })}
+                />
               </div>
             ),
             vehicle_id: (

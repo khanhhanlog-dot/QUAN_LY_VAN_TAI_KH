@@ -50,6 +50,15 @@ type Trip = {
   outsourced: boolean;
   /** Thứ tự chuyến của xe trong ngày (điều phối nhập khi xe chạy nhiều chuyến cùng ngày) */
   vehicle_day_order?: number | null;
+  /** Thứ tự chuyến dùng để nhận chuyến (thứ tự của xe trong ngày hoặc từ kế hoạch) */
+  trip_rank?: number | null;
+  /** Chuyến cùng ngày có thứ tự nhỏ hơn còn chờ nhận: phải nhận chuyến đó trước */
+  wait_for_code?: string | null;
+  wait_for_rank?: number | null;
+  empty_return_name?: string | null;
+  empty_return_address?: string | null;
+  offroute_return_name?: string | null;
+  offroute_return_address?: string | null;
 };
 
 const RESULT_LABEL: Record<string, string> = { full: "Giao đủ", partial: "Giao thiếu", failed: "Không giao được" };
@@ -95,7 +104,7 @@ export default async function DriverHome() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-mono text-base font-semibold">{t.shipment_code}</div>
-                    {t.vehicle_day_order ? <div className="text-sm font-semibold text-primary">Chuyến thứ {t.vehicle_day_order} trong ngày</div> : null}
+                    {t.trip_rank ? <div className="text-sm font-semibold text-primary">Chuyến thứ {t.trip_rank} trong ngày</div> : null}
                     <div className="text-sm text-muted-foreground">Tài xế: {t.driver_name}</div>
                   </div>
                   <Badge variant={st.variant}>{st.label}</Badge>
@@ -112,13 +121,34 @@ export default async function DriverHome() {
                 <Place label="Điểm nhận" name={t.pickup_name} address={t.pickup_address} contact={t.pickup_contact} phone={t.pickup_phone} maps={t.pickup_maps_url} gate={t.pickup_gate_instructions} />
                 <Place label="Điểm giao" name={t.delivery_name} address={t.delivery_address} contact={t.delivery_contact} phone={t.delivery_phone} maps={t.delivery_maps_url} gate={t.delivery_gate_instructions} />
 
+                {t.empty_return_name || t.offroute_return_name ? (
+                  <div className="mt-3 space-y-1 rounded-xl bg-muted px-3 py-2 text-sm">
+                    {t.empty_return_name ? (
+                      <div>
+                        Hạ rỗng: <strong>{t.empty_return_name}</strong>
+                        {t.empty_return_address ? <span className="text-muted-foreground"> · {t.empty_return_address}</span> : null}
+                      </div>
+                    ) : null}
+                    {t.offroute_return_name ? (
+                      <div className="text-amber-700 dark:text-amber-400">
+                        Hạ rỗng trái tuyến: <strong>{t.offroute_return_name}</strong>
+                        {t.offroute_return_address ? <span> · {t.offroute_return_address}</span> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   {t.vehicle_type_name ? <span>Loại xe: {t.vehicle_type_name}</span> : null}
                   {t.quantity ? <span>Số lượng: {formatNumber(t.quantity)}</span> : null}
                 </div>
                 {t.notes ? <p className="mt-2 rounded-lg bg-warning/10 p-2 text-sm">Ghi chú: {t.notes}</p> : null}
 
-                {t.status === "assigned" ? (
+                {t.status === "assigned" && t.wait_for_code ? (
+                  <p data-wait-for={t.wait_for_code} className="mt-4 rounded-xl border border-warning bg-warning/10 p-3 text-center text-sm font-medium">
+                    Nhận chuyến thứ {t.wait_for_rank} ({t.wait_for_code}) trước, rồi mới nhận được chuyến này.
+                  </p>
+                ) : t.status === "assigned" ? (
                   <AcceptButton shipmentId={t.shipment_id} code={t.shipment_code} />
                 ) : t.status === "accepted" ? (
                   <>
@@ -169,15 +199,25 @@ function Place(p: { label: string; name: string; address: string; contact: strin
         <div className="text-xs font-medium uppercase text-muted-foreground">{p.label}</div>
         <div className="font-semibold">{p.name}</div>
         <div className="text-sm text-muted-foreground">{p.address}</div>
+        <div className="text-sm">
+          SĐT {p.label.toLowerCase()}:{" "}
+          {p.phone ? (
+            <a href={`tel:${p.phone.replace(/[^0-9+]/g, "")}`} className="font-semibold text-primary">
+              {p.phone}
+            </a>
+          ) : (
+            <span className="text-muted-foreground">chưa có</span>
+          )}
+          {p.contact ? <span className="text-muted-foreground"> · {p.contact}</span> : null}
+        </div>
         {p.gate ? <div className="text-sm">Cổng: {p.gate}</div> : null}
         <div className="mt-2 flex flex-wrap gap-2">
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium text-primary">
             <Navigation className="size-4" /> Chỉ đường
           </a>
           {p.phone ? (
-            <a href={`tel:${p.phone}`} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium">
-              <Phone className="size-4" /> {p.contact ? `${p.contact} · ` : ""}
-              {p.phone}
+            <a href={`tel:${p.phone.replace(/[^0-9+]/g, "")}`} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium">
+              <Phone className="size-4" /> Gọi {p.label.toLowerCase()}
             </a>
           ) : null}
         </div>

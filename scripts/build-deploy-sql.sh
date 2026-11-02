@@ -128,3 +128,5 @@ upgrade nang-cap-tro-chuyen.sql "Trò chuyện riêng và nhóm trong ứng dụ
   supabase/migrations/20261101000043_chat.sql
 upgrade nang-cap-giao-viec.sql "Giao việc (Giám đốc giao việc, theo dõi tiến độ, hạn, trao đổi)" "to_regclass('public.tasks') is not null" \
   supabase/migrations/20261101000044_tasks.sql
+upgrade nang-cap-lap-ke-hoach.sql "Lập kế hoạch (tạo đơn theo số cont, thứ tự chuyến, hạ rỗng trái tuyến, SĐT điểm nhận/giao)" "to_regclass('public.transport_plans') is not null" \
+  supabase/migrations/20261102000045_transport_plans.sql

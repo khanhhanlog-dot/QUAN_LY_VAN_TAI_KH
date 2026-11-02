@@ -41,7 +41,7 @@ export function applyShipmentFilters(query: any, f: ShipmentFilters, opts: { sta
   let q = query.gte("pickup_at", startOfDayVN(f.tu)).lt("pickup_at", startOfDayVN(addDaysYMD(f.den, 1)));
   if (f.kh) q = q.eq("customer_id", f.kh);
   if (f.q) {
-    q = q.or(["shipment_code", "order_code", "customer_name", "plate_number", "driver_name", "pickup_name", "delivery_name"].map((c) => `${c}.ilike.*${f.q}*`).join(","));
+    q = q.or(["shipment_code", "order_code", "customer_name", "plate_number", "driver_name", "pickup_name", "delivery_name", "plan_code", "empty_return_name", "offroute_return_name"].map((c) => `${c}.ilike.*${f.q}*`).join(","));
   }
   if (f.adv.length) {
     const all = [...SHIPMENT_ADV_FIELDS, ...(f.extraAdv ?? [])];

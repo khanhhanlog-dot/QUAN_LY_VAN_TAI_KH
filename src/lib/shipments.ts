@@ -58,6 +58,17 @@ export type ShipmentListRow = {
   declaration_fee?: number;
   loading_fee?: number;
   other_fee?: number;
+  /** Lập kế hoạch (0045): tuyến đường "Điểm nhận → Điểm giao", thứ tự chuyến, hạ rỗng, kế hoạch gốc, SĐT */
+  route_label?: string | null;
+  trip_order?: number | null;
+  empty_return_location_id?: string | null;
+  empty_return_name?: string | null;
+  offroute_return_location_id?: string | null;
+  offroute_return_name?: string | null;
+  plan_id?: string | null;
+  plan_code?: string | null;
+  pickup_phone?: string | null;
+  delivery_phone?: string | null;
   /** Lời/lỗ (view shipment_profit, ghép ở trang khi người xem có quyền chi phí/báo cáo) */
   trip_cost?: number | null;
   vehicle_cost?: number | null;
@@ -80,6 +91,11 @@ export const SHIPMENT_ADV_FIELDS: AdvField[] = [
   { key: "expected_delivery_at", label: "Ngày giao dự kiến", kind: "date" },
   { key: "pickup_location_id", label: "Điểm nhận", kind: "reference", ref: "locations" },
   { key: "delivery_location_id", label: "Điểm giao", kind: "reference", ref: "locations" },
+  { key: "route_label", label: "Tuyến đường", kind: "text" },
+  { key: "empty_return_location_id", label: "Điểm hạ rỗng", kind: "reference", ref: "locations" },
+  { key: "offroute_return_location_id", label: "Điểm hạ rỗng trái tuyến", kind: "reference", ref: "locations" },
+  { key: "trip_order", label: "Thứ tự chuyến", kind: "number" },
+  { key: "plan_code", label: "Mã kế hoạch", kind: "text" },
   { key: "vehicle_type_id", label: "Loại xe", kind: "reference", ref: "vehicle_types" },
   { key: "vehicle_id", label: "Xe", kind: "reference", ref: "vehicles" },
   { key: "plate_number", label: "Biển số", kind: "text" },
