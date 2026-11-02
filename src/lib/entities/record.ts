@@ -63,6 +63,7 @@ export function customFieldToDef(row: CustomFieldRow): FieldDef {
     formula: row.formula ?? undefined,
     displayFormat: row.display_format ?? undefined,
     custom: true,
+    fieldId: row.id,
     wide: row.data_type === "long_text",
     showIf: parseVisibility(row.visibility_condition),
   };

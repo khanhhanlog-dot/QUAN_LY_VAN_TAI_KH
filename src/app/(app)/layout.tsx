@@ -10,6 +10,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { NavSearch } from "@/components/layout/nav-search";
 import { UserMenu } from "@/components/layout/user-menu";
 import { ChatBadge } from "@/components/chat/chat-badge";
+import { OptionAddProvider } from "@/components/entities/add-option";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireActiveUser();
@@ -26,6 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     (g) => g.items.length > 0,
   );
   const displayName = user.fullName || user.email;
+  // Nút + thêm lựa chọn ở ô chọn: người cấu hình trường hoặc người nhập liệu (có quyền Thêm/Sửa)
+  const canAddOptions = [...user.permissions].some(
+    (p) => p === "fields.configure" || (/\.(create|update)$/.test(p) && !p.startsWith("documents.") && !p.startsWith("driver_app.")),
+  );
 
   return (
     <div className="flex min-h-screen">
@@ -54,7 +59,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <UserMenu name={displayName} email={user.email} avatarUrl={user.avatarUrl} roles={user.roles.map((r) => r.name)} />
         </header>
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">
+          <OptionAddProvider canAdd={canAddOptions}>{children}</OptionAddProvider>
+        </main>
       </div>
     </div>
   );

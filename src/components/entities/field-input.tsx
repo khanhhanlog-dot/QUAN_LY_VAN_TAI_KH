@@ -5,6 +5,7 @@ import { formatNumber } from "@/lib/format";
 import { compactUpper, parseNumberVN } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 import { ReferenceSelect } from "./reference-select";
+import { AddOptionButton, useFieldOptions } from "./add-option";
 
 type Values = Record<string, unknown>;
 
@@ -36,14 +37,13 @@ export function FieldInput({
       return <Textarea {...common} rows={3} maxLength={field.maxLength} placeholder={field.placeholder} {...register(field.key)} />;
     case "select":
       return (
-        <NativeSelect {...common} {...register(field.key)}>
-          <option value="">{field.required ? "— Chọn —" : "— Không chọn —"}</option>
-          {field.options?.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </NativeSelect>
+        <Controller
+          control={control}
+          name={field.key}
+          render={({ field: f }) => (
+            <OptionSelect id={id} field={field} invalid={invalid} disabled={disabled} value={String(f.value ?? "")} onChange={f.onChange} onBlur={f.onBlur} />
+          )}
+        />
       );
     case "multiselect":
       return (
@@ -52,21 +52,7 @@ export function FieldInput({
           name={field.key}
           render={({ field: f }) => {
             const arr = Array.isArray(f.value) ? (f.value as string[]) : [];
-            return (
-              <div className="flex flex-wrap gap-2 rounded-md border p-2" id={id} aria-invalid={invalid || undefined}>
-                {field.options?.map((o) => (
-                  <label key={o.value} className="flex cursor-pointer items-center gap-1.5 text-sm">
-                    <input
-                      type="checkbox"
-                      disabled={disabled}
-                      checked={arr.includes(o.value)}
-                      onChange={(e) => f.onChange(e.target.checked ? [...arr, o.value] : arr.filter((x) => x !== o.value))}
-                    />
-                    {o.label}
-                  </label>
-                ))}
-              </div>
-            );
+            return <OptionChecks id={id} field={field} invalid={invalid} disabled={disabled} value={arr} onChange={f.onChange} />;
           }}
         />
       );
@@ -172,4 +158,85 @@ export function FieldInput({
       }
       return <Input {...common} maxLength={field.maxLength} placeholder={field.placeholder} autoComplete="off" {...register(field.key)} />;
   }
+}
+
+/** Ô chọn một: kèm nút + thêm lựa chọn mới (trường bổ sung) */
+function OptionSelect({
+  id,
+  field,
+  value,
+  onChange,
+  onBlur,
+  invalid,
+  disabled,
+}: {
+  id: string;
+  field: FieldDef;
+  value: string;
+  onChange: (v: string) => void;
+  onBlur?: () => void;
+  invalid?: boolean;
+  disabled?: boolean;
+}) {
+  const { options, canAdd } = useFieldOptions(field);
+  const select = (
+    <NativeSelect id={id} aria-invalid={invalid || undefined} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur}>
+      <option value="">{field.required ? "— Chọn —" : "— Không chọn —"}</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+      {value && !options.some((o) => o.value === value) ? <option value={value}>{value}</option> : null}
+    </NativeSelect>
+  );
+  if (!canAdd) return select;
+  return (
+    <div className="flex gap-1.5">
+      {select}
+      <AddOptionButton field={field} disabled={disabled} onAdded={(o) => onChange(o.value)} />
+    </div>
+  );
+}
+
+/** Ô chọn nhiều: kèm nút + thêm lựa chọn mới (trường bổ sung), thêm xong tự đánh dấu */
+function OptionChecks({
+  id,
+  field,
+  value,
+  onChange,
+  invalid,
+  disabled,
+}: {
+  id: string;
+  field: FieldDef;
+  value: string[];
+  onChange: (v: string[]) => void;
+  invalid?: boolean;
+  disabled?: boolean;
+}) {
+  const { options, canAdd } = useFieldOptions(field);
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border p-2" id={id} aria-invalid={invalid || undefined}>
+      {options.map((o) => (
+        <label key={o.value} className="flex cursor-pointer items-center gap-1.5 text-sm">
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={value.includes(o.value)}
+            onChange={(e) => onChange(e.target.checked ? [...value, o.value] : value.filter((x) => x !== o.value))}
+          />
+          {o.label}
+        </label>
+      ))}
+      {canAdd ? (
+        <AddOptionButton
+          field={field}
+          disabled={disabled}
+          className="ml-auto size-7 shrink-0"
+          onAdded={(o) => onChange(value.includes(o.value) ? value : [...value, o.value])}
+        />
+      ) : null}
+    </div>
+  );
 }

@@ -61,6 +61,8 @@ export type FieldDef = {
   formula?: string;
   /** Trường động (lưu trong custom_fields) */
   custom?: boolean;
+  /** Id trong field_definitions (trường động): cho nút + thêm lựa chọn ngay tại ô chọn */
+  fieldId?: string;
   /** Định dạng hiển thị (trường động) */
   displayFormat?: string;
 };

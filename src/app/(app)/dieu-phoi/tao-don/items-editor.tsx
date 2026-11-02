@@ -9,6 +9,7 @@ import { applyLayout, formatValue, parseNumberVN } from "@/lib/entities/record";
 import { computeFormula } from "@/lib/formula";
 import { formatNumber } from "@/lib/format";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
+import { AddOptionButton, useFieldOptions } from "@/components/entities/add-option";
 
 export type ItemLine = { key: number; item_code: string; item_name: string; quantity: string; unit: string; note: string; custom: Record<string, unknown> };
 
@@ -187,18 +188,7 @@ function CellInput({ field: f, line, index, onChange }: { field: FieldDef; line:
   if (f.type === "formula") {
     return <div className="flex h-8 items-center rounded-md border bg-muted/40 px-2 text-sm">{formatValue({ ...f, type: "number" }, computeFormula(f.formula, lineVars(line))) || "—"}</div>;
   }
-  if (f.type === "select") {
-    return (
-      <NativeSelect aria-label={label} className="h-8" value={String(v ?? "")} onChange={(e) => onChange(e.target.value)}>
-        <option value="">—</option>
-        {f.options?.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </NativeSelect>
-    );
-  }
+  if (f.type === "select") return <CellSelect field={f} label={label} value={String(v ?? "")} onChange={onChange} />;
   if (f.type === "boolean") {
     return <input type="checkbox" aria-label={label} className="mt-2 size-4" checked={v === true} onChange={(e) => onChange(e.target.checked)} />;
   }
@@ -211,5 +201,24 @@ function CellInput({ field: f, line, index, onChange }: { field: FieldDef; line:
       value={String(v ?? "")}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+/** Ô chọn trong bảng hàng hóa, kèm nút + thêm lựa chọn mới */
+function CellSelect({ field: f, label, value, onChange }: { field: FieldDef; label: string; value: string; onChange: (v: unknown) => void }) {
+  const { options, canAdd } = useFieldOptions(f);
+  return (
+    <div className="flex gap-1">
+      <NativeSelect aria-label={label} className="h-8" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">—</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+        {value && !options.some((o) => o.value === value) ? <option value={value}>{value}</option> : null}
+      </NativeSelect>
+      {canAdd ? <AddOptionButton field={f} className="size-8 shrink-0" onAdded={(o) => onChange(o.value)} /> : null}
+    </div>
   );
 }
