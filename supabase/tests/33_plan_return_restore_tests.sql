@@ -73,3 +73,25 @@ select tests.assert_fails($$select public.restore_shipment(pg_temp.v('x1'))$$, '
 reset role;
 \o
 \echo 'TẤT CẢ KIỂM THỬ TRẢ VỀ KẾ HOẠCH, KHÔI PHỤC CHUYẾN ĐỀU ĐẠT'
+
+-- 0047: chuyến hủy kiểu cũ (kế hoạch vẫn "đã tạo đơn") khôi phục được
+\o /dev/null
+select tests.login('00000000-0000-0000-0000-0000000000d1');
+set role authenticated;
+insert into public.transport_plans (customer_id, container_qty, pickup_location_id, delivery_location_id, notes)
+values ('10000000-0000-0000-0000-000000000001', 2, '20000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'kieu-cu');
+insert into t_rr select 'L', id::text from public.transport_plans where notes = 'kieu-cu';
+select public.plan_create_orders(pg_temp.v('L'));
+insert into t_rr select 'l' || row_number() over (order by shipment_code), id::text from public.shipments where plan_id = pg_temp.v('L');
+reset role;
+-- Giả lập hủy trước bản 0046: tắt trigger trả về
+alter table public.shipments disable trigger trg_shipments_plan_on_cancel;
+update public.shipments set status = 'cancelled', cancel_reason = 'Đổi kế hoạch' where plan_id = pg_temp.v('L');
+alter table public.shipments enable trigger trg_shipments_plan_on_cancel;
+set role authenticated;
+select public.restore_shipment(pg_temp.v('l1'));
+select tests.assert((select status from public.shipments where id = pg_temp.v('l1')) = 'draft', 'Chuyến hủy kiểu cũ khôi phục được');
+select tests.assert((select status = 'ordered' and order_count = 1 from public.transport_plans where id = pg_temp.v('L')), 'Kế hoạch cũ cập nhật còn 1 đơn đang chạy');
+reset role;
+\o
+\echo 'KHÔI PHỤC CHUYẾN HỦY KIỂU CŨ ĐẠT'

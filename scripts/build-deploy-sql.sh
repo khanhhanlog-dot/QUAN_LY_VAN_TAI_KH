@@ -132,3 +132,5 @@ upgrade nang-cap-lap-ke-hoach.sql "Lập kế hoạch (tạo đơn theo số con
   supabase/migrations/20261102000045_transport_plans.sql
 upgrade nang-cap-tra-ve-ke-hoach.sql "Hủy đơn trả cont về Lập kế hoạch, khôi phục chuyến đã hủy" "to_regprocedure('public.restore_shipment(uuid)') is not null" \
   supabase/migrations/20261102000046_plan_return_restore.sql
+upgrade nang-cap-sua-khoi-phuc.sql "Sửa khôi phục chuyến hủy trước bản trả cont về kế hoạch" "position('-infinity' in pg_get_functiondef(to_regprocedure('public.restore_shipment(uuid)'))) > 0" \
+  supabase/migrations/20261102000047_restore_legacy_fix.sql
