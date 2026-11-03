@@ -184,9 +184,9 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
   for (const d of (feeDocRes.data ?? []) as { fee_type_id: string | null }[]) if (d.fee_type_id) feeDocs.set(d.fee_type_id, (feeDocs.get(d.fee_type_id) ?? 0) + 1);
   if (carrierRes.error) throw carrierRes.error;
   const carrierCosts = (carrierRes.data ?? []) as unknown as CarrierCost[];
-  // Hạng mục "Thuê xe ngoài (3-PL)": chuyến 3PL tự chọn sẵn ở Chi phí đầu ra
+  // Hạng mục "Thuê xe ngoài (3-PL)": chuyến 3PL tự chọn sẵn ở Chi phí đầu ra (từ 0058 mã đổi sang CP…, mã cũ ở legacy_code)
   const outsourceRow = canSeeCarrier
-    ? ((await supabase.from("expense_categories").select("id, name").eq("code", "OUTSOURCE").eq("is_active", true).maybeSingle()).data ??
+    ? ((await supabase.from("expense_categories").select("id, name").or("code.eq.OUTSOURCE,legacy_code.eq.OUTSOURCE").eq("is_active", true).limit(1).maybeSingle()).data ??
       (await supabase.from("expense_categories").select("id, name").eq("is_active", true).or("name.ilike.%3-PL%,name.ilike.%3PL%,name.ilike.%thuê xe ngoài%").order("sort_order").limit(1).maybeSingle()).data)
     : null;
   const outsourceCat = outsourceRow ? { id: String(outsourceRow.id), label: String(outsourceRow.name) } : null;
