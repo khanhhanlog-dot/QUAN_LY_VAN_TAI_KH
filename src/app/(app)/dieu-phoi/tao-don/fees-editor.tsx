@@ -457,7 +457,7 @@ export function FeesEditor({
                     </div>
                   );
                 })}
-                {!gTypes.length ? <p className="text-xs text-muted-foreground">Nhóm chưa có loại phí. Thêm ở Danh mục → Loại phí thu khách.</p> : null}
+                {!gTypes.length ? <p className="text-xs text-muted-foreground">Nhóm chưa có phí. Thêm ở Danh mục → Danh mục phí → Thu khách.</p> : null}
                 {role === "loading" && gTypes.length ? (
                   <p className="text-xs text-muted-foreground">Có Số lượng và Đơn giá thì Số tiền tự tính = SL × Đơn giá; không dùng thì gõ thẳng Số tiền.</p>
                 ) : null}

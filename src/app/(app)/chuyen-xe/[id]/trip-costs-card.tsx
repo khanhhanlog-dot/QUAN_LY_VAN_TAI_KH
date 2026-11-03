@@ -212,7 +212,7 @@ export function TripCostsCard(props: {
         <div className="space-y-1">
           <CardTitle className="text-base">Chi phí đầu ra của chuyến</CardTitle>
           <CardDescription>
-            Mỗi khoản một dòng. Chi phí chọn trong Danh mục hệ thống (Hạng mục chi phí); chi phí chưa có thì bấm + để thêm đầy đủ vào danh mục. Khoản cần duyệt chỉ cộng vào lời/lỗ sau khi Giám
+            Mỗi khoản một dòng. Chi phí chọn trong Danh mục hệ thống (Danh mục phí, nguồn Chi ra); chi phí chưa có thì bấm + để thêm đầy đủ vào danh mục. Khoản cần duyệt chỉ cộng vào lời/lỗ sau khi Giám
             đốc duyệt.
           </CardDescription>
         </div>
@@ -415,7 +415,7 @@ export function TripCostsCard(props: {
               <table className="w-full min-w-[36rem] text-sm [&_td]:border-r [&_td:last-child]:border-r-0 [&_th]:border-r [&_th:last-child]:border-r-0">
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1.5">Nhóm chi phí</th>
+                    <th className="px-2 py-1.5">Nhóm phí</th>
                     <th className="px-2 py-1.5 text-right">Số khoản</th>
                     <th className="px-2 py-1.5 text-right">Chi bởi công ty</th>
                     <th className="px-2 py-1.5 text-right">Chi bởi tài xế</th>
@@ -460,7 +460,7 @@ export function TripCostsCard(props: {
               </table>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">Chi bởi tài xế: được cộng lại cho tài xế khi đối soát lương cuối tháng. Nhóm chi phí sửa ở Danh mục hệ thống → Nhóm chi phí.</p>
+          <p className="text-xs text-muted-foreground">Chi bởi tài xế: được cộng lại cho tài xế khi đối soát lương cuối tháng. Nhóm phí sửa ở Danh mục hệ thống → Nhóm phí → Chi ra.</p>
         </div>
       </CardContent>
       {cancelling ? (

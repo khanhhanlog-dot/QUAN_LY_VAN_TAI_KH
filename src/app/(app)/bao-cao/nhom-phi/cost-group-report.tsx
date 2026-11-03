@@ -376,7 +376,7 @@ export function CostGroupReport({
         />
       </Card>
       <p className="mt-2 text-xs text-muted-foreground">
-        Nhóm phí thu khách sửa ở Danh mục → Nhóm phí / Loại phí thu khách. Bên chi: chi phí chuyến theo &quot;Nhóm chi phí&quot; của hạng mục chi phí (Danh mục hệ thống → Hạng mục chi phí / Nhóm chi phí); bảo trì, sửa chữa, kiểm định, bảo
+        Bên thu: Danh mục hệ thống → Nhóm phí / Danh mục phí, nguồn Thu khách. Bên chi: chi phí chuyến theo nhóm phí của từng phí chi ra (Danh mục hệ thống → Nhóm phí / Danh mục phí, nguồn Chi ra); bảo trì, sửa chữa, kiểm định, bảo
         hiểm nhập ở Phương tiện → Bảo dưỡng, sửa chữa. Chi phí cầu đường sẽ nhập từ Excel theo số xe (đang chờ mẫu).
       </p>
     </>

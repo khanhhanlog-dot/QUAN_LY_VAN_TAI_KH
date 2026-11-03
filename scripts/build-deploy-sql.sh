@@ -152,3 +152,5 @@ upgrade nang-cap-ma-chuyen-ngan.sql "Rút gọn mã chuyến SNOV-0001 và mã �
   supabase/migrations/20261103000056_short_trip_codes.sql
 upgrade nang-cap-giao-3pl.sql "Giao chuyến cho nhà xe 3PL (số xe, tài xế, CCCD, GPLX không bắt buộc)" "to_regprocedure('public.assign_shipment_3pl(uuid,uuid,text,text,text,text,text)') is not null" \
   supabase/migrations/20261103000057_assign_3pl.sql
+upgrade nang-cap-gop-danh-muc-phi.sql "Gộp danh mục phí: Nguồn phí Thu khách / Chi ra, mã TK0001 / CP0001" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'fee_types' and column_name = 'fee_source')" \
+  supabase/migrations/20261103000058_fee_catalog_merge.sql

@@ -37,8 +37,8 @@ export async function FeeFormulaCard() {
       <CardHeader>
         <CardTitle className="text-base">Công thức tính tiền của chuyến</CardTitle>
         <CardDescription>
-          Công thức lấy từ Danh mục. Muốn đổi: vào <Link className="text-primary hover:underline" href="/danh-muc?tab=fee_groups">Nhóm phí</Link> (vai trò của nhóm) hoặc{" "}
-          <Link className="text-primary hover:underline" href="/danh-muc?tab=fee_types">Loại phí thu khách</Link> (nhóm, cách tính Tính doanh thu / Chi hộ). Áp dụng ngay cho Điều
+          Công thức lấy từ Danh mục. Muốn đổi: vào <Link className="text-primary hover:underline" href="/danh-muc?tab=fee_catalog_groups&nguon=customer">Nhóm phí</Link> (vai trò, Tính vào của nhóm) hoặc{" "}
+          <Link className="text-primary hover:underline" href="/danh-muc?tab=fee_catalog_items&nguon=customer">Danh mục phí</Link> (nguồn Thu khách: nhóm, Tính vào Doanh thu / Chi hộ). Áp dụng ngay cho Điều
           phối, Quản lý chuyến, Báo cáo, Tổng quan.
         </CardDescription>
       </CardHeader>
@@ -54,12 +54,12 @@ export async function FeeFormulaCard() {
             <div key={x.id} className="rounded-md border p-2">
               <div className="font-medium">{x.name}</div>
               <div className="text-xs text-muted-foreground">Vai trò: {ROLE_HELP[x.report_role] ?? x.report_role}</div>
-              <div className="mt-1 text-xs">{inGroup(x.id).map((f) => f.name).join(" + ") || "Chưa có loại phí"}</div>
+              <div className="mt-1 text-xs">{inGroup(x.id).map((f) => f.name).join(" + ") || "Chưa có phí"}</div>
             </div>
           ))}
         </div>
         {ungrouped.length ? (
-          <p className="text-xs text-amber-700">Loại phí chưa xếp nhóm (hiện ở mục Phí khác): {ungrouped.join(", ")}. Chọn nhóm cho chúng ở Danh mục → Loại phí thu khách.</p>
+          <p className="text-xs text-amber-700">Phí chưa xếp nhóm (hiện ở mục Phí khác): {ungrouped.join(", ")}. Chọn nhóm cho chúng ở Danh mục → Danh mục phí → Thu khách.</p>
         ) : null}
       </CardContent>
     </Card>

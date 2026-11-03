@@ -43,7 +43,7 @@ update public.fee_types set fee_kind = 'pass_through' where id = (select chi_ho 
 select tests.login('00000000-0000-0000-0000-0000000000c1'); -- kế toán
 set role authenticated;
 insert into public.fee_types (name, fee_kind) values ('Phí nâng hạ', 'revenue');
-select tests.assert((select code like 'PT%' from public.fee_types where name = 'Phí nâng hạ'), 'Kế toán thêm loại phí, mã tự sinh');
+select tests.assert((select code ~ '^TK\d{4}$' from public.fee_types where name = 'Phí nâng hạ'), 'Kế toán thêm loại phí, mã tự sinh');
 select tests.assert(public.set_shipment_fees((select id from t_cf), jsonb_build_array(
   jsonb_build_object('fee_type_id', (select boc_xep from t_cf), 'amount', 500000),
   jsonb_build_object('fee_type_id', (select chi_ho from t_cf), 'amount', 1000000))) = 2, 'Kế toán sửa được phí trước khi lập công nợ');
