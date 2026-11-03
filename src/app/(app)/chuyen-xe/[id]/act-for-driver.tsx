@@ -93,7 +93,8 @@ function CompleteDialog({ shipmentId, code, outsourced, canUpload, onClose }: { 
         step: "complete",
         result,
         note: note.trim() || undefined,
-        noExpense: outsourced ? null : expenseMode === "none",
+        // Chuyến 3PL không có chi phí tài xế
+        noExpense: outsourced ? true : expenseMode === "none",
         photoSkipReason: files.length || uploaded ? undefined : skipReason.trim(),
       });
       if (!r.ok) return setError(r.error);

@@ -251,6 +251,8 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
   const approvalBlocked = s.status === "assigned" && (s.dispatch_approval === "pending" || s.dispatch_approval === "rejected");
   const canActForDriver =
     me.permissions.has("dispatch.update") && Boolean(s.driver_id) && ["assigned", "accepted", "in_transit"].includes(s.status) && !approvalBlocked;
+  // Chuyến chạy nhà xe 3PL: xe thuê ngoài, xe có nhà xe, hoặc chuyến đã ghi nhà xe 3PL
+  const is3pl = x.vehicle?.ownership_type === "outsourced" || Boolean(x.vehicle?.supplier_id) || Boolean(x.carrier_supplier_id);
 
   return (
     <>
@@ -505,7 +507,7 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
             costLines={costLines}
             plate={s.plate_number}
             vehicleId={s.vehicle_id}
-            outsourced={x.vehicle?.ownership_type === "outsourced"}
+            outsourced={is3pl}
             addExpense={
               me.permissions.has("expenses.create") && s.status !== "cancelled" ? (
                 <a href="#chi-phi-dau-ra" className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-sm font-medium hover:bg-muted">
@@ -516,11 +518,11 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
           />
         ) : null}
 
-        {canSeeCarrier && (x.vehicle?.ownership_type === "outsourced" || x.carrier_supplier_id || carrierCosts.length) ? (
+        {canSeeCarrier && (is3pl || carrierCosts.length) ? (
           <CarrierCard
             shipmentId={s.id}
             code={s.shipment_code}
-            outsourced={x.vehicle?.ownership_type === "outsourced"}
+            outsourced={is3pl}
             supplierId={x.carrier_supplier_id ?? x.vehicle?.supplier_id ?? null}
             supplierName={x.carrier?.name ?? x.vehicle?.supplier?.name ?? null}
             costs={carrierCosts}
@@ -661,9 +663,14 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
                 code={s.shipment_code}
                 status={s.status}
                 driverName={s.driver_name ?? ""}
-                outsourced={x.vehicle?.ownership_type === "outsourced"}
+                outsourced={is3pl}
                 canUpload={me.permissions.has("documents.create")}
               />
+            ) : me.permissions.has("dispatch.update") && approvalBlocked && s.driver_id ? (
+              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                Nút <b>Nhận đơn thay tài xế</b>, <b>Bắt đầu chạy</b>, <b>Hoàn thành</b> hiện sau khi Giám đốc duyệt chuyến
+                {s.dispatch_approval === "rejected" ? " (chuyến đang bị từ chối, sửa rồi Gửi duyệt lại)" : " (chuyến đang Chờ GĐ duyệt)"}.
+              </p>
             ) : null}
             {x.photo_skip_reason ? (
               <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
