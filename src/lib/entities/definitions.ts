@@ -2074,14 +2074,18 @@ ENTITIES.vehicles_internal = {
   ...ENTITIES.vehicles,
   key: "vehicles_internal",
   singular: "xe nội bộ",
+  // Xe 3PL = Thuê ngoài 3PL hoặc đã gắn Nhà xe 3PL
   refExclude: { ownership_type: "outsourced" },
+  refNull: ["supplier_id"],
 };
 ENTITIES.vehicles_3pl = {
   ...ENTITIES.vehicles,
   key: "vehicles_3pl",
   label: "Xe 3-PL",
   singular: "xe 3-PL",
-  fixed: { ownership_type: "outsourced" },
+  // Xe đã có sẵn: hình thức Thuê ngoài 3PL HOẶC đã gắn Nhà xe 3PL. Xe thêm mới từ đây tự là Thuê ngoài 3PL.
+  refOr: "ownership_type.eq.outsourced,supplier_id.not.is.null",
+  writeFixed: { ownership_type: "outsourced" },
   quickFields: ["plate_number", "supplier_id", "vehicle_type_id", "assigned_driver_id"],
   fields: ENTITIES.vehicles.fields.map((f) =>
     f.key === "assigned_driver_id"

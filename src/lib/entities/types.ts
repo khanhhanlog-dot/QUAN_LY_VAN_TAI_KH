@@ -105,6 +105,12 @@ export type EntityDef = {
   autoCode?: boolean;
   /** Khi chọn tham chiếu: bỏ các dòng có cột = giá trị (ví dụ bỏ xe thuê ngoài 3PL khỏi danh sách xe nội bộ) */
   refExclude?: Record<string, string>;
+  /** Khi chọn tham chiếu: bỏ các dòng có cột này đã điền (khác null) */
+  refNull?: string[];
+  /** Khi chọn tham chiếu: chỉ lấy dòng thỏa điều kiện "hoặc" (cú pháp PostgREST, ví dụ a.eq.x,b.not.is.null) */
+  refOr?: string;
+  /** Giá trị ghi thêm khi tạo/sửa (không dùng để lọc khi đọc) */
+  writeFixed?: Record<string, string>;
   /** Điều kiện chỉ được chọn khi tham chiếu (ví dụ chỉ bản ghi đang hoạt động) */
   activeFilter?: { col: string; value: string | boolean };
   /** Trường select hiển thị thành dãy tab lọc (kèm số lượng) phía trên bảng */

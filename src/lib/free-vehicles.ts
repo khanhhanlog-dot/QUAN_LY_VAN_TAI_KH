@@ -42,6 +42,7 @@ export async function loadFreeVehicles(supabase: SupabaseClient, tu: string, den
     .eq("status", "active")
     .is("archived_at", null)
     .neq("ownership_type", "outsourced")
+    .is("supplier_id", null)
     .order("plate_number")
     .limit(2000);
   if (opts.vehicleId) vq = vq.eq("id", opts.vehicleId);

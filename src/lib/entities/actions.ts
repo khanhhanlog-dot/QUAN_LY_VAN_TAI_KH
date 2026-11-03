@@ -76,7 +76,7 @@ export async function saveRecord(entityKey: string, input: SaveInput): Promise<A
     }
     if (entity.autoCode && "code" in columns && !columns.code) columns.code = "";
 
-    const payload: Record<string, unknown> = { ...columns, ...(entity.fixed ?? {}) };
+    const payload: Record<string, unknown> = { ...columns, ...(entity.writeFixed ?? {}), ...(entity.fixed ?? {}) };
     if (entity.parentKey) payload[entity.parentKey] = input.parentId;
 
     if (entity.customModule) {
@@ -155,10 +155,14 @@ export async function searchReferences(refKey: string, q: string, includeIds: st
     let query = supabase.from(entity.table).select(cols);
     for (const [k, v] of Object.entries(entity.fixed ?? {})) query = query.eq(k, v);
     for (const [k, v] of Object.entries(entity.refExclude ?? {})) query = query.neq(k, v);
+    for (const c of entity.refNull ?? []) query = query.is(c, null);
     if (entity.activeFilter) query = query.eq(entity.activeFilter.col, entity.activeFilter.value);
     const term = sanitizeSearch(q ?? "");
     const searchCols = entity.search.length ? entity.search : entity.labelCols;
-    if (term) query = query.or(searchCols.map((c) => `${c}.ilike.*${term}*`).join(","));
+    const termOr = term ? searchCols.map((c) => `${c}.ilike.*${term}*`).join(",") : "";
+    if (entity.refOr && termOr) query = query.or(`and(or(${entity.refOr}),or(${termOr}))`);
+    else if (entity.refOr) query = query.or(entity.refOr);
+    else if (termOr) query = query.or(termOr);
     const { data, error } = await query.order(entity.labelCols[0]).limit(30);
     if (error) throw error;
     const rows = (data ?? []) as unknown as Record<string, unknown>[];

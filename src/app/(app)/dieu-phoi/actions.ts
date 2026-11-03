@@ -449,12 +449,12 @@ export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionRes
     await requirePermission("dispatch.create", "dispatch.update");
     if (!uuid.safeParse(vehicleId).success) throw new ActionError("Xe không hợp lệ");
     const supabase = await createClient();
-    const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id, ownership_type").eq("id", vehicleId).maybeSingle();
+    const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id, ownership_type, supplier_id").eq("id", vehicleId).maybeSingle();
     if (error) throw error;
     return {
       driverId: data?.assigned_driver_id ?? null,
       vehicleTypeId: data?.vehicle_type_id ?? null,
-      outsourced: data?.ownership_type === "outsourced",
+      outsourced: data?.ownership_type === "outsourced" || Boolean(data?.supplier_id),
     };
   });
 }
@@ -561,7 +561,7 @@ export async function monthTripCount(input: z.input<typeof monthCountSchema>): P
     const ym = day.slice(0, 7);
     const supabase = await createClient();
     // Xe thuê ngoài 3PL và tài xế phụ trách xe 3PL không đếm số chuyến (chỉ xe, tài xế nội bộ)
-    const { data: ov, error: ove } = await supabase.from("vehicles").select("id, assigned_driver_id").eq("ownership_type", "outsourced").limit(5000);
+    const { data: ov, error: ove } = await supabase.from("vehicles").select("id, assigned_driver_id").or("ownership_type.eq.outsourced,supplier_id.not.is.null").limit(5000);
     if (ove) throw ove;
     const outVehicles = new Set((ov ?? []).map((v) => v.id as string));
     const outDrivers = new Set((ov ?? []).map((v) => v.assigned_driver_id as string | null).filter((x): x is string => Boolean(x)));
@@ -569,7 +569,7 @@ export async function monthTripCount(input: z.input<typeof monthCountSchema>): P
     const [trips, pool] = await Promise.all([
       loadTrips(supabase, `${ym}-01`, lastDayOfMonth(ym)),
       kind === "vehicle"
-        ? supabase.from("vehicles").select("id").eq("status", "active").is("archived_at", null).neq("ownership_type", "outsourced").limit(5000)
+        ? supabase.from("vehicles").select("id").eq("status", "active").is("archived_at", null).neq("ownership_type", "outsourced").is("supplier_id", null).limit(5000)
         : supabase.from("drivers").select("id").eq("status", "active").is("archived_at", null).limit(5000),
     ]);
     if (pool.error) throw pool.error;
