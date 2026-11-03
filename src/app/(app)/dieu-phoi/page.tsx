@@ -102,7 +102,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const rows =
     tab === "tre"
       ? all.filter((r) => isLate(r, now))
-      : tab === "cho-duyet"
+      : tab === "tat-ca"
+        ? all
+        : tab === "cho-duyet"
         ? all.filter((r) => r.dispatch_approval === "pending" || r.dispatch_approval === "rejected")
         : tab
           ? all.filter((r) => r.status === tab)
@@ -218,6 +220,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       ) : (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap gap-1 border-b px-4 py-3" role="tablist">
+            <TabLink href={href({ tt: "tat-ca" })} active={tab === "tat-ca"} label={single ? "Tổng chuyến trong ngày" : "Tổng chuyến"} count={all.length} tone="default" />
             <TabLink href={href({ tt: "" })} active={!tab} label="Cần điều phối" count={active.length} />
             {SHIPMENT_STATUS.filter((s) => counts[s.value] > 0 || ["draft", "assigned"].includes(s.value)).map((s) => (
               <TabLink key={s.value} href={href({ tt: s.value })} active={tab === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
