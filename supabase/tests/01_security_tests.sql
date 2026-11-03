@@ -169,8 +169,8 @@ values
   ('70000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001', 2, now(), '20000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 3500000, null, null);
 
 select tests.assert((select count(distinct shipment_code) from public.shipments) = 2, 'Hai Shipment có mã khác nhau');
-select tests.assert((select bool_and(shipment_code ~ '^SHP-\d{8}-\d{4}$') from public.shipments), 'Mã Shipment đúng định dạng SHP-YYYYMMDD-0001');
-select tests.assert((select order_code ~ '^ORD-\d{8}-\d{4}$' from public.transport_orders), 'Mã đơn hàng tự sinh');
+select tests.assert((select bool_and(shipment_code ~ '^S[A-Z]{3}-\d{4,}$') from public.shipments), 'Mã Shipment đúng định dạng SNOV-0001');
+select tests.assert((select order_code ~ '^O[A-Z]{3}-\d{4,}$' from public.transport_orders), 'Mã đơn hàng tự sinh');
 select tests.assert((select created_by from public.shipments where id = '70000000-0000-0000-0000-000000000001') = auth.uid(), 'Ghi nhận người tạo chuyến');
 select tests.assert_fails($$update public.shipments set shipment_code = 'SHP-X' where id = '70000000-0000-0000-0000-000000000001'$$, 'Không đổi được mã Shipment');
 select tests.assert_fails($$update public.shipments set status = 'closed' where id = '70000000-0000-0000-0000-000000000001'$$, 'Không nhảy trạng thái nháp -> đã đóng');

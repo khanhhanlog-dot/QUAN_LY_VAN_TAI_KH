@@ -316,3 +316,9 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Hồ sơ tài xế → Giấy tờ tùy thân: thêm Số GPLX, Hạng GPLX, Ngày hết hạn GPLX (bảng driver_sensitive).
 - Điều phối không có quyền xem giấy tờ trong hồ sơ vẫn xem được CCCD/GPLX qua hàm shipment_driver_info (cần dispatch.view hoặc shipments.view).
 - Kiểm thử: supabase/tests/38_driver_share_info_tests.sql. Tệp nâng cấp: supabase/deploy/nang-cap-thong-tin-tai-xe.sql (dòng kiểm tra 35).
+
+## Rút gọn mã chuyến và mã đơn (migration 0056) – 03/11/2026
+- Mã chuyến `SNOV-0001`, mã đơn `ONOV-0001`: chữ đầu (S chuyến, O đơn) + 3 chữ tiếng Anh của tháng (giờ Việt Nam) + số thứ tự trong tháng.
+- Cùng tháng năm sau đếm tiếp (không quay về 0001) để mã không bao giờ trùng.
+- Mã cũ `SHP-YYYYMMDD-xxxx` / `ORD-YYYYMMDD-xxxx` được đánh số lại theo thứ tự tạo trong từng tháng; mã đơn trong Lập kế hoạch và nội dung thông báo đổi theo. Nhật ký thao tác giữ nguyên mã cũ (lịch sử).
+- Tệp nâng cấp: `supabase/deploy/nang-cap-ma-chuyen-ngan.sql`. Kiểm thử: `supabase/tests/39_short_trip_codes_tests.sql`.

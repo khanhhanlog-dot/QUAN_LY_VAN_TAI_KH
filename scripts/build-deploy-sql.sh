@@ -148,3 +148,5 @@ upgrade nang-cap-chung-tu-phieu-chi-phi.sql "Chụp chứng từ theo yêu cầu
   supabase/migrations/20261102000054_pod_photo_expense_sheet.sql
 upgrade nang-cap-thong-tin-tai-xe.sql "Nút Thông tin tài xế (tên, biển số, CCCD, GPLX) gửi khách hàng" "to_regprocedure('public.shipment_driver_info(uuid[])') is not null" \
   supabase/migrations/20261102000055_driver_share_info.sql
+upgrade nang-cap-ma-chuyen-ngan.sql "Rút gọn mã chuyến SNOV-0001 và mã đơn ONOV-0001, đổi luôn mã cũ" "to_regprocedure('private.next_month_code(text,text,timestamptz)') is not null" \
+  supabase/migrations/20261103000056_short_trip_codes.sql

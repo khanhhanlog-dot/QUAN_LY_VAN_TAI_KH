@@ -28,8 +28,8 @@ insert into t_ids values ('o1', public.create_transport_order(
     {"pickup_at":"2026-10-21T09:00:00+07:00","pickup_location_id":"20000000-0000-0000-0000-000000000001","delivery_location_id":"20000000-0000-0000-0000-000000000002"}]'));
 
 select tests.assert(jsonb_array_length((select v -> 'shipments' from t_ids where k = 'o1')) = 2, 'Tạo đơn hàng gồm 2 chuyến trong một lần lưu');
-select tests.assert((select v ->> 'order_code' from t_ids where k = 'o1') ~ '^ORD-\d{8}-\d{4}$', 'Đơn hàng có mã tự sinh');
-select tests.assert((select bool_and(e ->> 'shipment_code' ~ '^SHP-\d{8}-\d{4}$') from t_ids, jsonb_array_elements(v -> 'shipments') e where k = 'o1'), 'Các chuyến có mã SHP tự sinh');
+select tests.assert((select v ->> 'order_code' from t_ids where k = 'o1') ~ '^O[A-Z]{3}-\d{4,}$', 'Đơn hàng có mã tự sinh');
+select tests.assert((select bool_and(e ->> 'shipment_code' ~ '^S[A-Z]{3}-\d{4,}$') from t_ids, jsonb_array_elements(v -> 'shipments') e where k = 'o1'), 'Các chuyến có mã S tự sinh');
 
 select tests.assert((select unit_price = 9999999 and pricing_snapshot ->> 'price_list_code' = 'BG001' from public.shipments where id = (select (v -> 'shipments' -> 0 ->> 'id')::uuid from t_ids where k = 'o1')),
   'Chuyến 1 lấy giá từ bảng giá BG001 và lưu lại mã bảng giá');

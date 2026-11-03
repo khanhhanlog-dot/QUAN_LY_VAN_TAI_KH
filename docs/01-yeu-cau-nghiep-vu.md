@@ -17,7 +17,7 @@ Khách hàng: **Công ty Vận tải Khánh Hà**. Phạm vi: vận tải hàng 
 ## 1.2 Khái niệm cốt lõi
 
 - **Đơn hàng (transport_order)**: một yêu cầu vận chuyển của khách hàng, có **bên thuê** (customer) và **bên thanh toán** (payer) có thể khác nhau. Một đơn hàng gồm một hoặc nhiều Shipment.
-- **Shipment (chuyến)**: một lượt xe chạy từ nơi nhận đến nơi giao. Mã `SHP-YYYYMMDD-0001` sinh tự động theo ngày giờ Việt Nam, duy nhất, không đổi.
+- **Shipment (chuyến)**: một lượt xe chạy từ nơi nhận đến nơi giao. Mã `SNOV-0001` (S + tháng tiếng Anh + số thứ tự trong tháng, cùng tháng năm sau đếm tiếp; đơn hàng là `ONOV-0001`) sinh tự động theo giờ Việt Nam, duy nhất, không đổi.
 - **Địa điểm (location)**: danh mục dùng chung cho nơi nhận và nơi giao; chứa tên công ty giao/nhận hàng (bên giao hàng, bên nhận hàng).
 - **Bảng giá**: đơn giá theo phạm vi (khách hàng, nơi nhận, nơi giao, loại xe, khoảng hiệu lực). Giá được **chụp lại vào Shipment** khi tạo chuyến.
 - **Hỗ trợ dầu**: khoản tính theo tỷ lệ (mặc định 39%) trên một cơ sở cấu hình được. **Không phải chi phí dầu thực tế.**
