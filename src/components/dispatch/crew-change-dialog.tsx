@@ -99,7 +99,7 @@ export function CrewChangeDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`cd-${mode}-${shipmentId}`}>{unaccept ? "Tài xế (giữ nguyên nếu chỉ đổi xe)" : "Tài xế đúng"}</Label>
-              <ReferenceSelect id={`cd-${mode}-${shipmentId}`} refKey="drivers" value={driver.id} initialLabel={driver.label} onChange={(id, label) => setDriver({ id, label })} />
+              <ReferenceSelect id={`cd-${mode}-${shipmentId}`} refKey={is3pl ? "drivers" : "drivers_internal"} key={source} value={driver.id} initialLabel={driver.label} onChange={(id, label) => setDriver({ id, label })} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`cr-${mode}-${shipmentId}`}>Lý do *</Label>

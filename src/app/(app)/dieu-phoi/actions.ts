@@ -485,6 +485,71 @@ export async function shipmentCarrierHint(shipmentId: string): Promise<ActionRes
   });
 }
 
+export type Shipment3plInfo = {
+  supplier_id: string | null;
+  supplier_name: string | null;
+  plan_code: string | null;
+  from_plan: boolean;
+  is_3pl: boolean;
+  plate: string | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+  national_id: string | null;
+  license_no: string | null;
+};
+
+/** Nhà xe 3PL của chuyến (ghi ở chuyến / xe / NCC của kế hoạch) và xe, tài xế 3PL đang gắn */
+export async function shipment3plInfo(shipmentId: string): Promise<ActionResult<Shipment3plInfo | null>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.create", "dispatch.update");
+    if (!uuid.safeParse(shipmentId).success) return null;
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("shipment_3pl_info", { p_shipment_id: shipmentId });
+    if (error) {
+      // CSDL chưa nâng cấp 0057: coi như không có thông tin 3PL
+      if (error.code === "PGRST202" || error.code === "42883") return null;
+      throw error;
+    }
+    return (data as Shipment3plInfo | null) ?? null;
+  });
+}
+
+const assign3plSchema = z.object({
+  shipmentId: uuid,
+  supplierId: uuid,
+  plate: z.string().trim().max(20).optional(),
+  driverName: z.string().trim().max(150).optional(),
+  driverPhone: z.string().trim().max(20).optional(),
+  nationalId: z.string().trim().max(20).optional(),
+  licenseNo: z.string().trim().max(30).optional(),
+});
+
+/** Giao chuyến cho nhà xe 3PL: số xe, tài xế, SĐT, CCCD, GPLX đều không bắt buộc */
+export async function assignShipment3pl(input: z.input<typeof assign3plSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update");
+    const p = assign3plSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const d = p.data;
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("assign_shipment_3pl", {
+      p_shipment_id: d.shipmentId,
+      p_supplier_id: d.supplierId,
+      p_plate: d.plate || null,
+      p_driver_name: d.driverName || null,
+      p_driver_phone: d.driverPhone || null,
+      p_national_id: d.nationalId || null,
+      p_license_no: d.licenseNo || null,
+    });
+    if (error) {
+      if (error.code === "PGRST202" || error.code === "42883") throw new ActionError("CSDL chưa nâng cấp Giao chuyến 3PL (dòng 37). Nhờ quản trị chạy SQL nâng cấp.");
+      throw error;
+    }
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+  }, "Đã giao chuyến cho nhà xe 3PL.");
+}
+
 /** Khách thanh toán mặc định trong hồ sơ khách hàng, để tự điền vào đơn hàng */
 export async function customerDefaultPayer(customerId: string): Promise<ActionResult<{ id: string; label: string } | null>> {
   return runAction(async () => {
@@ -590,7 +655,12 @@ export async function monthTripCount(input: z.input<typeof monthCountSchema>): P
     const { data: ov, error: ove } = await supabase.from("vehicles").select("id, assigned_driver_id").or("ownership_type.eq.outsourced,supplier_id.not.is.null").limit(5000);
     if (ove) throw ove;
     const outVehicles = new Set((ov ?? []).map((v) => v.id as string));
-    const outDrivers = new Set((ov ?? []).map((v) => v.assigned_driver_id as string | null).filter((x): x is string => Boolean(x)));
+    const { data: od, error: ode } = await supabase.from("drivers").select("id").eq("is_outsourced", true).limit(5000);
+    if (ode) throw ode;
+    const outDrivers = new Set([
+      ...(ov ?? []).map((v) => v.assigned_driver_id as string | null).filter((x): x is string => Boolean(x)),
+      ...(od ?? []).map((d) => d.id as string),
+    ]);
     if (kind === "vehicle" ? outVehicles.has(id) : outDrivers.has(id)) return null;
     const [trips, pool] = await Promise.all([
       loadTrips(supabase, `${ym}-01`, lastDayOfMonth(ym)),

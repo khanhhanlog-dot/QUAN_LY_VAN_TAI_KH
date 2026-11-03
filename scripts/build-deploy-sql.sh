@@ -150,3 +150,5 @@ upgrade nang-cap-thong-tin-tai-xe.sql "Nút Thông tin tài xế (tên, biển s
   supabase/migrations/20261102000055_driver_share_info.sql
 upgrade nang-cap-ma-chuyen-ngan.sql "Rút gọn mã chuyến SNOV-0001 và mã đơn ONOV-0001, đổi luôn mã cũ" "to_regprocedure('private.next_month_code(text,text,timestamptz)') is not null" \
   supabase/migrations/20261103000056_short_trip_codes.sql
+upgrade nang-cap-giao-3pl.sql "Giao chuyến cho nhà xe 3PL (số xe, tài xế, CCCD, GPLX không bắt buộc)" "to_regprocedure('public.assign_shipment_3pl(uuid,uuid,text,text,text,text,text)') is not null" \
+  supabase/migrations/20261103000057_assign_3pl.sql

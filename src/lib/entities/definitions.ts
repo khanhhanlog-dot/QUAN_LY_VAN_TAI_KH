@@ -358,6 +358,11 @@ export const ENTITIES: Record<string, EntityDef> = {
       { key: "meal_allowance", label: "Phụ cấp ăn uống", type: "currency", min: 0 },
       { key: "other_allowance", label: "Phụ cấp khác", type: "currency", min: 0 },
       { key: "salary_rule_id", label: "Quy tắc tính lương", type: "reference", ref: "salary_rules" },
+      {
+        key: "is_outsourced", label: "Tài xế 3PL", type: "boolean", list: true, filter: true, defaultValue: false,
+        help: "Tài xế của nhà xe thuê ngoài: không có trong ô chọn tài xế nội bộ, không tính số chuyến, lương. Tự đánh dấu khi giao chuyến cho nhà xe 3PL.",
+      },
+      { key: "supplier_id", label: "Nhà xe 3PL", type: "reference", ref: "suppliers", filter: true, help: "Chỉ cho tài xế 3PL" },
       { key: "status", label: "Trạng thái", type: "select", options: DRIVER_STATUS, required: true, list: true, filter: true, defaultValue: "active" },
       notes,
     ],
@@ -2077,6 +2082,11 @@ ENTITIES.vehicles_internal = {
   // Xe 3PL = Thuê ngoài 3PL hoặc đã gắn Nhà xe 3PL
   refExclude: { ownership_type: "outsourced" },
   refNull: ["supplier_id"],
+};
+ENTITIES.drivers_internal = {
+  ...ENTITIES.drivers,
+  key: "drivers_internal",
+  refExclude: { is_outsourced: "true" },
 };
 ENTITIES.vehicles_3pl = {
   ...ENTITIES.vehicles,

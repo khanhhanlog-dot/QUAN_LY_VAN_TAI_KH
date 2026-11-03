@@ -902,7 +902,7 @@ function ShipmentEditor({
             driver_id: (
               <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
-                <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} disabled={!canAssign} onChange={(v) => onChange({ driverId: v })} />
+                <ReferenceSelect key={`${row.driverKey}-${row.vehicleSource ?? "internal"}`} id={id("driver")} refKey={row.vehicleSource === "3pl" ? "drivers" : "drivers_internal"} value={row.driverId} disabled={!canAssign} onChange={(v) => onChange({ driverId: v })} />
                 {canAssign && row.vehicleSource !== "3pl" ? <MonthTripHint kind="driver" id={row.driverId} day={day} excludeShipmentId={row.id} /> : null}
                 {row.orig && row.driverId !== row.orig.driverId && row.driverId ? (
                   <p className="text-xs text-amber-700">Đổi tài xế: chuyến sẽ chờ Giám đốc duyệt lại trước khi tài xế mới thấy chuyến.</p>

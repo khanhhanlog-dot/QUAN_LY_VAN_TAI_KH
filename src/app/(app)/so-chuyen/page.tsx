@@ -26,7 +26,7 @@ type VehicleRow = {
   vehicle_types: { name: string } | null;
   drivers: { full_name: string } | null;
 };
-type DriverRow = { id: string; code: string; full_name: string; phone: string | null; status: string; archived_at: string | null };
+type DriverRow = { id: string; code: string; full_name: string; phone: string | null; status: string; archived_at: string | null; is_outsourced?: boolean | null };
 
 /** Liệt kê "A (3), B (1)" theo số chuyến giảm dần */
 const tally = (m: Map<string, number> | undefined) =>
@@ -64,7 +64,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       .select("id, code, plate_number, ownership_type, status, archived_at, assigned_driver_id, supplier_id, vehicle_types(name), drivers!vehicles_assigned_driver_id_fkey(full_name)")
       .order("plate_number")
       .limit(5000),
-    supabase.from("drivers").select("id, code, full_name, phone, status, archived_at").order("full_name").limit(5000),
+    supabase.from("drivers").select("id, code, full_name, phone, status, archived_at, is_outsourced").order("full_name").limit(5000),
     loadTableView(supabase, "trip_count_vehicles", me.id),
     loadTableView(supabase, "trip_count_drivers", me.id),
     loadTableView(supabase, "trip_count_days", me.id),
@@ -78,7 +78,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   // Xe và tài xế 3PL (tài xế phụ trách xe thuê ngoài) không tính vào số chuyến
   const is3pl = (v: VehicleRow) => v.ownership_type === "outsourced" || Boolean(v.supplier_id);
   const outsourcedVehicles = new Set(vehicles.filter(is3pl).map((v) => v.id));
-  const outsourcedDrivers = new Set(vehicles.filter((v) => is3pl(v) && v.assigned_driver_id).map((v) => v.assigned_driver_id!));
+  const outsourcedDrivers = new Set([
+    ...vehicles.filter((v) => is3pl(v) && v.assigned_driver_id).map((v) => v.assigned_driver_id!),
+    ...drivers.filter((d) => d.is_outsourced).map((d) => d.id),
+  ]);
 
   type Acc = { total: number; delivered: number; today: number; days: Map<string, number>; others: Map<string, number> };
   const newAcc = (): Acc => ({ total: 0, delivered: 0, today: 0, days: new Map(), others: new Map() });
@@ -137,7 +140,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       };
     });
   const driverRows: DriverCountRow[] = drivers
-    .filter((d) => activeDriver(d) || byDriver.has(d.id))
+    .filter((d) => !outsourcedDrivers.has(d.id) && (activeDriver(d) || byDriver.has(d.id)))
     .map((d) => {
       const a = byDriver.get(d.id) ?? newAcc();
       return {
