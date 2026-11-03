@@ -644,7 +644,7 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="lam-thay" className="scroll-mt-20">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">Giao hàng và chứng từ</CardTitle>
             <DocumentsButton

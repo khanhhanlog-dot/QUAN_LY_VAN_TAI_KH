@@ -29,6 +29,7 @@ import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES } from "@/li
 import { ASSIGNED_ROW_CELL, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "./status-badge";
+import { ActForDriverQuick } from "./act-for-driver-quick";
 import { AssignDialog } from "./assign-dialog";
 import { CrewChangeDialog } from "./crew-change-dialog";
 import { CORRECT_CREW_STATUSES, UNACCEPT_STATUSES } from "@/lib/crew-change";
@@ -568,6 +569,9 @@ function Actions({ r, canAssign, canCancel, canFillDriver }: { r: ShipmentListRo
       {r.can_approve_dispatch && r.dispatch_approval_request_id ? <TripApprovalButtons compact requestIds={[r.dispatch_approval_request_id]} label={r.shipment_code} /> : null}
       {canAssign && r.dispatch_approval === "rejected" && r.status === "assigned" ? (
         <ResubmitTripButton compact shipmentId={r.id} shipmentCode={r.shipment_code} reason={r.dispatch_reject_reason} />
+      ) : null}
+      {canAssign && r.driver_id && ["assigned", "accepted", "in_transit"].includes(r.status) && r.dispatch_approval !== "pending" && r.dispatch_approval !== "rejected" ? (
+        <ActForDriverQuick shipmentId={r.id} code={r.shipment_code} status={r.status} />
       ) : null}
       {canAssign && ASSIGNABLE_STATUSES.includes(r.status) ? (
         <AssignDialog
