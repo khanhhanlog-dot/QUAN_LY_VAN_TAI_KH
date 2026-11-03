@@ -146,13 +146,25 @@ export async function deleteRecord(entityKey: string, id: string, revalidate?: s
 export type RefOption = { value: string; label: string };
 
 /** Tìm bản ghi để chọn trong ô tham chiếu (qua RLS của người dùng) */
-export async function searchReferences(refKey: string, q: string, includeIds: string[] = []): Promise<ActionResult<RefOption[]>> {
+export async function searchReferences(
+  refKey: string,
+  q: string,
+  includeIds: string[] = [],
+  /** Lọc thêm theo cột tham chiếu / lựa chọn của danh mục (ví dụ chỉ xe của một nhà xe 3PL) */
+  where: Record<string, string> = {},
+): Promise<ActionResult<RefOption[]>> {
   return runAction(async () => {
     const entity = entityOr404(refKey);
     await requirePermission();
     const supabase = await createClient();
     const cols = ["id", ...entity.labelCols].join(",");
     let query = supabase.from(entity.table).select(cols);
+    for (const [k, v] of Object.entries(where ?? {})) {
+      const f = entity.fields.find((x) => x.key === k && !x.custom && (x.type === "reference" || x.type === "select"));
+      if (!f || typeof v !== "string" || !v) continue;
+      if (f.type === "reference" && !isUuid(v)) continue;
+      query = query.eq(k, v);
+    }
     for (const [k, v] of Object.entries(entity.fixed ?? {})) query = query.eq(k, v);
     for (const [k, v] of Object.entries(entity.refExclude ?? {})) query = query.neq(k, v);
     for (const c of entity.refNull ?? []) query = query.is(c, null);

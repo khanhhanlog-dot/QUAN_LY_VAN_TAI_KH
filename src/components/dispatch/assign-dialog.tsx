@@ -91,7 +91,7 @@ export function AssignDialog({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor={`v-${shipmentId}`}>Xe</Label>
-              <VehicleSourcePicker id={`v-${shipmentId}`} value={vehicle.id} initialLabel={vehicle.label} onChange={pickVehicle} onSourceChange={setSource} />
+              <VehicleSourcePicker id={`v-${shipmentId}`} shipmentId={shipmentId} value={vehicle.id} initialLabel={vehicle.label} onChange={pickVehicle} onSourceChange={setSource} />
               {is3pl ? null : (
                 <>
                   {/* Chỉ kiểm tra khi chọn xe khác xe đang gắn với chuyến */}

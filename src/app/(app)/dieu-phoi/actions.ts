@@ -459,6 +459,32 @@ export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionRes
   });
 }
 
+export type CarrierHint = { supplierId: string; supplierName: string; planCode: string | null };
+
+/** Nhà xe 3PL của chuyến: đã ghi ở chuyến, hoặc NCC của kế hoạch tạo ra chuyến (Lập kế hoạch) */
+export async function shipmentCarrierHint(shipmentId: string): Promise<ActionResult<CarrierHint | null>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.create", "dispatch.update");
+    if (!uuid.safeParse(shipmentId).success) return null;
+    const supabase = await createClient();
+    const { data: s, error } = await supabase.from("shipments").select("carrier_supplier_id, plan_id").eq("id", shipmentId).maybeSingle();
+    if (error) throw error;
+    if (!s) return null;
+    let supplierId = (s.carrier_supplier_id as string | null) ?? null;
+    let planCode: string | null = null;
+    if (s.plan_id) {
+      const { data: p } = await supabase.from("transport_plans").select("code, supplier_id").eq("id", s.plan_id).maybeSingle();
+      if (p) {
+        planCode = (p.code as string) ?? null;
+        if (!supplierId) supplierId = (p.supplier_id as string | null) ?? null;
+      }
+    }
+    if (!supplierId) return null;
+    const { data: sp } = await supabase.from("suppliers").select("name").eq("id", supplierId).maybeSingle();
+    return { supplierId, supplierName: (sp?.name as string) ?? "", planCode: s.carrier_supplier_id ? null : planCode };
+  });
+}
+
 /** Khách thanh toán mặc định trong hồ sơ khách hàng, để tự điền vào đơn hàng */
 export async function customerDefaultPayer(customerId: string): Promise<ActionResult<{ id: string; label: string } | null>> {
   return runAction(async () => {

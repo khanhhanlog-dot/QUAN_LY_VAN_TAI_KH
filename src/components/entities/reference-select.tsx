@@ -31,6 +31,8 @@ export function ReferenceSelect({
   disabled,
   invalid,
   allowQuickCreate = true,
+  where,
+  quickDefaults,
 }: {
   id?: string;
   refKey: string;
@@ -40,6 +42,10 @@ export function ReferenceSelect({
   disabled?: boolean;
   invalid?: boolean;
   allowQuickCreate?: boolean;
+  /** Chỉ hiện dòng có cột = giá trị (cột tham chiếu / lựa chọn của danh mục) */
+  where?: Record<string, string>;
+  /** Giá trị điền sẵn khi bấm Thêm mới */
+  quickDefaults?: Record<string, unknown>;
 }) {
   const entity = ENTITIES[refKey];
   const [open, setOpen] = useState(false);
@@ -66,7 +72,7 @@ export function ReferenceSelect({
 
   function search(term: string) {
     startLoading(async () => {
-      const r = await searchReferences(refKey, term, value ? [value] : []);
+      const r = await searchReferences(refKey, term, value ? [value] : [], where ?? {});
       if (r.ok) setOptions(r.data ?? []);
     });
   }
@@ -186,7 +192,11 @@ export function ReferenceSelect({
           onOpenChange={setQuickOpen}
           canAddField={meta.access.configureFields}
           quick
-          initialValues={q.trim() ? { [entity.quickFields?.[0] ?? entity.labelCols[0]]: q.trim() } : undefined}
+          initialValues={
+            q.trim() || quickDefaults
+              ? { ...(quickDefaults ?? {}), ...(q.trim() ? { [entity.quickFields?.[0] ?? entity.labelCols[0]]: q.trim() } : {}) }
+              : undefined
+          }
           onSaved={(res) => pick({ value: res.id, label: res.label })}
         />
       ) : null}

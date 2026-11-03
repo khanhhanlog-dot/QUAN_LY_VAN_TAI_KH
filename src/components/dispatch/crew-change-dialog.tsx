@@ -92,7 +92,7 @@ export function CrewChangeDialog({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor={`cv-${mode}-${shipmentId}`}>{unaccept ? "Xe mới" : "Xe đúng"}</Label>
-              <VehicleSourcePicker id={`cv-${mode}-${shipmentId}`} value={vehicle.id} initialLabel={vehicle.label} onChange={(id, label) => setVehicle({ id, label })} onSourceChange={setSource} />
+              <VehicleSourcePicker id={`cv-${mode}-${shipmentId}`} shipmentId={shipmentId} value={vehicle.id} initialLabel={vehicle.label} onChange={(id, label) => setVehicle({ id, label })} onSourceChange={setSource} />
               {unaccept && !is3pl ? (
                 <VehicleDayConflict vehicleId={vehicleChanged ? vehicle.id : ""} day={todayVN(new Date(pickupAt))} excludeShipmentId={shipmentId} onStateChange={setDayState} />
               ) : null}

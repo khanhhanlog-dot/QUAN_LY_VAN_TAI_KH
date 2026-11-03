@@ -867,6 +867,7 @@ function ShipmentEditor({
                 <Label htmlFor={id("vehicle")}>Xe (có thể chọn sau)</Label>
                 <VehicleSourcePicker
                   id={id("vehicle")}
+                  shipmentId={row.id}
                   value={row.vehicleId}
                   disabled={!canAssign}
                   onSourceChange={(src) => onChange(src === "3pl" ? { vehicleSource: src, vehicleDay: undefined } : { vehicleSource: src })}
