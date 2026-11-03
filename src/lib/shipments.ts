@@ -129,3 +129,10 @@ export function shipmentCustomAdvFields(advFromDefs: AdvField[]): AdvField[] {
 
 /** Cột ngày giờ (so sánh theo ngày lịch Việt Nam) */
 export const SHIPMENT_DATETIME_FIELDS = new Set(["pickup_at", "expected_delivery_at"]);
+
+/** Dòng đã phân công (có tài xế hoặc xe, chưa hủy): tô xanh lá nhẹ trên Điều phối và Quản lý chuyến.
+ * Màu nền đặc (không trong suốt) để cột cố định khi cuộn ngang không bị lộ chữ bên dưới. */
+export function isAssignedRow(r: Pick<ShipmentListRow, "driver_id" | "vehicle_id" | "status">): boolean {
+  return r.status !== "cancelled" && Boolean(r.driver_id || r.vehicle_id);
+}
+export const ASSIGNED_ROW_CELL = "bg-emerald-50 group-hover:bg-emerald-100 dark:bg-emerald-950 dark:group-hover:bg-emerald-900";

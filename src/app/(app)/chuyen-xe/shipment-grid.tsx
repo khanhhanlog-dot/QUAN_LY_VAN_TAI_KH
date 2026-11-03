@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDate, formatNumber, formatVND } from "@/lib/format";
 import { LOCKED_STATUSES, PRICING_UNITS } from "@/lib/status";
-import { SHIPMENT_ADV_FIELDS, isLate, type ShipmentListRow } from "@/lib/shipments";
+import { ASSIGNED_ROW_CELL, SHIPMENT_ADV_FIELDS, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
@@ -417,6 +417,7 @@ export function ShipmentGrid({
             <tbody>
               {table.getRowModel().rows.map((row) => {
                 const r = row.original;
+                const assigned = isAssignedRow(r);
                 return (
                   <tr key={row.id} style={rowHeight ? { height: rowHeight } : undefined} className={cn("group", r.status === "cancelled" && "text-muted-foreground line-through decoration-muted-foreground/40")}>
                     {row.getVisibleCells().map((cell, ci) => {
@@ -427,7 +428,8 @@ export function ShipmentGrid({
                           key={cell.id}
                           style={pinStyle(cell.column)}
                           className={cn(
-                            "border-b bg-card px-2 py-1.5 group-hover:bg-muted/40",
+                            "border-b px-2 py-1.5",
+                            assigned ? ASSIGNED_ROW_CELL : "bg-card group-hover:bg-muted/40",
                             c.align === "right" && "text-right tabular-nums",
                             tall ? "align-top break-words whitespace-normal" : "truncate whitespace-nowrap",
                             lastPinned && "border-r",

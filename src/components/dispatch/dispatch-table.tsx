@@ -26,7 +26,7 @@ import type { TableViewConfig } from "@/lib/entities/types";
 import type { DispatchExtraColumn, DispatchExtraValues } from "@/lib/dispatch-columns";
 import { formatDate, formatNumber } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES } from "@/lib/status";
-import { isLate, type ShipmentListRow } from "@/lib/shipments";
+import { ASSIGNED_ROW_CELL, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "./status-badge";
 import { AssignDialog } from "./assign-dialog";
@@ -522,13 +522,15 @@ export function DispatchTable({
               {table.getRowModel().rows.map((row) => (
                 <tr key={row.id} style={rowHeight ? { height: rowHeight } : undefined} className="group">
                   {row.getVisibleCells().map((cell, ci) => {
+                    const assigned = isAssignedRow(row.original);
                     const c = meta(cell.column);
                     return (
                       <td
                         key={cell.id}
                         style={pinStyle(cell.column)}
                         className={cn(
-                          "border-b bg-card px-2 py-1.5 align-top group-hover:bg-muted/40",
+                          "border-b px-2 py-1.5 align-top",
+                          assigned ? ASSIGNED_ROW_CELL : "bg-card group-hover:bg-muted/40",
                           c.align === "right" && "text-right tabular-nums",
                           cell.column.getIsPinned() && cell.column.getIsLastColumn("left") && "border-r",
                           ci === 0 && "relative pl-4",
