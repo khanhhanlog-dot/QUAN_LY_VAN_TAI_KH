@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { ReportLinks } from "@/components/reports/report-links";
 import { TripApprovalButtons } from "@/components/dispatch/trip-approval";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
+import { DayPlanButton } from "@/components/dispatch/day-plan-button";
 import { DelegateNotice, TripDelegationManager, type DelegationInfo } from "@/components/dispatch/trip-delegation";
 
 export const metadata: Metadata = { title: "Điều phối" };
@@ -147,6 +148,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         actions={
           <>
             <TripDelegationManager info={delegation} />
+            <DayPlanButton />
             {!xem ? (
               <DriverInfoButton variant="outline" shipmentIds={shareIds} label={`Thông tin tài xế (${shareIds.length} chuyến)`} canFill={canFillDriver} />
             ) : null}
