@@ -94,6 +94,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       (!f.kh || r.customer_id === f.kh) &&
       (!term || [r.shipment_code, r.order_code, r.customer_name, r.pickup_name, r.delivery_name, r.notes].some((v) => v?.toLowerCase().includes(term))),
   );
+  // Chuyến đã giao (chờ quyết toán, đã đóng) không còn việc điều phối: ẩn khỏi danh sách mặc định, xem ở tab trạng thái
+  const DONE = ["driver_completed", "closed"];
+  const active = all.filter((r) => !DONE.includes(r.status));
   const now = new Date().getTime();
   const lateCount = all.filter((r) => isLate(r, now)).length;
   const rows =
@@ -103,7 +106,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         ? all.filter((r) => r.dispatch_approval === "pending" || r.dispatch_approval === "rejected")
         : tab
           ? all.filter((r) => r.status === tab)
-          : all;
+          : active;
   const approvalCount = all.filter((r) => r.dispatch_approval === "pending" || r.dispatch_approval === "rejected").length;
   const pendingAll = (approvalRes.data ?? []) as { id: string; dispatch_approval_request_id: string | null; can_approve_dispatch: boolean }[];
   const myApprovals = pendingAll.filter((r) => r.can_approve_dispatch && r.dispatch_approval_request_id).map((r) => r.dispatch_approval_request_id!);
@@ -192,7 +195,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       <DispatchFilterBar filters={{ tu: f.tu, den: f.den, kh: f.kh, xe, tx, q: f.q, adv: f.adv, xem }} today={today} advFields={advFields} advLabels={advLabels} />
 
       <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Chế độ xem">
-        <ViewLink href={href({ xem: "", tt: "" })} active={!xem} icon={<ListChecks className="size-4" />} label="Chuyến" count={all.length} />
+        <ViewLink href={href({ xem: "", tt: "" })} active={!xem} icon={<ListChecks className="size-4" />} label="Chuyến" count={active.length} />
         <ViewLink href={href({ xem: "xe-trong", tt: "" })} active={xem === "xe-trong"} icon={<Truck className="size-4" />} label="Xe trống, giao thêm được" count={freeCount} warn={freeCount > 0} />
         <Link href={`/so-chuyen?thang=${f.tu.slice(0, 7)}`} className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
           <ListOrdered className="size-4" /> Số chuyến xe, tài xế trong tháng
@@ -215,7 +218,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       ) : (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap gap-1 border-b px-4 py-3" role="tablist">
-            <TabLink href={href({ tt: "" })} active={!tab} label="Tất cả" count={all.length} />
+            <TabLink href={href({ tt: "" })} active={!tab} label="Cần điều phối" count={active.length} />
             {SHIPMENT_STATUS.filter((s) => counts[s.value] > 0 || ["draft", "assigned"].includes(s.value)).map((s) => (
               <TabLink key={s.value} href={href({ tt: s.value })} active={tab === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
             ))}
@@ -234,7 +237,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             canCancel={canCancel}
             canFillDriver={canFillDriver}
             showDate={!single}
-            emptyText={f.q ? "Không có chuyến phù hợp với từ khóa." : filtered ? "Không có chuyến phù hợp với bộ lọc." : all.length === 0 ? `Chưa có chuyến nào nhận hàng ${rangeText}.` : "Không có chuyến ở trạng thái này."}
+            emptyText={f.q ? "Không có chuyến phù hợp với từ khóa." : filtered ? "Không có chuyến phù hợp với bộ lọc." : all.length === 0 ? `Chưa có chuyến nào nhận hàng ${rangeText}.` : !tab ? "Các chuyến đã giao xong, xem ở tab Đã giao – chờ quyết toán hoặc Đã đóng." : "Không có chuyến ở trạng thái này."}
           />
         </Card>
       )}
