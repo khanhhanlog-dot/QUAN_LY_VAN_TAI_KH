@@ -729,6 +729,18 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
             canCreate={me.permissions.has("expenses.create") && s.status !== "cancelled"}
             canCancel={me.permissions.has("expenses.update") || me.permissions.has("expenses.delete")}
             canCancelOwnPending={me.permissions.has("expenses.create")}
+            carrier={
+              canSeeCarrier && (is3pl || carrierCosts.length)
+                ? {
+                    supplierName: x.carrier?.name ?? x.vehicle?.supplier?.name ?? null,
+                    freight: carrierCosts.filter((c) => c.cost_kind === "freight").reduce((a, c) => a + Number(c.amount), 0),
+                    other: carrierCosts.filter((c) => c.cost_kind === "other").reduce((a, c) => a + Number(c.amount), 0),
+                    passThrough: carrierCosts.filter((c) => c.cost_kind === "pass_through").reduce((a, c) => a + Number(c.amount), 0),
+                    canEdit:
+                      (me.permissions.has("dispatch.update") || me.permissions.has("shipments.update") || me.permissions.has("receivables.create")) && s.status !== "cancelled",
+                  }
+                : null
+            }
           />
         ) : null}
       </div>

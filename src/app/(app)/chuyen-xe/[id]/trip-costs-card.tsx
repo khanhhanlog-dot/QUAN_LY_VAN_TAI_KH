@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Paperclip, Plus, Save, Search, Trash2 } from "lucide-react";
+import { Ban, Paperclip, Plus, Save, Search, Trash2, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,8 @@ export function TripCostsCard(props: {
   canCancel: boolean;
   /** Người nhập chỉ hủy được khoản chờ duyệt do mình nhập */
   canCancelOwnPending: boolean;
+  /** Chuyến xe thuê ngoài 3PL: tiền trả nhà xe nhập ở khung "Chi phí trả 3PL", hiện lại ở đây để đủ chi phí đầu ra */
+  carrier?: { supplierName: string | null; freight: number; other: number; passThrough: number; canEdit: boolean } | null;
 }) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Draft[]>(() => [newDraft()]);
@@ -105,6 +107,19 @@ export function TripCostsCard(props: {
     (t, g) => ({ approved: t.approved + g.approved, pending: t.pending + g.pending, company: t.company + g.company, driver: t.driver + g.driver, count: t.count + g.count }),
     { approved: 0, pending: 0, company: 0, driver: 0, count: 0 },
   );
+  const cr = props.carrier ?? null;
+  // Cước 3PL + chi phí khác trả nhà xe: chi bởi công ty, trừ vào lời/lỗ. Chi hộ 3PL thu lại của khách nên không trừ.
+  const carrierRows = cr
+    ? [
+        { name: "Cước vận chuyển trả 3PL", amount: cr.freight + cr.other, profit: true },
+        ...(cr.passThrough ? [{ name: "Chi hộ trả 3PL (thu lại khách)", amount: cr.passThrough, profit: false }] : []),
+      ]
+    : [];
+  const grand = {
+    count: total.count + carrierRows.filter((r) => r.amount).length,
+    company: total.company + carrierRows.reduce((a, r) => a + r.amount, 0),
+    approved: total.approved + carrierRows.filter((r) => r.profit).reduce((a, r) => a + r.amount, 0),
+  };
   const draftTotal = drafts.reduce((a, d) => a + (d.amount ?? 0), 0);
   const filled = drafts.filter((d) => !isBlank(d));
 
@@ -162,6 +177,27 @@ export function TripCostsCard(props: {
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
+        {cr ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50 p-2 dark:border-violet-900 dark:bg-violet-950/40">
+            <div className="space-y-0.5">
+              <div>
+                <Truck className="mr-1 inline size-4 align-text-bottom" />
+                Xe thuê ngoài 3PL{cr.supplierName ? <> · nhà xe <b>{cr.supplierName}</b></> : null}: cước vận chuyển trả 3PL{" "}
+                <b className="tabular-nums">{formatVND(cr.freight + cr.other)}</b>
+                {cr.passThrough ? <>, chi hộ trả 3PL <b className="tabular-nums">{formatVND(cr.passThrough)}</b></> : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cước 3PL nhập ở khung &quot;Chi phí trả 3PL&quot; (tự lập công nợ phải trả nhà xe), đã cộng vào bảng tổng hợp bên dưới. Không chọn hạng mục &quot;Thuê xe ngoài
+                (3-PL)&quot; ở đây để khỏi trừ 2 lần.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <a href="#chi-phi-3pl">
+                <Truck /> {cr.canEdit ? (cr.freight + cr.other + cr.passThrough ? "Sửa cước 3PL" : "Nhập cước 3PL") : "Xem cước 3PL"}
+              </a>
+            </Button>
+          </div>
+        ) : null}
         <div className="space-y-1.5">
           <div className={`hidden gap-1.5 border-b pb-1 text-[11px] font-medium text-muted-foreground md:grid ${GRID}`}>
             <span>#</span>
@@ -327,7 +363,7 @@ export function TripCostsCard(props: {
 
         <div className="space-y-1.5">
           <div className="font-medium">Tổng hợp theo nhóm chi phí</div>
-          {groups.length === 0 ? (
+          {groups.length === 0 && !cr ? (
             <p className="text-muted-foreground">Chưa có khoản chi phí nào.</p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
@@ -353,13 +389,27 @@ export function TripCostsCard(props: {
                       <td className="px-2 py-1.5 text-right font-medium tabular-nums">{formatVND(g.approved)}</td>
                     </tr>
                   ))}
+                  {carrierRows.map((r) => (
+                    <tr key={r.name} className="border-t">
+                      <td className="px-2 py-1.5">
+                        <a href="#chi-phi-3pl" className="hover:underline" title="Nhập, sửa ở khung Chi phí trả 3PL">
+                          {r.name}
+                        </a>
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{r.amount ? 1 : 0}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{formatVND(r.amount)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{formatVND(0)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">—</td>
+                      <td className="px-2 py-1.5 text-right font-medium tabular-nums">{r.profit ? formatVND(r.amount) : "Không trừ"}</td>
+                    </tr>
+                  ))}
                   <tr className="border-t bg-muted/40 font-semibold">
                     <td className="px-2 py-1.5">Tổng chi phí đầu ra</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{total.count}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{formatVND(total.company)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{grand.count}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatVND(grand.company)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{formatVND(total.driver)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{total.pending ? formatVND(total.pending) : "—"}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-primary">{formatVND(total.approved)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-primary">{formatVND(grand.approved)}</td>
                   </tr>
                 </tbody>
               </table>
