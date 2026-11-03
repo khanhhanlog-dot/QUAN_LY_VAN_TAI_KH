@@ -2068,6 +2068,30 @@ export const ENTITIES: Record<string, EntityDef> = {
   },
 };
 
+// Ô chọn xe khi phân công / tạo đơn tách theo nguồn xe: Xe nội bộ (không có xe 3PL) và Xe 3-PL (chỉ xe thuê ngoài).
+// Cùng bảng vehicles, nên trang Phương tiện, app tài xế, chi phí 3PL vẫn dùng chung.
+ENTITIES.vehicles_internal = {
+  ...ENTITIES.vehicles,
+  key: "vehicles_internal",
+  singular: "xe nội bộ",
+  refExclude: { ownership_type: "outsourced" },
+};
+ENTITIES.vehicles_3pl = {
+  ...ENTITIES.vehicles,
+  key: "vehicles_3pl",
+  label: "Xe 3-PL",
+  singular: "xe 3-PL",
+  fixed: { ownership_type: "outsourced" },
+  quickFields: ["plate_number", "supplier_id", "vehicle_type_id", "assigned_driver_id"],
+  fields: ENTITIES.vehicles.fields.map((f) =>
+    f.key === "assigned_driver_id"
+      ? { ...f, label: "Tài xế của nhà xe", help: "Tài xế 3PL hay chạy xe này, tự điền khi phân công. Chưa có thì gõ tên để thêm mới (tên + SĐT)." }
+      : f.key === "supplier_id"
+        ? { ...f, help: "Đơn vị chủ xe nhận tiền cước, chi hộ. Chưa có thì gõ tên để thêm mới." }
+        : f,
+  ),
+};
+
 export function getEntity(key: string): EntityDef {
   const e = ENTITIES[key];
   if (!e) throw new Error(`Không có thực thể ${key}`);

@@ -103,6 +103,8 @@ export type EntityDef = {
   singleton?: boolean;
   /** Mã tự sinh khi để trống */
   autoCode?: boolean;
+  /** Khi chọn tham chiếu: bỏ các dòng có cột = giá trị (ví dụ bỏ xe thuê ngoài 3PL khỏi danh sách xe nội bộ) */
+  refExclude?: Record<string, string>;
   /** Điều kiện chỉ được chọn khi tham chiếu (ví dụ chỉ bản ghi đang hoạt động) */
   activeFilter?: { col: string; value: string | boolean };
   /** Trường select hiển thị thành dãy tab lọc (kèm số lượng) phía trên bảng */

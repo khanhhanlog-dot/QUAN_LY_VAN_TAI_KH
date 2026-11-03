@@ -21,6 +21,7 @@ type VehicleRow = {
   ownership_type: string;
   status: string;
   archived_at: string | null;
+  assigned_driver_id: string | null;
   vehicle_types: { name: string } | null;
   drivers: { full_name: string } | null;
 };
@@ -59,7 +60,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     loadTrips(supabase, from, to),
     supabase
       .from("vehicles")
-      .select("id, code, plate_number, ownership_type, status, archived_at, vehicle_types(name), drivers!vehicles_assigned_driver_id_fkey(full_name)")
+      .select("id, code, plate_number, ownership_type, status, archived_at, assigned_driver_id, vehicle_types(name), drivers!vehicles_assigned_driver_id_fkey(full_name)")
       .order("plate_number")
       .limit(5000),
     supabase.from("drivers").select("id, code, full_name, phone, status, archived_at").order("full_name").limit(5000),
@@ -73,6 +74,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const drivers = (dRes.data ?? []) as DriverRow[];
   const plate = new Map(vehicles.map((v) => [v.id, v.plate_number]));
   const driverName = new Map(drivers.map((d) => [d.id, d.full_name]));
+  // Xe và tài xế 3PL (tài xế phụ trách xe thuê ngoài) không tính vào số chuyến
+  const outsourcedVehicles = new Set(vehicles.filter((v) => v.ownership_type === "outsourced").map((v) => v.id));
+  const outsourcedDrivers = new Set(vehicles.filter((v) => v.ownership_type === "outsourced" && v.assigned_driver_id).map((v) => v.assigned_driver_id!));
 
   type Acc = { total: number; delivered: number; today: number; days: Map<string, number>; others: Map<string, number> };
   const newAcc = (): Acc => ({ total: 0, delivered: 0, today: 0, days: new Map(), others: new Map() });
@@ -81,6 +85,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   let noVehicle = 0;
   let noDriver = 0;
   for (const t of trips) {
+    if (t.vehicle_id && outsourcedVehicles.has(t.vehicle_id)) continue;
     const day = tripDay(t);
     const add = (m: Map<string, Acc>, id: string, other: string | null) => {
       const a = m.get(id) ?? newAcc();
@@ -98,7 +103,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   }
 
   const activeCompany = (v: VehicleRow) => v.status === "active" && !v.archived_at && v.ownership_type !== "outsourced";
-  const activeDriver = (d: DriverRow) => d.status === "active" && !d.archived_at;
+  const activeDriver = (d: DriverRow) => d.status === "active" && !d.archived_at && !outsourcedDrivers.has(d.id);
   const avgOf = (ids: string[], m: Map<string, Acc>) => (ids.length ? Math.round((ids.reduce((s, id) => s + (m.get(id)?.total ?? 0), 0) / ids.length) * 10) / 10 : 0);
   const companyIds = vehicles.filter(activeCompany).map((v) => v.id);
   const activeDriverIds = drivers.filter(activeDriver).map((d) => d.id);
@@ -158,7 +163,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       <CompactDensity />
       <PageHeader
         title="Số chuyến xe, tài xế"
-        description={`Mỗi xe, mỗi tài xế đã chạy bao nhiêu chuyến ${label}, để điều phối chia chuyến đều. Chuyến tính theo ngày nhận hàng, không tính chuyến đã hủy. Tài xế đổi xe thì chuyến nào tính cho xe đó.`}
+        description={`Mỗi xe, mỗi tài xế đã chạy bao nhiêu chuyến ${label}, để điều phối chia chuyến đều. Chuyến tính theo ngày nhận hàng, không tính chuyến đã hủy. Tài xế đổi xe thì chuyến nào tính cho xe đó. Không tính xe, tài xế thuê ngoài 3PL.`}
       />
       <TripCountReport
         range={{ from, to, isMonth, label }}

@@ -154,6 +154,7 @@ export async function searchReferences(refKey: string, q: string, includeIds: st
     const cols = ["id", ...entity.labelCols].join(",");
     let query = supabase.from(entity.table).select(cols);
     for (const [k, v] of Object.entries(entity.fixed ?? {})) query = query.eq(k, v);
+    for (const [k, v] of Object.entries(entity.refExclude ?? {})) query = query.neq(k, v);
     if (entity.activeFilter) query = query.eq(entity.activeFilter.col, entity.activeFilter.value);
     const term = sanitizeSearch(q ?? "");
     const searchCols = entity.search.length ? entity.search : entity.labelCols;

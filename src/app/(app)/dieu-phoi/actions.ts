@@ -444,16 +444,17 @@ export async function actForDriver(input: z.input<typeof actSchema>): Promise<Ac
 }
 
 /** Xe đang hoạt động kèm tài xế phụ trách, để gợi ý tài xế khi chọn xe */
-export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionResult<{ driverId: string | null; vehicleTypeId: string | null }>> {
+export async function vehicleDefaultDriver(vehicleId: string): Promise<ActionResult<{ driverId: string | null; vehicleTypeId: string | null; outsourced: boolean }>> {
   return runAction(async () => {
     await requirePermission("dispatch.create", "dispatch.update");
     if (!uuid.safeParse(vehicleId).success) throw new ActionError("Xe không hợp lệ");
     const supabase = await createClient();
-    const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id").eq("id", vehicleId).maybeSingle();
+    const { data, error } = await supabase.from("vehicles").select("assigned_driver_id, vehicle_type_id, ownership_type").eq("id", vehicleId).maybeSingle();
     if (error) throw error;
     return {
       driverId: data?.assigned_driver_id ?? null,
       vehicleTypeId: data?.vehicle_type_id ?? null,
+      outsourced: data?.ownership_type === "outsourced",
     };
   });
 }
@@ -559,12 +560,12 @@ export async function monthTripCount(input: z.input<typeof monthCountSchema>): P
     const { kind, id, day, excludeShipmentId } = p.data;
     const ym = day.slice(0, 7);
     const supabase = await createClient();
-    // Xe thuê ngoài 3PL không đếm số chuyến (chỉ xe nội bộ)
-    if (kind === "vehicle") {
-      const { data: v, error: ve } = await supabase.from("vehicles").select("ownership_type").eq("id", id).maybeSingle();
-      if (ve) throw ve;
-      if (!v || v.ownership_type === "outsourced") return null;
-    }
+    // Xe thuê ngoài 3PL và tài xế phụ trách xe 3PL không đếm số chuyến (chỉ xe, tài xế nội bộ)
+    const { data: ov, error: ove } = await supabase.from("vehicles").select("id, assigned_driver_id").eq("ownership_type", "outsourced").limit(5000);
+    if (ove) throw ove;
+    const outVehicles = new Set((ov ?? []).map((v) => v.id as string));
+    const outDrivers = new Set((ov ?? []).map((v) => v.assigned_driver_id as string | null).filter((x): x is string => Boolean(x)));
+    if (kind === "vehicle" ? outVehicles.has(id) : outDrivers.has(id)) return null;
     const [trips, pool] = await Promise.all([
       loadTrips(supabase, `${ym}-01`, lastDayOfMonth(ym)),
       kind === "vehicle"
@@ -573,10 +574,11 @@ export async function monthTripCount(input: z.input<typeof monthCountSchema>): P
     ]);
     if (pool.error) throw pool.error;
     const key = kind === "vehicle" ? "vehicle_id" : "driver_id";
-    const counts = new Map<string, number>(((pool.data ?? []) as { id: string }[]).map((r) => [r.id, 0]));
+    const counts = new Map<string, number>(((pool.data ?? []) as { id: string }[]).filter((r) => !outDrivers.has(r.id)).map((r) => [r.id, 0]));
     const out = { month: 0, delivered: 0, day: 0 };
     for (const t of trips) {
       if (t.id === excludeShipmentId) continue;
+      if (t.vehicle_id && outVehicles.has(t.vehicle_id)) continue;
       const k = t[key];
       if (!k) continue;
       if (counts.has(k)) counts.set(k, counts.get(k)! + 1);

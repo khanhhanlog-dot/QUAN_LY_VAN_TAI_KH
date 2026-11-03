@@ -21,6 +21,7 @@ import { FeesEditor, countFeeFiles, feeTotals, feesPayload, newFee, uploadFeeFil
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
 import { parseNumberVN } from "@/lib/entities/record";
 import { PRICING_UNITS } from "@/lib/status";
+import { VehicleSourcePicker, type VehicleSource } from "@/components/dispatch/vehicle-source-picker";
 import { createOrder, customerDefaultPayer, quoteShipment, updateOrderFull, vehicleDefaultDriver, type QuoteResult } from "../actions";
 import { shipmentStatus } from "@/lib/status";
 
@@ -61,6 +62,8 @@ type Row = {
   feeDocs?: Record<string, number>;
   /** Kiểm tra xe đã có chuyến cùng ngày: xác nhận vẫn giao và thứ tự chuyến của xe trong ngày */
   vehicleDay?: VehicleDayState;
+  /** Đang chọn Xe nội bộ hay Xe 3-PL (xe 3PL không cảnh báo trùng xe, không đếm chuyến) */
+  vehicleSource?: VehicleSource;
   /** keep = chuyến đã có, giữ giá đang lưu (sửa tay được); quote = tìm giá theo bảng giá như lúc tạo */
   priceMode: "keep" | "quote";
   /** Các thông tin dưới chỉ có ở chuyến đã có khi sửa đơn */
@@ -862,18 +865,18 @@ function ShipmentEditor({
             vehicle_id: (
               <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("vehicle")}>Xe (có thể chọn sau)</Label>
-                <ReferenceSelect
+                <VehicleSourcePicker
                   id={id("vehicle")}
-                  refKey="vehicles"
                   value={row.vehicleId}
                   disabled={!canAssign}
+                  onSourceChange={(src) => onChange(src === "3pl" ? { vehicleSource: src, vehicleDay: undefined } : { vehicleSource: src })}
                   onChange={(v) => {
                     onChange({ vehicleId: v });
                     if (v) {
                       vehicleDefaultDriver(v).then((r) => {
                         if (!r.ok || !r.data) return;
                         const patch: Partial<Row> = {};
-                        if (r.data.driverId && !row.driverId)
+                        if (r.data.driverId && (!row.driverId || r.data.outsourced) && r.data.driverId !== row.driverId)
                           Object.assign(patch, {
                             driverId: r.data.driverId,
                             driverKey: row.driverKey + 1,
@@ -888,8 +891,8 @@ function ShipmentEditor({
                     }
                   }}
                 />
-                {canAssign ? <MonthTripHint kind="vehicle" id={row.vehicleId} day={day} excludeShipmentId={row.id} /> : null}
-                {needsDayCheck(row) ? (
+                {canAssign && row.vehicleSource !== "3pl" ? <MonthTripHint kind="vehicle" id={row.vehicleId} day={day} excludeShipmentId={row.id} /> : null}
+                {needsDayCheck(row) && row.vehicleSource !== "3pl" ? (
                   <VehicleDayConflict vehicleId={row.vehicleId} day={day} excludeShipmentId={row.id} sameForm={sameVehicle} onStateChange={(st) => onChange({ vehicleDay: st })} />
                 ) : null}
                 {!canAssign ? <p className="text-xs text-muted-foreground">Chuyến đang chạy hoặc đã xong: không đổi xe, tài xế.</p> : null}
@@ -899,7 +902,7 @@ function ShipmentEditor({
               <div className="space-y-1 lg:col-span-2">
                 <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
                 <ReferenceSelect key={row.driverKey} id={id("driver")} refKey="drivers" value={row.driverId} disabled={!canAssign} onChange={(v) => onChange({ driverId: v })} />
-                {canAssign ? <MonthTripHint kind="driver" id={row.driverId} day={day} excludeShipmentId={row.id} /> : null}
+                {canAssign && row.vehicleSource !== "3pl" ? <MonthTripHint kind="driver" id={row.driverId} day={day} excludeShipmentId={row.id} /> : null}
                 {row.orig && row.driverId !== row.orig.driverId && row.driverId ? (
                   <p className="text-xs text-amber-700">Đổi tài xế: chuyến sẽ chờ Giám đốc duyệt lại trước khi tài xế mới thấy chuyến.</p>
                 ) : null}

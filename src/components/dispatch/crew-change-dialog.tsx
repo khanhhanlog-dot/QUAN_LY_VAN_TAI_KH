@@ -10,6 +10,7 @@ import { ReferenceSelect } from "@/components/entities/reference-select";
 import { correctShipmentCrew, unacceptShipment } from "@/app/(app)/dieu-phoi/actions";
 import { todayVN } from "@/lib/format";
 import { VehicleDayConflict, type VehicleDayState } from "./vehicle-day-conflict";
+import { VehicleSourcePicker, type VehicleSource } from "./vehicle-source-picker";
 
 
 /**
@@ -48,13 +49,15 @@ export function CrewChangeDialog({
   const unaccept = mode === "unaccept";
   const vehicleChanged = vehicle.id !== (vehicleId ?? "");
   const changed = vehicleChanged || driver.id !== (driverId ?? "");
-  const blocked = unaccept && vehicleChanged && dayState.blocked;
+  const [source, setSource] = useState<VehicleSource>("internal");
+  const is3pl = source === "3pl";
+  const blocked = unaccept && vehicleChanged && !is3pl && dayState.blocked;
 
   function save() {
     start(async () => {
       const input = { shipmentId, vehicleId: vehicle.id, driverId: driver.id, reason };
       const r = unaccept
-        ? await unacceptShipment({ ...input, ...(vehicleChanged ? { vehicleDayOrder: dayState.order, otherOrders: dayState.others } : {}) })
+        ? await unacceptShipment({ ...input, ...(vehicleChanged && !is3pl ? { vehicleDayOrder: dayState.order, otherOrders: dayState.others } : {}) })
         : await correctShipmentCrew(input);
       if (!r.ok) return void toast.error(r.error);
       toast.success(r.message);
@@ -89,8 +92,8 @@ export function CrewChangeDialog({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor={`cv-${mode}-${shipmentId}`}>{unaccept ? "Xe mới" : "Xe đúng"}</Label>
-              <ReferenceSelect id={`cv-${mode}-${shipmentId}`} refKey="vehicles" value={vehicle.id} initialLabel={vehicle.label} onChange={(id, label) => setVehicle({ id, label })} />
-              {unaccept ? (
+              <VehicleSourcePicker id={`cv-${mode}-${shipmentId}`} value={vehicle.id} initialLabel={vehicle.label} onChange={(id, label) => setVehicle({ id, label })} onSourceChange={setSource} />
+              {unaccept && !is3pl ? (
                 <VehicleDayConflict vehicleId={vehicleChanged ? vehicle.id : ""} day={todayVN(new Date(pickupAt))} excludeShipmentId={shipmentId} onStateChange={setDayState} />
               ) : null}
             </div>
