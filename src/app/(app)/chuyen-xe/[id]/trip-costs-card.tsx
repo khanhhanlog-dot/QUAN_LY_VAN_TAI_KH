@@ -14,6 +14,8 @@ import { DocumentsButton } from "@/components/finance/documents-button";
 import { uploadStaffDocuments } from "@/components/finance/upload";
 import { ApprovalRowActions } from "@/components/finance/row-actions";
 import { cancelExpense, createExpense } from "@/lib/finance/actions";
+import { saveCarrierCosts } from "@/lib/finance/carrier-actions";
+import type { CarrierCost } from "@/components/finance/carrier-dialogs";
 import { MONEY_STATUS, PAID_BY } from "@/lib/entities/definitions";
 import { TONE_BADGE } from "@/lib/tones";
 import { formatDateTime, formatVND } from "@/lib/format";
@@ -35,11 +37,12 @@ export type TripCost = {
   payroll_id: string | null;
 };
 
-type Draft = { key: number; categoryId: string; amount: number | null; paidBy: "company" | "driver"; refNo: string; note: string; files: File[]; rid: string };
+type Draft = { key: number; categoryId: string; catLabel?: string; amount: number | null; paidBy: "company" | "driver"; refNo: string; note: string; files: File[]; rid: string };
 let seq = 0;
-const newDraft = (paidBy: Draft["paidBy"] = "company"): Draft => ({
+const newDraft = (paidBy: Draft["paidBy"] = "company", cat?: { id: string; label: string } | null): Draft => ({
   key: ++seq,
-  categoryId: "",
+  categoryId: cat?.id ?? "",
+  catLabel: cat?.label,
   amount: null,
   paidBy,
   refNo: "",
@@ -47,7 +50,7 @@ const newDraft = (paidBy: Draft["paidBy"] = "company"): Draft => ({
   files: [],
   rid: crypto.randomUUID(),
 });
-const isBlank = (d: Draft) => !d.categoryId && !d.amount && !d.refNo.trim() && !d.note.trim() && !d.files.length;
+const isBlank = (d: Draft) => !d.amount && !d.refNo.trim() && !d.note.trim() && !d.files.length;
 const GRID = "md:grid-cols-[2rem_minmax(11rem,1.3fr)_8.5rem_9.5rem_minmax(9rem,1fr)_minmax(9rem,1fr)_8.5rem_auto]";
 
 /**
@@ -64,10 +67,24 @@ export function TripCostsCard(props: {
   /** Người nhập chỉ hủy được khoản chờ duyệt do mình nhập */
   canCancelOwnPending: boolean;
   /** Chuyến xe thuê ngoài 3PL: tiền trả nhà xe nhập ở khung "Chi phí trả 3PL", hiện lại ở đây để đủ chi phí đầu ra */
-  carrier?: { supplierName: string | null; freight: number; other: number; passThrough: number; canEdit: boolean } | null;
+  carrier?: {
+    supplierId: string | null;
+    supplierName: string | null;
+    freight: number;
+    other: number;
+    passThrough: number;
+    canEdit: boolean;
+    /** Các khoản 3PL đang có (lưu thêm khoản mới thì giữ nguyên các khoản cũ) */
+    lines: CarrierCost[];
+    /** Hạng mục "Thuê xe ngoài (3-PL)": chuyến 3PL tự chọn sẵn, lưu thành cước 3PL trả nhà xe */
+    outsource: { id: string; label: string } | null;
+  } | null;
 }) {
   const router = useRouter();
-  const [drafts, setDrafts] = useState<Draft[]>(() => [newDraft()]);
+  const cr = props.carrier ?? null;
+  // Chuyến 3PL: dòng mới tự chọn sẵn hạng mục Thuê xe ngoài (3-PL)
+  const defaultCat = cr?.outsource ?? null;
+  const [drafts, setDrafts] = useState<Draft[]>(() => [newDraft("company", defaultCat)]);
   const [q, setQ] = useState("");
   const [saving, startSave] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,11 +124,10 @@ export function TripCostsCard(props: {
     (t, g) => ({ approved: t.approved + g.approved, pending: t.pending + g.pending, company: t.company + g.company, driver: t.driver + g.driver, count: t.count + g.count }),
     { approved: 0, pending: 0, company: 0, driver: 0, count: 0 },
   );
-  const cr = props.carrier ?? null;
   // Cước 3PL + chi phí khác trả nhà xe: chi bởi công ty, trừ vào lời/lỗ. Chi hộ 3PL thu lại của khách nên không trừ.
   const carrierRows = cr
     ? [
-        { name: "Cước vận chuyển trả 3PL", amount: cr.freight + cr.other, profit: true },
+        { name: cr.outsource?.label ?? "Thuê xe ngoài (3-PL)", amount: cr.freight + cr.other, profit: true },
         ...(cr.passThrough ? [{ name: "Chi hộ trả 3PL (thu lại khách)", amount: cr.passThrough, profit: false }] : []),
       ]
     : [];
@@ -130,7 +146,36 @@ export function TripCostsCard(props: {
       if (bad >= 0) return void toast.error(`Dòng mới ${bad + 1}: chọn chi phí và nhập số tiền`);
       let saved = 0;
       const done = new Set<number>();
+      // Chuyến 3PL: khoản "Thuê xe ngoài (3-PL)" lưu thành cước trả nhà xe 3PL (một nơi duy nhất, tự lập công nợ phải trả, không trừ 2 lần)
+      const outsourceId = cr?.outsource?.id;
+      const toCarrier = outsourceId ? filled.filter((d) => d.categoryId === outsourceId) : [];
+      if (toCarrier.length && cr) {
+        if (!cr.canEdit) return void toast.error("Bạn không có quyền nhập chi phí 3PL");
+        if (!cr.supplierId) return void toast.error("Chuyến chưa có nhà xe 3PL. Bấm \"Nhập cước 3PL\" để chọn nhà xe trước.");
+        const r = await saveCarrierCosts({
+          shipmentId: props.shipmentId,
+          supplierId: cr.supplierId,
+          lines: [
+            ...cr.lines.map((l) => ({
+              kind: l.cost_kind,
+              feeTypeId: l.fee_type_id,
+              description: l.description,
+              quantity: l.quantity,
+              unitPrice: l.unit_price,
+              amount: Number(l.amount),
+              refNo: l.ref_no ?? undefined,
+              note: l.note ?? undefined,
+            })),
+            ...toCarrier.map((d) => ({ kind: "freight" as const, description: cr.outsource!.label, amount: d.amount!, refNo: d.refNo.trim() || undefined, note: d.note.trim() || undefined })),
+          ],
+        });
+        if (!r.ok) return void toast.error(r.error);
+        for (const d of toCarrier) done.add(d.key);
+        saved += toCarrier.length;
+        if (toCarrier.some((d) => d.files.length)) toast.info("Cước 3PL đã lưu; chứng từ của nhà xe đính kèm ở phiếu công nợ phải trả.");
+      }
       for (const d of filled) {
+        if (done.has(d.key)) continue;
         const r = await createExpense({
           shipmentId: props.shipmentId,
           categoryId: d.categoryId,
@@ -143,7 +188,7 @@ export function TripCostsCard(props: {
         if (!r.ok) {
           setDrafts((ds) => {
             const left = ds.filter((x) => !done.has(x.key));
-            return left.length ? left : [newDraft()];
+            return left.length ? left : [newDraft("company", defaultCat)];
           });
           router.refresh();
           return void toast.error(saved ? `Đã lưu ${saved} khoản; khoản tiếp theo lỗi: ${r.error}` : r.error);
@@ -156,7 +201,7 @@ export function TripCostsCard(props: {
         }
       }
       toast.success(saved > 1 ? `Đã lưu ${saved} khoản chi phí` : "Đã lưu chi phí");
-      setDrafts([newDraft(filled[filled.length - 1]?.paidBy)]);
+      setDrafts([newDraft(filled[filled.length - 1]?.paidBy, defaultCat)]);
       router.refresh();
     });
   }
@@ -187,8 +232,8 @@ export function TripCostsCard(props: {
                 {cr.passThrough ? <>, chi hộ trả 3PL <b className="tabular-nums">{formatVND(cr.passThrough)}</b></> : null}
               </div>
               <p className="text-xs text-muted-foreground">
-                Cước 3PL nhập ở khung &quot;Chi phí trả 3PL&quot; (tự lập công nợ phải trả nhà xe), đã cộng vào bảng tổng hợp bên dưới. Không chọn hạng mục &quot;Thuê xe ngoài
-                (3-PL)&quot; ở đây để khỏi trừ 2 lần.
+                Dòng mới tự chọn sẵn hạng mục &quot;{cr.outsource?.label ?? "Thuê xe ngoài (3-PL)"}&quot;: lưu xong thành cước trả nhà xe ở khung &quot;Chi phí trả 3PL&quot;
+                (tự lập công nợ phải trả, chỉ tính một lần). Chi phí khác thì đổi hạng mục.
               </p>
             </div>
             <Button asChild size="sm" variant="outline">
@@ -257,7 +302,7 @@ export function TripCostsCard(props: {
                 <div key={d.key} className={`grid grid-cols-2 items-center gap-1.5 rounded-md bg-primary/5 p-1.5 md:p-1 ${GRID}`}>
                   <span className="hidden text-xs font-medium text-primary md:block">+{i + 1}</span>
                   <div className="col-span-2 min-w-0 md:col-span-1">
-                    <ReferenceSelect id={`tc-cat-${d.key}`} refKey="expense_categories" value={d.categoryId} onChange={(v) => patch(d.key, { categoryId: v })} />
+                    <ReferenceSelect id={`tc-cat-${d.key}`} refKey="expense_categories" value={d.categoryId} initialLabel={d.catLabel} onChange={(v) => patch(d.key, { categoryId: v })} />
                   </div>
                   <MoneyField id={`tc-amount-${d.key}`} value={d.amount} onChange={(v) => patch(d.key, { amount: v })} />
                   <NativeSelect
@@ -315,7 +360,7 @@ export function TripCostsCard(props: {
                       size="icon"
                       className="size-8 text-destructive"
                       aria-label={`Xóa dòng mới ${i + 1}`}
-                      onClick={() => setDrafts((ds) => (ds.length === 1 ? [newDraft(d.paidBy)] : ds.filter((x) => x.key !== d.key)))}
+                      onClick={() => setDrafts((ds) => (ds.length === 1 ? [newDraft(d.paidBy, defaultCat)] : ds.filter((x) => x.key !== d.key)))}
                     >
                       <Trash2 />
                     </Button>
@@ -330,7 +375,7 @@ export function TripCostsCard(props: {
                 variant="outline"
                 size="sm"
                 disabled={drafts.length >= 30 || saving}
-                onClick={() => setDrafts((ds) => [...ds, newDraft(ds[ds.length - 1]?.paidBy)])}
+                onClick={() => setDrafts((ds) => [...ds, newDraft(ds[ds.length - 1]?.paidBy, defaultCat)])}
               >
                 <Plus /> Thêm chi phí
               </Button>
