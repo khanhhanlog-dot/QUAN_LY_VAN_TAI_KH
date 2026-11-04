@@ -7,7 +7,7 @@ import { ALL_PERMISSIONS } from "@/lib/permissions";
 import { CUSTOM_FIELD_MODULES, ENTITIES, FORM_SYSTEM_FIELDS, FORMULA_SYSTEM_FIELDS } from "@/lib/entities/definitions";
 import { FIELD_DATA_TYPES, REFERENCE_TARGETS } from "@/lib/entities/field-types";
 import { validateFormula } from "@/lib/formula";
-import { isUuid, parseNumberVN } from "@/lib/entities/record";
+import { isUuid, parseNumberVN, systemFieldEditable } from "@/lib/entities/record";
 import { loadCustomFields } from "@/lib/entities/server";
 import { conditionSources } from "@/lib/entities/visibility";
 import { zodMessageVi } from "@/lib/zod-vi";
@@ -290,4 +290,57 @@ export async function saveFormLayout(module: string, order: string[]): Promise<A
     if (error) throw error;
     revalidatePath("/", "layout");
   }, "Đã lưu thứ tự trường trên biểu mẫu");
+}
+
+const systemFieldSchema = z.object({
+  label: z.string().trim().max(150, "Tên tối đa 150 ký tự").optional(),
+  help: z.string().trim().max(500, "Gợi ý tối đa 500 ký tự").optional(),
+  required: z.boolean().optional(),
+  hidden: z.boolean().optional(),
+  list: z.boolean().optional(),
+  options: z.record(z.string(), z.string().trim().max(150)).optional(),
+});
+export type SystemFieldInput = z.input<typeof systemFieldSchema>;
+
+/**
+ * Sửa trường hệ thống: tên hiển thị, gợi ý, bắt buộc, ẩn khỏi biểu mẫu, cột bảng, tên lựa chọn.
+ * Mã trường, kiểu dữ liệu và giá trị lưu giữ nguyên. Chỉ lưu phần khác mặc định; để trống hết = trả về mặc định.
+ */
+export async function saveSystemField(module: string, fieldKey: string, input: SystemFieldInput): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("fields.configure");
+    const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === module);
+    if (!mod) throw new ActionError("Màn hình không hợp lệ");
+    const entity = mod.entity ? ENTITIES[mod.entity] : undefined;
+    const def = entity ? entity.fields.find((f) => f.key === fieldKey) : FORM_SYSTEM_FIELDS[module]?.find((f) => f.key === fieldKey);
+    if (!def) throw new ActionError("Không tìm thấy trường hệ thống");
+    const parsed = systemFieldSchema.safeParse(input ?? {});
+    if (!parsed.success) throw new ActionError(zodMessageVi(parsed.error));
+    const v = parsed.data;
+    const out: Record<string, unknown> = {};
+    if (v.label && v.label !== def.label) out.label = v.label;
+    const full = entity?.fields.find((f) => f.key === fieldKey);
+    if (v.help !== undefined && v.help !== (full?.help ?? "")) out.help = v.help;
+    if (full) {
+      const can = systemFieldEditable(full);
+      if (can.required && v.required !== undefined && v.required !== Boolean(full.required)) out.required = v.required;
+      if (can.hidden && v.hidden && !v.required) out.hidden = true;
+      if (v.list !== undefined && v.list !== Boolean(full.list)) out.list = v.list;
+      if (v.options && full.options?.length) {
+        const opts: Record<string, string> = {};
+        for (const o of full.options) {
+          const name = v.options[o.value]?.trim();
+          if (name && name !== o.label) opts[o.value] = name;
+        }
+        if (Object.keys(opts).length) out.options = opts;
+      }
+    }
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("save_system_field", { p_module: module, p_field_key: fieldKey, p_values: out });
+    if (error) {
+      if (/save_system_field/.test(error.message)) throw new ActionError("CSDL chưa nâng cấp “Sửa trường hệ thống” (0059). Vui lòng chạy tệp nâng cấp trước.");
+      throw error;
+    }
+    revalidatePath("/", "layout");
+  }, "Đã lưu trường hệ thống");
 }

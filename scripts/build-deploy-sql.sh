@@ -154,3 +154,6 @@ upgrade nang-cap-giao-3pl.sql "Giao chuyến cho nhà xe 3PL (số xe, tài xế
   supabase/migrations/20261103000057_assign_3pl.sql
 upgrade nang-cap-gop-danh-muc-phi.sql "Gộp danh mục phí: Nguồn phí Thu khách / Chi ra, mã TK0001 / CP0001" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'fee_types' and column_name = 'fee_source')" \
   supabase/migrations/20261103000058_fee_catalog_merge.sql
+
+upgrade nang-cap-sua-truong-he-thong.sql "Cho sửa trường hệ thống: tên hiển thị, gợi ý, bắt buộc, ẩn, cột bảng, tên lựa chọn" "to_regprocedure('public.save_system_field(text,text,jsonb)') is not null" \
+  supabase/migrations/20261104000059_system_field_settings.sql

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AddFieldButton } from "@/components/entities/add-field-button";
-import { applyLayout, formatValue, parseNumberVN } from "@/lib/entities/record";
+import { applyLayout, formatValue, parseNumberVN, systemLabel, systemSettingsOf } from "@/lib/entities/record";
 import { computeFormula } from "@/lib/formula";
 import { formatNumber } from "@/lib/format";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
@@ -60,7 +60,8 @@ export function ItemsEditor({
   idPrefix: string;
 }) {
   const [paste, setPaste] = useState<string | null>(null);
-  const cols = applyLayout([...SYSTEM_COLS.map((c) => ({ key: c.key as string, sys: c, field: null as FieldDef | null })), ...fields.map((f) => ({ key: f.key, sys: null, field: f }))], layout);
+  const sysSet = systemSettingsOf("shipment_items", fieldRows);
+  const cols = applyLayout([...SYSTEM_COLS.map((c) => ({ key: c.key as string, sys: { ...c, label: systemLabel(sysSet, c.key, c.label) }, field: null as FieldDef | null })), ...fields.map((f) => ({ key: f.key, sys: null, field: f }))], layout);
   const set = (key: number, patch: Partial<ItemLine>) => onChange(value.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const totalQty = value.reduce((a, l) => a + (parseNumberVN(l.quantity) ?? 0), 0);
   const sumOf = (f: FieldDef) => value.reduce((a, l) => a + (f.type === "formula" ? (computeFormula(f.formula, lineVars(l)) ?? 0) : (parseNumberVN(l.custom[f.key], f.type === "currency") ?? 0)), 0);

@@ -3,15 +3,14 @@ import Link from "next/link";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CUSTOM_FIELD_MODULES, ENTITIES, FORMULA_SYSTEM_FIELDS, FORM_SYSTEM_FIELDS } from "@/lib/entities/definitions";
-import { loadCustomFields, loadFormLayout } from "@/lib/entities/server";
-import { applyLayout } from "@/lib/entities/record";
+import { loadCustomFields, loadFormConfig } from "@/lib/entities/server";
+import { applyLayout, systemFieldEditable } from "@/lib/entities/record";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 import { FieldManager } from "./field-manager";
 import type { LayoutItem } from "./form-layout-card";
+import { SystemFieldsCard, type SystemFieldInfo } from "./system-fields-card";
 
 export const metadata: Metadata = { title: "Quản lý trường dữ liệu" };
 
@@ -26,16 +25,30 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
   const { module: mp, them } = await searchParams;
   const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === mp) ?? CUSTOM_FIELD_MODULES[0];
   const supabase = await createClient();
-  const [custom, layout] = await Promise.all([loadCustomFields(supabase, mod.module, true), loadFormLayout(supabase, mod.module)]);
+  const [custom, { order: layout, system: settings }] = await Promise.all([loadCustomFields(supabase, mod.module, true), loadFormConfig(supabase, mod.module)]);
   const entity = mod.entity ? ENTITIES[mod.entity] : undefined;
   const systemForm = entity ? entity.fields.filter((f) => !f.hideInForm && f.key !== entity.parentKey) : (FORM_SYSTEM_FIELDS[mod.module] ?? []);
   const layoutDefaults: LayoutItem[] = [
-    ...systemForm.map((f) => ({ key: f.key, label: f.label, system: true })),
+    ...systemForm.map((f) => ({ key: f.key, label: settings[f.key]?.label || f.label, system: true })),
     ...custom
       .filter((r) => r.status === "active")
       .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, "vi"))
       .map((r) => ({ key: r.field_key, label: r.label, system: false })),
   ];
+  const systemInfo: SystemFieldInfo[] = entity
+    ? entity.fields
+        .filter((f) => f.key !== entity.parentKey)
+        .map((f) => {
+          const can = systemFieldEditable(f);
+          return {
+            key: f.key, label: f.label, typeLabel: TYPE_LABEL[f.type] ?? f.type, help: f.help ?? "", required: Boolean(f.required),
+            list: Boolean(f.list), canRequire: can.required, canHide: can.hidden, hasTable: true,
+            options: f.type === "select" || f.type === "multiselect" ? (f.options ?? []).map((o) => ({ value: o.value, label: o.label })) : [],
+          };
+        })
+    : (FORM_SYSTEM_FIELDS[mod.module] ?? []).map((f) => ({
+        key: f.key, label: f.label, typeLabel: "—", help: "", required: false, list: false, canRequire: false, canHide: false, hasTable: false, options: [],
+      }));
   const numericSystem = entity
     ? entity.fields.filter((f) => ["number", "currency", "percent"].includes(f.type)).map((f) => ({ key: f.key, label: f.label }))
     : (FORMULA_SYSTEM_FIELDS[mod.module] ?? []);
@@ -87,20 +100,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
                 : undefined,
           }}
         />
-        {entity ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Trường hệ thống của {mod.label.toLowerCase()} (không đổi kiểu, không xóa)</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {entity.fields.map((f) => (
-                <Badge key={f.key} variant="outline" className="font-normal">
-                  {f.label} <span className="text-muted-foreground">· {TYPE_LABEL[f.type] ?? f.type}{f.required ? " · bắt buộc" : ""}</span>
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-        ) : (
+        <SystemFieldsCard
+          key={`${mod.module}:${JSON.stringify(settings)}`}
+          module={mod.module}
+          moduleLabel={mod.label}
+          fields={systemInfo}
+          settings={settings}
+          canConfigure={me.permissions.has("fields.configure")}
+          note={entity ? undefined : "Tên mới hiện trên form Tạo/Sửa đơn hàng ở Điều phối."}
+        />
+        {entity ? null : (
           <p className="text-sm text-muted-foreground">Trường bổ sung của {mod.label.toLowerCase()} hiện trong màn hình tạo đơn hàng, bảng chuyến xe (cột và tìm kiếm nâng cao) và chi tiết chuyến.</p>
         )}
       </div>

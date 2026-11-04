@@ -3,7 +3,7 @@
 import { computeFormula } from "@/lib/formula";
 import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/format";
 import type { AdvField, AdvFieldKind } from "@/lib/advanced-filter";
-import type { CustomFieldRow, EntityDef, FieldDef, Option } from "./types";
+import type { CustomFieldRow, EntityDef, FieldDef, Option, SystemFieldSetting, SystemFieldSettings } from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -92,16 +92,48 @@ export function effectiveFields(entity: EntityDef, customRows: CustomFieldRow[],
       if (r.edit_permission && permissions && !permissions.has(r.edit_permission)) def.readOnly = true;
       return def;
     });
-  return applyLayout([...entity.fields, ...custom], layoutOf(entity.customModule, customRows));
+  const settings = systemSettingsOf(entity.customModule, customRows);
+  const system = entity.fields.map((f) => applySystemSetting(f, settings[f.key]));
+  return applyLayout([...system, ...custom], layoutOf(entity.customModule, customRows));
+}
+
+/** Tùy chỉnh trường hệ thống đã lưu của màn hình (rỗng nếu chưa sửa) */
+export function systemSettingsOf(module: string | undefined, customRows: CustomFieldRow[]): SystemFieldSettings {
+  return customRows.find((r) => r.field_kind === "layout" && r.module === module)?.system ?? {};
+}
+
+/** Trường hệ thống có được bật "bắt buộc" / "ẩn khỏi biểu mẫu" hay không (các thuộc tính khác luôn sửa được) */
+export function systemFieldEditable(f: Pick<FieldDef, "required" | "readOnly" | "hideInForm" | "type">) {
+  const onForm = !f.readOnly && !f.hideInForm && f.type !== "formula" && f.type !== "file";
+  return { required: onForm && !f.required && f.type !== "boolean", hidden: onForm && !f.required };
+}
+
+/** Áp tùy chỉnh lên trường hệ thống: tên, gợi ý, bắt buộc, ẩn, cột bảng, tên lựa chọn (không đổi mã, kiểu, giá trị) */
+export function applySystemSetting(f: FieldDef, s: SystemFieldSetting | undefined): FieldDef {
+  if (!s) return f;
+  const can = systemFieldEditable(f);
+  const out: FieldDef = { ...f };
+  if (s.label) out.label = s.label;
+  if (s.help !== undefined) out.help = s.help || undefined;
+  if (s.required !== undefined && can.required) out.required = s.required;
+  if (s.hidden && can.hidden && !out.required) out.hideInForm = true;
+  if (s.list !== undefined) out.list = s.list;
+  if (s.options && f.options) out.options = f.options.map((o) => (s.options![o.value] ? { ...o, label: s.options![o.value] } : o));
+  return out;
+}
+
+/** Tên hiển thị của trường hệ thống trên biểu mẫu viết riêng (Tạo đơn hàng...) */
+export function systemLabel(settings: SystemFieldSettings, key: string, fallback: string): string {
+  return settings[key]?.label || fallback;
 }
 
 /** Dòng giả mang thứ tự trường trên biểu mẫu, đi kèm danh sách trường bổ sung */
-export function layoutRow(module: string, order: string[]): CustomFieldRow {
+export function layoutRow(module: string, order: string[], system: SystemFieldSettings = {}): CustomFieldRow {
   return {
     id: `layout:${module}`, module, field_key: "__layout", label: "", description: null, field_kind: "layout", data_type: "layout",
     is_required: false, is_editable: false, is_visible: false, is_searchable: false, is_filterable: false, is_sortable: false,
     default_value: null, display_format: null, sort_order: 0, view_permission: null, edit_permission: null, validation: null,
-    formula: null, visibility_condition: null, options: null, reference_target: null, status: "layout", version: 0, layout: order,
+    formula: null, visibility_condition: null, options: null, reference_target: null, status: "layout", version: 0, layout: order, system,
   };
 }
 

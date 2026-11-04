@@ -186,4 +186,21 @@ export type CustomFieldRow = {
   version: number;
   /** Chỉ có ở dòng giả field_kind = "layout": thứ tự trường trên biểu mẫu (bảng form_layouts) */
   layout?: string[];
+  /** Chỉ có ở dòng giả field_kind = "layout": tùy chỉnh trường hệ thống (form_layouts.system_fields) */
+  system?: SystemFieldSettings;
 };
+
+/** Tùy chỉnh một trường hệ thống; mã trường, kiểu dữ liệu và giá trị lưu giữ nguyên */
+export type SystemFieldSetting = {
+  label?: string;
+  help?: string;
+  /** Chỉ bật được với trường hệ thống không bắt buộc */
+  required?: boolean;
+  /** Ẩn khỏi biểu mẫu (chỉ với trường không bắt buộc) */
+  hidden?: boolean;
+  /** Hiện thành cột trên bảng theo mặc định */
+  list?: boolean;
+  /** Tên hiển thị mới của lựa chọn: { giá trị: tên } */
+  options?: Record<string, string>;
+};
+export type SystemFieldSettings = Record<string, SystemFieldSetting>;

@@ -14,12 +14,12 @@ import { VehicleDayConflict, type VehicleDayState } from "@/components/dispatch/
 import { MonthTripHint } from "@/components/dispatch/month-trip-hint";
 import { CustomFieldsEditor } from "@/components/entities/custom-fields-editor";
 import { AddFieldButton } from "@/components/entities/add-field-button";
-import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
+import type { CustomFieldRow, FieldDef, SystemFieldSettings } from "@/lib/entities/types";
 import { FORM_SYSTEM_FIELDS, PRICE_SYSTEM_KEYS } from "@/lib/entities/definitions";
 import { ItemsEditor, itemsPayload, newItem, type ItemLine } from "./items-editor";
 import { FeesEditor, countFeeFiles, feeTotals, feesPayload, newFee, uploadFeeFiles, useFeeCatalog, type FeeFiles, type FeeLine } from "./fees-editor";
 import { formatNumber, formatVND, todayVN } from "@/lib/format";
-import { parseNumberVN } from "@/lib/entities/record";
+import { parseNumberVN, systemLabel, systemSettingsOf } from "@/lib/entities/record";
 import { PRICING_UNITS } from "@/lib/status";
 import { VehicleSourcePicker, type VehicleSource } from "@/components/dispatch/vehicle-source-picker";
 import { createOrder, customerDefaultPayer, quoteShipment, updateOrderFull, vehicleDefaultDriver, type QuoteResult } from "../actions";
@@ -309,6 +309,7 @@ export function OrderForm({
     }));
   });
   const lockedHeader = Boolean(edit?.billed);
+  const oSys = systemSettingsOf("transport_orders", orderFieldRows);
   const [pending, start] = useTransition();
   const router = useRouter();
 
@@ -444,13 +445,13 @@ export function OrderForm({
               slots={{
                 customer_id: (
                   <div className="space-y-1.5 lg:col-span-2">
-                    <Label htmlFor="order-customer">Khách hàng *</Label>
+                    <SysLabel s={oSys} k="customer_id" htmlFor="order-customer" suffix=" *">Khách hàng</SysLabel>
                     <ReferenceSelect id="order-customer" refKey="customers" value={customer.id} initialLabel={customer.label} onChange={pickCustomer} disabled={lockedHeader} />
                   </div>
                 ),
                 payer_customer_id: (
                   <div className="space-y-1.5">
-                    <Label htmlFor="order-payer">Khách thanh toán</Label>
+                    <SysLabel s={oSys} k="payer_customer_id" htmlFor="order-payer">Khách thanh toán</SysLabel>
                     <ReferenceSelect
                       key={payer.auto ? `auto-${payer.id}` : "manual"}
                       id="order-payer"
@@ -485,13 +486,13 @@ export function OrderForm({
                   : {}),
                 order_date: (
                   <div className="space-y-1.5">
-                    <Label htmlFor="order-date">Ngày đơn hàng</Label>
+                    <SysLabel s={oSys} k="order_date" htmlFor="order-date">Ngày đơn hàng</SysLabel>
                     <Input id="order-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
                   </div>
                 ),
                 notes: (
                   <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
-                    <Label htmlFor="order-notes">Ghi chú đơn hàng</Label>
+                    <SysLabel s={oSys} k="notes" htmlFor="order-notes">Ghi chú đơn hàng</SysLabel>
                     <Textarea id="order-notes" className="min-h-14" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
                   </div>
                 ),
@@ -612,6 +613,7 @@ function ShipmentEditor({
   onRemove: () => void;
   onDuplicate: () => void;
 }) {
+  const sSys = systemSettingsOf("shipments", shipmentFieldRows);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [quoteError, setQuoteError] = useState("");
   const [loading, startQuote] = useTransition();
@@ -797,13 +799,13 @@ function ShipmentEditor({
           slots={{
             pickup_at: (
               <div className="space-y-1.5">
-                <Label htmlFor={id("pickup-at")}>Ngày nhận hàng *</Label>
+                <SysLabel s={sSys} k="pickup_at" htmlFor={id("pickup-at")} suffix=" *">Ngày nhận hàng</SysLabel>
                 <Input id={id("pickup-at")} type="date" value={row.pickupAt.slice(0, 10)} onChange={(e) => onChange({ pickupAt: e.target.value })} />
               </div>
             ),
             expected_delivery_at: (
               <div className="space-y-1.5">
-                <Label htmlFor={id("delivery-at")}>Ngày giao dự kiến</Label>
+                <SysLabel s={sSys} k="expected_delivery_at" htmlFor={id("delivery-at")}>Ngày giao dự kiến</SysLabel>
                 <Input
                   id={id("delivery-at")}
                   type="date"
@@ -815,43 +817,43 @@ function ShipmentEditor({
             ),
             vehicle_type_id: (
               <div className="space-y-1.5">
-                <Label htmlFor={id("vtype")}>Loại xe</Label>
+                <SysLabel s={sSys} k="vehicle_type_id" htmlFor={id("vtype")}>Loại xe</SysLabel>
                 <ReferenceSelect id={id("vtype")} refKey="vehicle_types" value={row.vehicleTypeId} onChange={(v) => routeChange({ vehicleTypeId: v, priceListId: "" })} />
               </div>
             ),
             quantity: (
               <div className="space-y-1.5">
-                <Label htmlFor={id("qty")}>Số lượng ({PRICING_UNITS[unit] ?? unit})</Label>
+                <SysLabel s={sSys} k="quantity" htmlFor={id("qty")} suffix={` (${PRICING_UNITS[unit] ?? unit})`}>Số lượng</SysLabel>
                 <Input id={id("qty")} type="number" min="0.001" step="any" value={row.quantity} disabled={row.billed} onChange={(e) => onChange({ quantity: e.target.value })} />
               </div>
             ),
             pickup_location_id: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("pickup")}>Điểm nhận *</Label>
+                <SysLabel s={sSys} k="pickup_location_id" htmlFor={id("pickup")} suffix=" *">Điểm nhận</SysLabel>
                 <ReferenceSelect id={id("pickup")} refKey="locations" value={row.pickupLocationId} onChange={(v) => routeChange({ pickupLocationId: v, priceListId: "" })} />
               </div>
             ),
             delivery_location_id: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("delivery")}>Điểm giao *</Label>
+                <SysLabel s={sSys} k="delivery_location_id" htmlFor={id("delivery")} suffix=" *">Điểm giao</SysLabel>
                 <ReferenceSelect id={id("delivery")} refKey="locations" value={row.deliveryLocationId} onChange={(v) => routeChange({ deliveryLocationId: v, priceListId: "" })} />
               </div>
             ),
             empty_return_location_id: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("empty-return")}>Điểm hạ rỗng</Label>
+                <SysLabel s={sSys} k="empty_return_location_id" htmlFor={id("empty-return")}>Điểm hạ rỗng</SysLabel>
                 <ReferenceSelect id={id("empty-return")} refKey="locations" value={row.emptyReturnLocationId} onChange={(v) => onChange({ emptyReturnLocationId: v })} />
               </div>
             ),
             offroute_return_location_id: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("offroute-return")}>Điểm hạ rỗng trái tuyến</Label>
+                <SysLabel s={sSys} k="offroute_return_location_id" htmlFor={id("offroute-return")}>Điểm hạ rỗng trái tuyến</SysLabel>
                 <ReferenceSelect id={id("offroute-return")} refKey="locations" value={row.offrouteReturnLocationId} onChange={(v) => onChange({ offrouteReturnLocationId: v })} />
               </div>
             ),
             trip_order: (
               <div className="space-y-1">
-                <Label htmlFor={id("trip-order")}>Thứ tự chuyến</Label>
+                <SysLabel s={sSys} k="trip_order" htmlFor={id("trip-order")}>Thứ tự chuyến</SysLabel>
                 <Input
                   id={id("trip-order")}
                   inputMode="numeric"
@@ -864,7 +866,7 @@ function ShipmentEditor({
             ),
             vehicle_id: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("vehicle")}>Xe (có thể chọn sau)</Label>
+                <SysLabel s={sSys} k="vehicle_id" htmlFor={id("vehicle")} suffix=" (có thể chọn sau)">Xe</SysLabel>
                 <VehicleSourcePicker
                   id={id("vehicle")}
                   shipmentId={row.id}
@@ -901,7 +903,7 @@ function ShipmentEditor({
             ),
             driver_id: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("driver")}>Tài xế (có thể phân công sau)</Label>
+                <SysLabel s={sSys} k="driver_id" htmlFor={id("driver")} suffix=" (có thể phân công sau)">Tài xế</SysLabel>
                 <ReferenceSelect key={`${row.driverKey}-${row.vehicleSource ?? "internal"}`} id={id("driver")} refKey={row.vehicleSource === "3pl" ? "drivers" : "drivers_internal"} value={row.driverId} disabled={!canAssign} onChange={(v) => onChange({ driverId: v })} />
                 {canAssign && row.vehicleSource !== "3pl" ? <MonthTripHint kind="driver" id={row.driverId} day={day} excludeShipmentId={row.id} /> : null}
                 {row.orig && row.driverId !== row.orig.driverId && row.driverId ? (
@@ -911,7 +913,7 @@ function ShipmentEditor({
             ),
             pricing_unit: (
               <div className="space-y-1">
-                <Label htmlFor={id("unit")}>Tính theo</Label>
+                <SysLabel s={sSys} k="pricing_unit" htmlFor={id("unit")}>Tính theo</SysLabel>
                 {manualInputs ? (
                   <NativeSelect
                     id={id("unit")}
@@ -937,7 +939,7 @@ function ShipmentEditor({
             ),
             notes: (
               <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor={id("notes")}>Ghi chú cho tài xế</Label>
+                <SysLabel s={sSys} k="notes" htmlFor={id("notes")}>Ghi chú cho tài xế</SysLabel>
                 <Input id={id("notes")} value={row.notes} onChange={(e) => onChange({ notes: e.target.value })} maxLength={1000} />
                 <label htmlFor={id("pod")} className="flex items-center gap-2 pt-1 text-sm">
                   <input id={id("pod")} type="checkbox" className="size-4" checked={row.podPhotoRequired} onChange={(e) => onChange({ podPhotoRequired: e.target.checked })} />
@@ -1051,7 +1053,7 @@ function ShipmentEditor({
             freightLabel={freightFormula}
             freightHead={
               <>
-                <FreightRow label="Đơn giá (đ)" htmlFor={id("price")}>
+                <FreightRow label={`${systemLabel(sSys, "unit_price", "Đơn giá")} (đ)`} help={sSys.unit_price?.help} htmlFor={id("price")}>
                   {manualInputs ? (
                     <Input
                       id={id("price")}
@@ -1076,7 +1078,7 @@ function ShipmentEditor({
                       : `/${PRICING_UNITS[unit] ?? unit}${qty !== 1 ? ` × ${formatNumber(qty)} = ${formatVND(freight)}` : ""}${manualInputs && !row.unitPrice ? " · để trống: chuyến ghi “Chưa có giá”, nhập sau" : ""}`}
                   </span>
                 </FreightRow>
-                <FreightRow label="Tỷ lệ hỗ trợ dầu (%)" htmlFor={id("fuel")}>
+                <FreightRow label={`${systemLabel(sSys, "fuel_support_rate", "Tỷ lệ hỗ trợ dầu")} (%)`} help={sSys.fuel_support_rate?.help} htmlFor={id("fuel")}>
                   <Input
                     id={id("fuel")}
                     inputMode="decimal"
@@ -1092,7 +1094,7 @@ function ShipmentEditor({
                   </span>
                 </FreightRow>
                 {surcharge || money(row.surchargeAmount) ? (
-                  <FreightRow label="Phụ phí cố định (bảng giá)" htmlFor={id("surcharge")}>
+                  <FreightRow label={systemLabel(sSys, "surcharge_amount", "Phụ phí cố định (bảng giá)")} help={sSys.surcharge_amount?.help} htmlFor={id("surcharge")}>
                     <Input
                       id={id("surcharge")}
                       inputMode="numeric"
@@ -1145,10 +1147,24 @@ function ShipmentEditor({
   );
 }
 
-function FreightRow({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+/** Nhãn ô hệ thống: dùng tên hiển thị + gợi ý đã sửa ở Quản lý trường dữ liệu (nếu có) */
+function SysLabel({ s, k, htmlFor, suffix, children }: { s: SystemFieldSettings; k: string; htmlFor: string; suffix?: string; children: string }) {
+  const help = s[k]?.help;
+  return (
+    <>
+      <Label htmlFor={htmlFor} title={help || undefined}>
+        {systemLabel(s, k, children)}
+        {suffix}
+      </Label>
+      {help ? <p className="-mt-1 text-xs text-muted-foreground">{help}</p> : null}
+    </>
+  );
+}
+
+function FreightRow({ label, help, htmlFor, children }: { label: string; help?: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-2 items-center gap-1.5 sm:grid-cols-[minmax(0,12rem)_9rem_minmax(0,1fr)]">
-      <label htmlFor={htmlFor} className="col-span-full truncate text-sm font-medium sm:col-span-1">
+      <label htmlFor={htmlFor} title={help || label} className="col-span-full truncate text-sm font-medium sm:col-span-1">
         {label}
       </label>
       {children}

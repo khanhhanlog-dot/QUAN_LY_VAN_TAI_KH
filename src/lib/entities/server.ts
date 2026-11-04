@@ -4,7 +4,7 @@ import { ENTITIES } from "./definitions";
 import { applyConditions, parseConditions } from "@/lib/advanced-filter";
 import { addDaysYMD, startOfDayVN } from "@/lib/format";
 import { advancedFields, effectiveFields, flattenRow, layoutRow, rowLabel } from "./record";
-import type { CustomFieldRow, EntityDef, FieldDef, TableViewConfig } from "./types";
+import type { CustomFieldRow, EntityDef, FieldDef, SystemFieldSettings, TableViewConfig } from "./types";
 
 export const PAGE_SIZES = [20, 50, 100] as const;
 export const EXPORT_LIMIT = 5000;
@@ -34,16 +34,23 @@ export async function loadCustomFields(supabase: SupabaseClient, module: string 
   if (!module) return [];
   let q = supabase.from("field_definitions").select(CUSTOM_FIELD_COLUMNS).eq("module", module).order("sort_order");
   if (!includeInactive) q = q.eq("status", "active");
-  const [{ data, error }, layout] = await Promise.all([q, includeInactive ? Promise.resolve(null) : loadFormLayout(supabase, module)]);
+  const [{ data, error }, cfg] = await Promise.all([q, includeInactive ? Promise.resolve(null) : loadFormConfig(supabase, module)]);
   if (error) throw error;
   const rows = (data ?? []) as CustomFieldRow[];
-  return layout?.length ? [...rows, layoutRow(module, layout)] : rows;
+  return cfg && (cfg.order.length || Object.keys(cfg.system).length) ? [...rows, layoutRow(module, cfg.order, cfg.system)] : rows;
 }
 
 /** Thứ tự trường đã lưu cho biểu mẫu (rỗng nếu chưa sắp xếp) */
 export async function loadFormLayout(supabase: SupabaseClient, module: string): Promise<string[]> {
-  const { data } = await supabase.from("form_layouts").select("field_order").eq("module", module).maybeSingle();
-  return (data?.field_order as string[] | undefined) ?? [];
+  return (await loadFormConfig(supabase, module)).order;
+}
+
+/** Thứ tự trường + tùy chỉnh trường hệ thống của một màn hình (CSDL chưa nâng cấp 0059 thì chỉ có thứ tự) */
+export async function loadFormConfig(supabase: SupabaseClient, module: string): Promise<{ order: string[]; system: SystemFieldSettings }> {
+  const res = await supabase.from("form_layouts").select("field_order, system_fields").eq("module", module).maybeSingle();
+  const data = res.error ? (await supabase.from("form_layouts").select("field_order").eq("module", module).maybeSingle()).data : res.data;
+  const row = data as { field_order?: string[]; system_fields?: SystemFieldSettings } | null;
+  return { order: row?.field_order ?? [], system: row?.system_fields ?? {} };
 }
 
 /** Trường động người dùng được xem (lọc theo view_permission ở máy chủ) */
