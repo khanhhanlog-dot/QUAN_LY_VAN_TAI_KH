@@ -1,4 +1,5 @@
 import "server-only";
+import "@/lib/zod-vi";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/session";
 import type { Permission } from "@/lib/permissions";
 

@@ -10,6 +10,7 @@ import { validateFormula } from "@/lib/formula";
 import { isUuid, parseNumberVN } from "@/lib/entities/record";
 import { loadCustomFields } from "@/lib/entities/server";
 import { conditionSources } from "@/lib/entities/visibility";
+import { zodMessageVi } from "@/lib/zod-vi";
 
 const PATH = "/truong-du-lieu";
 const optNum = z
@@ -62,6 +63,30 @@ const fieldSchema = z.object({
 });
 export type FieldInput = z.input<typeof fieldSchema>;
 
+/** Tên ô trên biểu mẫu, để báo lỗi chỉ rõ ô nào cần sửa */
+const FIELD_LABELS: Record<string, string> = {
+  module: "Màn hình",
+  field_key: "Mã trường",
+  label: "Tên hiển thị",
+  description: "Mô tả / hướng dẫn nhập",
+  data_type: "Kiểu dữ liệu",
+  default_value: "Giá trị mặc định",
+  display_format: "Định dạng hiển thị",
+  sort_order: "Thứ tự hiển thị",
+  view_permission: "Quyền được xem",
+  edit_permission: "Quyền được sửa",
+  min: "Giá trị tối thiểu",
+  max: "Giá trị tối đa",
+  maxLength: "Độ dài tối đa",
+  formula: "Công thức",
+  options_text: "Các lựa chọn",
+  reference_target: "Liên kết tới danh mục",
+  status: "Trạng thái",
+  show_if_field: "Chỉ hiện khi trường",
+  show_if_values: "Giá trị điều kiện",
+  change_note: "Ghi chú thay đổi",
+};
+
 /** Chuyển giá trị mặc định dạng chữ sang JSON theo kiểu dữ liệu */
 function parseDefault(type: string, raw: string | undefined): unknown {
   if (raw === undefined || raw.trim() === "") return null;
@@ -81,7 +106,7 @@ export async function saveField(id: string | null, input: FieldInput): Promise<A
   return runAction(async () => {
     await requirePermission("fields.configure");
     const p = fieldSchema.safeParse(input);
-    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    if (!p.success) throw new ActionError(zodMessageVi(p.error, FIELD_LABELS));
     const v = p.data;
     if (id && !isUuid(id)) throw new ActionError("Mã trường không hợp lệ");
     const mod = CUSTOM_FIELD_MODULES.find((m) => m.module === v.module)!;

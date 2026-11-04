@@ -54,6 +54,12 @@ function initialShown(children: React.ReactNode, value: unknown) {
   return { label: o?.label ?? "", empty: !o || o.value === "" };
 }
 
+/** Gắn phần tử vào ref truyền từ ngoài (hàm hoặc đối tượng ref) */
+function assignRef<T>(ref: React.Ref<T> | undefined, el: T | null) {
+  if (typeof ref === "function") ref(el);
+  else if (ref) (ref as React.RefObject<T | null>).current = el;
+}
+
 /**
  * Ô chọn có tìm kiếm, thay cho thẻ <select> ở mọi màn hình.
  * Vẫn giữ một <select> thật (ẩn) để biểu mẫu, onChange, name, required, id hoạt động y như cũ;
@@ -69,8 +75,16 @@ export function SearchSelect({ className, style, disabled, ...props }: React.Com
   const [hi, setHi] = React.useState(0);
   const [shown, setShown] = React.useState<{ label: string; empty: boolean }>(() => initialShown(props.children, props.value ?? props.defaultValue));
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { ref: _ref, ...selectProps } = props as React.ComponentProps<"select">;
+  // ref từ ngoài (ví dụ form.register của react-hook-form) phải gắn vào <select> thật,
+  // nếu bỏ đi thì biểu mẫu đọc giá trị ra undefined sau khi người dùng đổi lựa chọn
+  const { ref: outerRef, ...selectProps } = props as React.ComponentProps<"select">;
+  const setSelRef = React.useCallback(
+    (el: HTMLSelectElement | null) => {
+      selRef.current = el;
+      assignRef(outerRef, el);
+    },
+    [outerRef],
+  );
   const [curValue, setCurValue] = React.useState("");
 
   // Nhãn đang chọn đọc từ <select> thật (đúng cả khi dùng value hay defaultValue)
@@ -195,7 +209,7 @@ export function SearchSelect({ className, style, disabled, ...props }: React.Com
         </button>
       </PopoverAnchor>
       <select
-        ref={selRef}
+        ref={setSelRef}
         {...selectProps}
         disabled={disabled}
         tabIndex={-1}
