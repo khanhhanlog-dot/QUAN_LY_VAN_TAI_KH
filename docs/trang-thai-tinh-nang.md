@@ -322,3 +322,10 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Cùng tháng năm sau đếm tiếp (không quay về 0001) để mã không bao giờ trùng.
 - Mã cũ `SHP-YYYYMMDD-xxxx` / `ORD-YYYYMMDD-xxxx` được đánh số lại theo thứ tự tạo trong từng tháng; mã đơn trong Lập kế hoạch và nội dung thông báo đổi theo. Nhật ký thao tác giữ nguyên mã cũ (lịch sử).
 - Tệp nâng cấp: `supabase/deploy/nang-cap-ma-chuyen-ngan.sql`. Kiểm thử: `supabase/tests/39_short_trip_codes_tests.sql`.
+
+## Một chuyến chỉ một người sửa (migration 0061) – 04/11/2026
+- Mở khung sửa hoặc gõ vào ô nhập ở trang chi tiết chuyến thì nhận quyền sửa chuyến. Người khác vào cùng chuyến thấy thanh đỏ "X đang sửa chuyến này (từ HH:MM)", chỉ xem được; mọi thao tác lưu vào chuyến (thông tin chuyến, phí thu khách, chi phí đầu ra, chi phí 3PL, hàng hóa, giao xe, duyệt…) bị CSDL chặn, ở mọi màn hình (Điều phối, Quản lý chuyến, Sửa đơn).
+- Nút "Báo người đang sửa thoát ra": gửi thông báo cho người đang sửa, người đó thấy thanh vàng "X đang chờ sửa".
+- Không bị kẹt: quyền sửa tự hết sau 2 phút máy người sửa không báo (tắt tab, mất mạng) và tự nhả sau 10 phút không thao tác.
+- Không ghi đè: người khác đã lưu sau khi trang được tải thì không lưu được, báo "dữ liệu đã cũ, tải lại trang". Không mở khung sửa thì trang tự tải bản mới.
+- Tài xế (app tài xế) không bị khóa chặn. Nâng cấp: supabase/deploy/nang-cap-khoa-sua-chuyen.sql (dòng kiểm tra 40).

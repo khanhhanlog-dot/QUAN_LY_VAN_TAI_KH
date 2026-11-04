@@ -218,7 +218,7 @@ export function TripCostsCard(props: {
         </div>
         <div className="relative w-full sm:w-60">
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-          <Input className="h-9 pl-8" placeholder="Tìm chi phí, chứng từ, ghi chú…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Tìm chi phí" />
+          <Input data-no-edit-lock className="h-9 pl-8" placeholder="Tìm chi phí, chứng từ, ghi chú…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Tìm chi phí" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">

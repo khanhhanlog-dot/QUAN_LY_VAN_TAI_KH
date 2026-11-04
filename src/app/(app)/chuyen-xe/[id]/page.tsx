@@ -33,6 +33,7 @@ import { CarrierCard, type CarrierPayable } from "./carrier-card";
 import type { CarrierCost } from "@/components/finance/carrier-dialogs";
 import { DocumentsButton } from "@/components/finance/documents-button";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
+import { ShipmentEditLock } from "@/components/dispatch/shipment-edit-lock";
 import { loadCustomFields, visibleCustomRows } from "@/lib/entities/server";
 
 export const metadata: Metadata = { title: "Chi tiết chuyến" };
@@ -167,7 +168,7 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
     supabase.from("shipment_fees").select("line_no, fee_type_id, fee_kind, amount, note, declaration_type_id, ref_no, quantity, unit_price, declaration:declaration_types(name), fee_type:fee_types(name, sort_order, fee_group:fee_groups(id, name, report_role, sort_order))").eq("shipment_id", id).order("line_no"),
     canExpenses ? supabase.from("shipment_profit").select("*").eq("shipment_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
-  const [carrierRes, payableRes, feeDocRes, sheetRes] = await Promise.all([
+  const [carrierRes, payableRes, feeDocRes, sheetRes, lockRes] = await Promise.all([
     canSeeCarrier
       ? supabase.from("shipment_carrier_costs").select("line_no, cost_kind, fee_type_id, description, quantity, unit_price, amount, ref_no, note, fee_type:fee_types(name)").eq("shipment_id", id).order("line_no")
       : Promise.resolve({ data: [], error: null }),
@@ -178,7 +179,10 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
     supabase.from("documents").select("fee_type_id").eq("entity_type", "shipment_fee").eq("entity_id", id).is("archived_at", null),
     // Ảnh phiếu chi phí tài xế gửi (văn phòng nhập chi phí theo phiếu)
     supabase.from("documents").select("id", { count: "exact", head: true }).eq("entity_type", "shipment").eq("entity_id", id).eq("doc_type", "receipt").is("archived_at", null),
+    // Số lần lưu chuyến (khóa sửa 0061; CSDL chưa nâng cấp thì không khóa)
+    supabase.rpc("shipment_edit_status", { p_shipment_id: id }),
   ]);
+  const editRev = lockRes.error ? null : Number((lockRes.data as { rev?: number } | null)?.rev ?? 0);
   const sheetCount = sheetRes.count ?? 0;
   const feeDocs = new Map<string, number>();
   for (const d of (feeDocRes.data ?? []) as { fee_type_id: string | null }[]) if (d.fee_type_id) feeDocs.set(d.fee_type_id, (feeDocs.get(d.fee_type_id) ?? 0) + 1);
@@ -262,6 +266,7 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
+      {editRev !== null && s.status !== "cancelled" ? <ShipmentEditLock shipmentId={s.id} rev={editRev} /> : null}
       <Link href="/chuyen-xe" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-4" /> Quản lý chuyến xe
       </Link>
