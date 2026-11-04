@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDate, formatNumber, formatVND } from "@/lib/format";
 import { LOCKED_STATUSES, PRICING_UNITS } from "@/lib/status";
-import { ASSIGNED_ROW_CELL, SHIPMENT_ADV_FIELDS, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
+import { ASSIGNED_ROW_CELL, DROP_OFF_RE, SHIPMENT_ADV_FIELDS, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
@@ -165,6 +165,21 @@ const COLS: Col[] = [
 
 const DEFAULT_PINNED = ["pickup_at", "shipment_code"];
 
+/** Tuyến đường kèm dòng "Hạ hàng: ..." khi có trường bổ sung "Điểm hạ hàng" */
+function routeWithDropOff(r: ShipmentListRow, d: FieldDef) {
+  const route = r.route_label ?? `${r.pickup_name ?? ""} → ${r.delivery_name ?? ""}`;
+  const v = formatValue(d, r.custom_fields?.[d.key]);
+  if (!v) return route;
+  return (
+    <>
+      <div className="whitespace-normal">{route}</div>
+      <div className="truncate text-xs text-muted-foreground" title={`Điểm hạ hàng: ${v}`}>
+        Hạ hàng: {v}
+      </div>
+    </>
+  );
+}
+
 /** Bảng chuyến dạng Excel: chọn/ẩn cột, kéo đổi chỗ, kéo giãn cột và dòng, cố định cột, sửa nhanh các ô được phép */
 export function ShipmentGrid({
   rows: initial,
@@ -214,9 +229,10 @@ export function ShipmentGrid({
   const resizeRow = useRef<{ y: number; h: number } | null>(null);
   const advFields = useMemo(() => [...SHIPMENT_ADV_FIELDS, ...customAdv], [customAdv]);
   const advConds = useMemo(() => parseConditions(adv, advFields), [adv, advFields]);
+  const dropDef = useMemo(() => customDefs.find((d) => DROP_OFF_RE.test(d.label.normalize("NFC"))), [customDefs]);
   const allCols = useMemo<Col[]>(
     () => [
-      ...COLS.filter((c) => canSeeProfit || !c.profit),
+      ...COLS.filter((c) => canSeeProfit || !c.profit).map((c) => (c.key === "route_label" && dropDef ? { ...c, render: (r: ShipmentListRow) => routeWithDropOff(r, dropDef) } : c)),
       ...customDefs.map((d) => ({
         key: `cf_${d.key}`,
         label: d.label,
@@ -226,7 +242,7 @@ export function ShipmentGrid({
         render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key]),
       })),
     ],
-    [customDefs, canSeeProfit],
+    [customDefs, canSeeProfit, dropDef],
   );
 
   const columns = useMemo<ColumnDef<ShipmentListRow>[]>(

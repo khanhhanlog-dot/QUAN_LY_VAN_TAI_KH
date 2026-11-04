@@ -4,7 +4,7 @@ import { loadCustomFields, resolveRefLabels, visibleCustomRows } from "@/lib/ent
 import { computeFormula } from "@/lib/formula";
 import { formulaVars } from "@/lib/entities/definitions";
 import type { FieldDef } from "@/lib/entities/types";
-import type { ShipmentListRow } from "@/lib/shipments";
+import { DROP_OFF_RE, type ShipmentListRow } from "@/lib/shipments";
 
 /** Cột bổ sung (trường người dùng tự thêm) của bảng Điều phối */
 export type DispatchExtraColumn = {
@@ -13,6 +13,8 @@ export type DispatchExtraColumn = {
   numeric: boolean;
   /** Trường "Loại hình vận chuyển": hiện sẵn, thay cho cột giữ chỗ */
   serviceKind?: boolean;
+  /** Trường "Điểm hạ hàng": hiện thêm một dòng "Hạ hàng: ..." trong ô Tuyến đường */
+  dropOff?: boolean;
   source: "shipment" | "order";
 };
 /** Giá trị theo chuyến: [chữ hiển thị, giá trị để sắp xếp] */
@@ -36,12 +38,13 @@ export async function dispatchExtraColumns(supabase: SupabaseClient, perms: Set<
   ]);
   // Chỉ một cột được coi là "Loại hình vận chuyển": ưu tiên trường của chuyến
   const kind = sDefs.find((d) => SERVICE_KIND_RE.test(d.label)) ?? oDefs.find((d) => SERVICE_KIND_RE.test(d.label));
+  const dropOff = sDefs.find((d) => DROP_OFF_RE.test(d.label.normalize("NFC"))) ?? oDefs.find((d) => DROP_OFF_RE.test(d.label.normalize("NFC")));
   const columns: DispatchExtraColumn[] = [];
   const values: DispatchExtraValues = Object.fromEntries(rows.map((r) => [r.id, {}]));
   const add = (defs: FieldDef[], source: "shipment" | "order", refs: Record<string, Record<string, string>>) => {
     for (const d of defs) {
       const key = `${source === "shipment" ? "cf" : "ocf"}_${d.key}`;
-      columns.push({ key, label: source === "order" && !d.label.toLowerCase().includes("đơn") ? `${d.label} (đơn)` : d.label, numeric: NUMERIC.includes(d.type), serviceKind: d === kind, source });
+      columns.push({ key, label: source === "order" && !d.label.toLowerCase().includes("đơn") ? `${d.label} (đơn)` : d.label, numeric: NUMERIC.includes(d.type), serviceKind: d === kind, dropOff: d === dropOff, source });
       for (const r of rows) {
         const custom = (source === "shipment" ? r.custom_fields : r.order_custom_fields) ?? {};
         const raw =

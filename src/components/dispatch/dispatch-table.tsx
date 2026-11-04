@@ -57,6 +57,36 @@ type Col = {
 
 const SERVICE_KIND_PLACEHOLDER = "service_kind";
 
+/** Ô Tuyến đường: điểm nhận → điểm giao, kèm Hạ hàng (trường "Điểm hạ hàng" nếu có), Hạ rỗng, Hạ rỗng trái tuyến */
+function routeCell(r: ShipmentListRow, dropOff?: string) {
+  return (
+      <>
+        <div className="truncate" title={r.pickup_name ?? undefined}>
+          {r.pickup_name}
+        </div>
+        <div className="flex items-center gap-1 text-muted-foreground" title={r.delivery_name ?? undefined}>
+          <ArrowRight className="size-3.5 shrink-0" />
+          <span className="truncate">{r.delivery_name}</span>
+        </div>
+        {dropOff ? (
+          <div className="truncate text-xs text-muted-foreground" title={`Điểm hạ hàng: ${dropOff}`}>
+            Hạ hàng: {dropOff}
+          </div>
+        ) : null}
+        {r.empty_return_name ? (
+          <div className="truncate text-xs text-muted-foreground" title={`Điểm hạ rỗng: ${r.empty_return_name}`}>
+            Hạ rỗng: {r.empty_return_name}
+          </div>
+        ) : null}
+        {r.offroute_return_name ? (
+          <div className="truncate text-xs font-medium text-amber-700 dark:text-amber-400" title={`Điểm hạ rỗng trái tuyến: ${r.offroute_return_name}`}>
+            Hạ rỗng trái tuyến: {r.offroute_return_name}
+          </div>
+        ) : null}
+      </>
+  );
+}
+
 const BASE_COLS: Col[] = [
   {
     key: "pickup_at",
@@ -134,27 +164,7 @@ const BASE_COLS: Col[] = [
     label: "Tuyến đường",
     width: 240,
     sort: (r) => r.route_label ?? `${r.pickup_name ?? ""} ${r.delivery_name ?? ""}`,
-    render: (r) => (
-      <>
-        <div className="truncate" title={r.pickup_name ?? undefined}>
-          {r.pickup_name}
-        </div>
-        <div className="flex items-center gap-1 text-muted-foreground" title={r.delivery_name ?? undefined}>
-          <ArrowRight className="size-3.5 shrink-0" />
-          <span className="truncate">{r.delivery_name}</span>
-        </div>
-        {r.empty_return_name ? (
-          <div className="truncate text-xs text-muted-foreground" title={`Điểm hạ rỗng: ${r.empty_return_name}`}>
-            Hạ rỗng: {r.empty_return_name}
-          </div>
-        ) : null}
-        {r.offroute_return_name ? (
-          <div className="truncate text-xs font-medium text-amber-700 dark:text-amber-400" title={`Điểm hạ rỗng trái tuyến: ${r.offroute_return_name}`}>
-            Hạ rỗng trái tuyến: {r.offroute_return_name}
-          </div>
-        ) : null}
-      </>
-    ),
+    render: (r) => routeCell(r),
   },
   { key: "pickup_name", label: "Điểm nhận", width: 170, defaultHidden: true, sort: (r) => r.pickup_name, render: (r) => <div className="truncate">{r.pickup_name}</div> },
   { key: "delivery_name", label: "Điểm giao", width: 170, defaultHidden: true, sort: (r) => r.delivery_name, render: (r) => <div className="truncate">{r.delivery_name}</div> },
@@ -274,6 +284,7 @@ export function DispatchTable({
   const [savePending, startSave] = useTransition();
   const showActions = canAssign || canCancel || rows.some((r) => r.can_approve_dispatch || r.driver_id);
   const kindCol = extraColumns.find((c) => c.serviceKind);
+  const dropCol = extraColumns.find((c) => c.dropOff);
 
   const cols = useMemo<Col[]>(() => {
     const val = (r: ShipmentListRow, key: string) => extraValues[r.id]?.[key];
@@ -292,12 +303,13 @@ export function DispatchTable({
       if (c.orderOnly && !showOrder) continue;
       // Đã có trường "Loại hình vận chuyển" thì cột đó đứng đúng chỗ này
       if (c.key === SERVICE_KIND_PLACEHOLDER) list.push(kindCol ? extra(kindCol) : c);
+      else if (c.key === "route" && dropCol) list.push({ ...c, render: (r) => routeCell(r, val(r, dropCol.key)?.[0]) });
       else list.push(c);
     }
     for (const c of extraColumns) if (!c.serviceKind) list.push(extra(c));
     if (showActions) list.push({ key: "actions", label: "Thao tác", width: 230, align: "right", render: () => null });
     return list;
-  }, [extraColumns, extraValues, kindCol, showOrder, showActions]);
+  }, [extraColumns, extraValues, kindCol, dropCol, showOrder, showActions]);
 
   const [visibility, setVisibility] = useState<VisibilityState>(() =>
     Object.fromEntries((view?.hidden ?? cols.filter((c) => c.defaultHidden).map((c) => c.key)).map((k) => [k, false])),

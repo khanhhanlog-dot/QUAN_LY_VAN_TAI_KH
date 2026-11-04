@@ -136,3 +136,6 @@ export function isAssignedRow(r: Pick<ShipmentListRow, "driver_id" | "vehicle_id
   return r.status !== "cancelled" && Boolean(r.driver_id || r.vehicle_id);
 }
 export const ASSIGNED_ROW_CELL = "bg-violet-100 group-hover:bg-violet-200 dark:bg-violet-950 dark:group-hover:bg-violet-900";
+
+/** Nhận ra trường bổ sung "Điểm hạ hàng" (hạ cont hàng) theo tên trường: hiện thêm dòng "Hạ hàng: ..." trong ô Tuyến đường */
+export const DROP_OFF_RE = /h[aạ]\s*(cont\s*)?h[aà]ng/i;
