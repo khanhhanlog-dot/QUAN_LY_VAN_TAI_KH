@@ -23,6 +23,13 @@ psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "do \$\$ begin
   update public.fee_groups set code = legacy_code, counts_as = null; update public.fee_types set code = legacy_code;
   update public.expense_groups set code = legacy_code; update public.expense_categories set code = legacy_code;
 end \$\$" > /dev/null
+# 0060 tắt % dầu mặc định 39%: kiểm tra rồi bật lại cho các kiểm thử viết trước (tệp 43 kiểm tra không còn mặc định)
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "do \$\$ begin
+  if exists (select 1 from public.fuel_support_rules where scope_type = 'default' and is_active) then
+    raise exception 'FAIL: 0060 chưa tắt quy tắc hỗ trợ dầu mặc định';
+  end if;
+  update public.fuel_support_rules set is_active = true where scope_type = 'default';
+end \$\$" > /dev/null
 for t in supabase/tests/0[1-9]_*.sql supabase/tests/[1-9][0-9]_*.sql; do
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1 | sed -E 's/^psql:[^:]+:[0-9]+: (NOTICE|ERROR):  /\1: /'
   [ "${PIPESTATUS[0]}" -eq 0 ] || exit 1

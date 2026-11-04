@@ -1084,13 +1084,14 @@ function ShipmentEditor({
                     inputMode="decimal"
                     className="h-8 text-right tabular-nums"
                     disabled={!quoteReady}
-                    placeholder={chosen?.fuel_support_rate != null ? String(chosen.fuel_support_rate) : rule?.rate_percent != null ? String(rule.rate_percent) : "Không có"}
+                    placeholder={chosen?.fuel_support_rate != null ? String(chosen.fuel_support_rate) : rule?.rate_percent != null ? String(rule.rate_percent) : "Nhập % khách cho"}
                     value={row.fuelSupportRate}
                     onChange={(e) => onChange({ fuelSupportRate: e.target.value })}
                   />
                   <span className="text-xs text-muted-foreground">
                     {fuel === null ? "Tính theo định mức khi lưu" : `Tiền dầu ${formatVND(fuel)}`}
                     {rateSource && manualRate === undefined ? ` · tự động (${rateSource}), gõ số để đổi` : ""}
+                    {!rateSource && !keep ? " · khách này chưa có % dầu (khai báo ở Bảng giá → Quy tắc hỗ trợ dầu)" : ""}
                   </span>
                 </FreightRow>
                 {surcharge || money(row.surchargeAmount) ? (

@@ -20,7 +20,7 @@ Khách hàng: **Công ty Vận tải Khánh Hà**. Phạm vi: vận tải hàng 
 - **Shipment (chuyến)**: một lượt xe chạy từ nơi nhận đến nơi giao. Mã `SNOV-0001` (S + tháng tiếng Anh + số thứ tự trong tháng, cùng tháng năm sau đếm tiếp; đơn hàng là `ONOV-0001`) sinh tự động theo giờ Việt Nam, duy nhất, không đổi.
 - **Địa điểm (location)**: danh mục dùng chung cho nơi nhận và nơi giao; chứa tên công ty giao/nhận hàng (bên giao hàng, bên nhận hàng).
 - **Bảng giá**: đơn giá theo phạm vi (khách hàng, nơi nhận, nơi giao, loại xe, khoảng hiệu lực). Giá được **chụp lại vào Shipment** khi tạo chuyến.
-- **Hỗ trợ dầu**: khoản tính theo tỷ lệ (mặc định 39%) trên một cơ sở cấu hình được. **Không phải chi phí dầu thực tế.**
+- **Hỗ trợ dầu**: khoản tính theo tỷ lệ trên một cơ sở cấu hình được. **Không có % mặc định** (từ 0060): % tùy từng khách, khai báo ở Bảng giá (bảng giá hoặc Quy tắc hỗ trợ dầu theo khách) hoặc nhập tay khi tạo đơn. **Không phải chi phí dầu thực tế.**
 - **Tạm ứng**: tiền công ty đưa trước cho tài xế. **Không phải chi phí.** Khi quyết toán, tạm ứng được đối trừ với chi phí đã duyệt.
 - **Chi phí chuyến**: khoản chi thực tế gắn với Shipment, theo danh mục chi phí; chỉ được ghi nhận khi đã duyệt.
 - **Phê duyệt**: module dùng chung cho mọi loại yêu cầu (ứng tiền, chi phí, thanh toán, điều chỉnh, quyết toán, sửa chữa, mua sắm...).

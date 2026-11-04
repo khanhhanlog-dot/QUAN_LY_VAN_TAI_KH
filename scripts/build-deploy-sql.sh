@@ -157,3 +157,6 @@ upgrade nang-cap-gop-danh-muc-phi.sql "Gộp danh mục phí: Nguồn phí Thu k
 
 upgrade nang-cap-sua-truong-he-thong.sql "Cho sửa trường hệ thống: tên hiển thị, gợi ý, bắt buộc, ẩn, cột bảng, tên lựa chọn" "to_regprocedure('public.save_system_field(text,text,jsonb)') is not null" \
   supabase/migrations/20261104000059_system_field_settings.sql
+
+upgrade nang-cap-bo-dau-mac-dinh.sql "Bỏ % hỗ trợ dầu mặc định 39% (tùy từng khách)" "not exists (select 1 from public.fuel_support_rules where scope_type = 'default' and is_active)" \
+  supabase/migrations/20261104000060_no_default_fuel_rate.sql

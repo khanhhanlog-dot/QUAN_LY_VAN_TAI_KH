@@ -627,7 +627,7 @@ export const ENTITIES: Record<string, EntityDef> = {
       {
         key: "scope_type", label: "Phạm vi", type: "select", required: true, list: true, filter: true, defaultValue: "customer",
         options: [
-          { value: "default", label: "Mặc định toàn công ty" },
+          { value: "default", label: "Mặc định toàn công ty (áp cho mọi khách)" },
           { value: "customer", label: "Theo khách hàng" },
           { value: "route", label: "Theo tuyến" },
           { value: "customer_route", label: "Theo khách hàng + tuyến" },
