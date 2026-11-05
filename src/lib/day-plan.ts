@@ -28,12 +28,12 @@ export const DAY_PLAN_COLUMNS: { key: keyof DayPlanRow; label: string; group?: s
   { key: "driver", label: "Tài xế", xl: 22, px: 170 },
   { key: "plate", label: "Số xe", xl: 14, px: 120 },
   { key: "containerNo", label: "Số cont", xl: 18, px: 170 },
-  { key: "pickup", label: "Nơi lấy cont", group: "Tuyến vận tải", xl: 16, px: 150 },
-  { key: "stuffing", label: "Nơi đóng hàng", group: "Tuyến vận tải", xl: 32, px: 280 },
-  { key: "dropoff", label: "Nơi hạ hàng", group: "Tuyến vận tải", xl: 16, px: 150 },
   { key: "c20", label: "20", group: "Cont", xl: 6, px: 56 },
   { key: "c40", label: "40", group: "Cont", xl: 6, px: 56 },
   { key: "kind", label: "Loại hình", xl: 10, px: 100 },
+  { key: "pickup", label: "Nơi lấy cont", group: "Tuyến vận tải", xl: 16, px: 150 },
+  { key: "stuffing", label: "Nơi đóng hàng", group: "Tuyến vận tải", xl: 32, px: 280 },
+  { key: "dropoff", label: "Nơi hạ hàng", group: "Tuyến vận tải", xl: 16, px: 150 },
 ];
 
 /** Loại cont 20 hoặc 40 (45 tính vào 40) đọc từ tên loại xe/loại cont, ví dụ "Cont 40", "40HC", "20'" */
