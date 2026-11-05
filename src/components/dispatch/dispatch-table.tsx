@@ -16,16 +16,17 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Pencil, RotateCcw, Save } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Download, Loader2, Pencil, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
 import { AddFieldButton } from "@/components/entities/add-field-button";
 import { resetTableView, saveTableView } from "@/lib/entities/actions";
+import { exportTableView } from "@/lib/table-export-actions";
 import type { TableViewConfig } from "@/lib/entities/types";
 import type { DispatchExtraColumn, DispatchExtraValues } from "@/lib/dispatch-columns";
 import { formatDate, formatNumber } from "@/lib/format";
-import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES } from "@/lib/status";
+import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES, shipmentStatus, tripApprovalStatus } from "@/lib/status";
 import { ASSIGNED_ROW_CELL, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "./status-badge";
@@ -52,6 +53,8 @@ type Col = {
   /** Ghi chú khi rê chuột lên tiêu đề */
   hint?: string;
   sort?: (r: ShipmentListRow) => SortVal;
+  /** Giá trị khi xuất Excel (mặc định lấy giá trị sắp xếp) */
+  text?: (r: ShipmentListRow, now: number) => string | number | null;
   render: (r: ShipmentListRow, now: number) => ReactNode;
 };
 
@@ -87,12 +90,25 @@ function routeCell(r: ShipmentListRow, dropOff?: string) {
   );
 }
 
+/** Ô Tuyến đường dạng chữ cho Excel */
+function routeText(r: ShipmentListRow, dropOff?: string) {
+  return [
+    `${r.pickup_name ?? ""} → ${r.delivery_name ?? ""}`,
+    dropOff ? `Hạ hàng: ${dropOff}` : "",
+    r.empty_return_name ? `Hạ rỗng: ${r.empty_return_name}` : "",
+    r.offroute_return_name ? `Hạ rỗng trái tuyến: ${r.offroute_return_name}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 const BASE_COLS: Col[] = [
   {
     key: "pickup_at",
     label: "Ngày nhận",
     width: 104,
     sort: (r) => r.pickup_at,
+    text: (r) => formatDate(r.pickup_at),
     render: (r) => (
       <>
         <div className="font-medium">{formatDate(r.pickup_at)}</div>
@@ -156,6 +172,7 @@ const BASE_COLS: Col[] = [
     label: "Loại hình vận chuyển",
     width: 140,
     hint: "Chưa có trường \"Loại hình vận chuyển\". Bấm Thêm cột (trường), đặt tên Loại hình vận chuyển (ví dụ kiểu Lựa chọn: Nhập, Xuất, Nội địa) để nhập ở form tạo đơn và hiện ở cột này.",
+    text: () => null,
     render: () => null,
   },
   { key: "vehicle_type_name", label: "Loại cont", width: 100, hint: "Loại cont / loại xe của chuyến (danh mục Loại xe)", sort: (r) => r.vehicle_type_name, render: (r) => <div className="truncate">{r.vehicle_type_name}</div> },
@@ -164,6 +181,7 @@ const BASE_COLS: Col[] = [
     label: "Tuyến đường",
     width: 240,
     sort: (r) => r.route_label ?? `${r.pickup_name ?? ""} ${r.delivery_name ?? ""}`,
+    text: (r) => routeText(r),
     render: (r) => routeCell(r),
   },
   { key: "pickup_name", label: "Điểm nhận", width: 170, defaultHidden: true, sort: (r) => r.pickup_name, render: (r) => <div className="truncate">{r.pickup_name}</div> },
@@ -182,6 +200,10 @@ const BASE_COLS: Col[] = [
     label: "Xe / Tài xế",
     width: 150,
     sort: (r) => r.plate_number ?? (r.driver_name ? `~${r.driver_name}` : null),
+    text: (r) =>
+      r.plate_number || r.driver_id
+        ? [r.plate_number ? `${r.plate_number}${r.vehicle_day_order ? ` (chuyến ${r.vehicle_day_order})` : ""}` : "Chưa chọn xe", r.driver_name].filter(Boolean).join(" - ")
+        : "Chưa phân công",
     render: (r) =>
       r.driver_id ? (
         <>
@@ -208,6 +230,7 @@ const BASE_COLS: Col[] = [
     align: "right",
     hint: "Thứ tự chạy của xe trong ngày (1, 2, 3…). Tài xế nhập số xe chỉ thấy chuyến có thứ tự nhỏ nhất, xong chuyến mới thấy chuyến tiếp theo. Bấm vào ô để sửa.",
     sort: (r) => r.vehicle_day_order ?? r.trip_order,
+    text: (r) => r.vehicle_day_order ?? null,
     render: () => null,
   },
   { key: "plan_code", label: "Kế hoạch", width: 100, defaultHidden: true, sort: (r) => r.plan_code, render: (r) => r.plan_code },
@@ -217,6 +240,15 @@ const BASE_COLS: Col[] = [
     label: "Trạng thái",
     width: 170,
     sort: (r) => r.status,
+    text: (r, now) =>
+      [
+        shipmentStatus(r.status).label,
+        r.dispatch_approval === "pending" || r.dispatch_approval === "rejected" ? tripApprovalStatus(r.dispatch_approval).label : "",
+        isLate(r, now) ? "Trễ giờ giao" : "",
+        r.dispatch_approval === "rejected" && r.dispatch_reject_reason ? `Lý do: ${r.dispatch_reject_reason}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
     render: (r, now) => (
       <>
         <div className="flex flex-wrap gap-1">
@@ -260,6 +292,7 @@ export function DispatchTable({
   canAddField = false,
   toolbar = true,
   canFillDriver,
+  exportName,
 }: {
   rows: ShipmentListRow[];
   canAssign: boolean;
@@ -279,9 +312,12 @@ export function DispatchTable({
   toolbar?: boolean;
   /** Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế (mặc định theo quyền phân công) */
   canFillDriver?: boolean;
+  /** Có thì hiện nút Xuất Excel: tên tệp và tiêu đề trong tệp */
+  exportName?: { filename: string; title: string };
 }) {
   const fillDriver = canFillDriver ?? canAssign;
   const [savePending, startSave] = useTransition();
+  const [exportPending, startExport] = useTransition();
   const showActions = canAssign || canCancel || rows.some((r) => r.can_approve_dispatch || r.driver_id);
   const kindCol = extraColumns.find((c) => c.serviceKind);
   const dropCol = extraColumns.find((c) => c.dropOff);
@@ -296,6 +332,10 @@ export function DispatchTable({
       custom: true,
       defaultHidden: !c.serviceKind,
       sort: (r) => val(r, c.key)?.[1],
+      text: (r) => {
+        const v = val(r, c.key);
+        return c.numeric && typeof v?.[1] === "number" ? v[1] : (v?.[0] ?? null);
+      },
       render: (r) => <div className="truncate">{val(r, c.key)?.[0]}</div>,
     });
     const list: Col[] = [];
@@ -303,7 +343,8 @@ export function DispatchTable({
       if (c.orderOnly && !showOrder) continue;
       // Đã có trường "Loại hình vận chuyển" thì cột đó đứng đúng chỗ này
       if (c.key === SERVICE_KIND_PLACEHOLDER) list.push(kindCol ? extra(kindCol) : c);
-      else if (c.key === "route" && dropCol) list.push({ ...c, render: (r) => routeCell(r, val(r, dropCol.key)?.[0]) });
+      else if (c.key === "route" && dropCol)
+        list.push({ ...c, text: (r) => routeText(r, val(r, dropCol.key)?.[0]), render: (r) => routeCell(r, val(r, dropCol.key)?.[0]) });
       else list.push(c);
     }
     for (const c of extraColumns) if (!c.serviceKind) list.push(extra(c));
@@ -433,6 +474,42 @@ export function DispatchTable({
     });
   }
 
+  /** Xuất đúng những gì đang xem: dòng theo bộ lọc + sắp xếp, cột đang hiện theo thứ tự */
+  function exportExcel() {
+    if (!exportName) return;
+    const leaf = table.getVisibleLeafColumns().filter((c) => c.id !== "actions");
+    const data = table.getRowModel().rows.map((row) =>
+      leaf.map((c) => {
+        const m = meta(c);
+        const v = m.text ? m.text(row.original, now) : m.sort ? m.sort(row.original) : null;
+        if (v === undefined || v === null || v === "") return null;
+        return typeof v === "number" ? v : String(v);
+      }),
+    );
+    if (data.length === 0) return void toast.error("Không có chuyến nào để xuất.");
+    startExport(async () => {
+      const r = await exportTableView({
+        sheet: "Điều phối",
+        filename: exportName.filename,
+        title: exportName.title,
+        columns: leaf.map((c) => {
+          const m = meta(c);
+          return { label: m.label, width: Math.max(8, Math.min(60, Math.round(c.getSize() / 7))), numeric: m.align === "right" };
+        }),
+        rows: data,
+      });
+      if (!r.ok || !r.data) return void toast.error(r.ok ? "Không tạo được tệp" : r.error);
+      const bytes = Uint8Array.from(atob(r.data.base64), (ch) => ch.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = r.data.filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success(`Đã xuất ${r.data.count} chuyến, ${leaf.length} cột.`);
+    });
+  }
+
   const sortText = sorting
     .map((s) => {
       const c = cols.find((x) => x.key === s.id);
@@ -460,6 +537,17 @@ export function DispatchTable({
           <div className="flex flex-wrap items-center gap-2">
             {canAddField ? <AddFieldButton module="shipments" customRows={[]} label="Thêm cột (trường)" /> : null}
             <ColumnsMenu columns={table.getAllLeafColumns()} label={(c) => meta(c).label} note={(c) => (meta(c).custom ? "bổ sung" : null)} onMove={moveColumn} />
+            {exportName ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportPending || rows.length === 0}
+                onClick={exportExcel}
+                title="Xuất danh sách đang xem ra Excel: đúng bộ lọc, tab, sắp xếp, các cột đang hiện theo thứ tự hiện tại"
+              >
+                {exportPending ? <Loader2 className="animate-spin" /> : <Download />} Xuất Excel
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" disabled={savePending} onClick={save} title="Lưu thứ tự cột, cột hiển thị, độ rộng, chiều cao dòng và sắp xếp cho tài khoản của bạn">
               <Save /> Lưu cấu hình
             </Button>

@@ -142,6 +142,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     const s = q.toString();
     return s ? `/dieu-phoi?${s}` : "/dieu-phoi";
   };
+  const tabLabel =
+    tab === "tat-ca" ? "Tất cả" : tab === "tre" ? "Trễ giờ giao" : tab === "cho-duyet" ? "Chờ GĐ duyệt / bị từ chối" : (SHIPMENT_STATUS.find((s) => s.value === tab)?.label ?? tab);
   const rangeText = single ? `ngày ${formatDate(f.tu)}${f.tu === today ? " (hôm nay)" : ""}` : `từ ${formatDate(f.tu)} đến ${formatDate(f.den)} (${totalDays} ngày)`;
 
   return (
@@ -240,6 +242,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
             canCancel={canCancel}
             canFillDriver={canFillDriver}
             showDate={!single}
+            exportName={{
+              filename: `dieu-phoi-${single ? f.tu : `${f.tu}_${f.den}`}`,
+              title: `ĐIỀU PHỐI – Chuyến nhận hàng ${rangeText}${tab ? ` – ${tabLabel}` : ""}`,
+            }}
             emptyText={f.q ? "Không có chuyến phù hợp với từ khóa." : filtered ? "Không có chuyến phù hợp với bộ lọc." : all.length === 0 ? `Chưa có chuyến nào nhận hàng ${rangeText}.` : !tab ? "Các chuyến đã giao xong, xem ở tab Đã giao – chờ quyết toán hoặc Đã đóng." : "Không có chuyến ở trạng thái này."}
           />
         </Card>
