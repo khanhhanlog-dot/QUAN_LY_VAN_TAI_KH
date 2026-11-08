@@ -168,3 +168,5 @@ upgrade nang-cap-thiet-lap-luong-tai-xe.sql "Thiết lập lương tài xế: đ
   supabase/migrations/20261108000062_driver_pay_setup.sql
 upgrade nang-cap-thiet-lap-luong-chung.sql "Lương tài xế: tự chọn trừ tiền ứng, ngày nghỉ trong tuần, ngày lễ, thêm tiền chuyến ngày nghỉ" "to_regclass('public.pay_holidays') is not null" \
   supabase/migrations/20261108000063_driver_pay_settings.sql
+upgrade nang-cap-cham-cong-tai-xe.sql "Chấm công tài xế: tự chấm theo chuyến, điều phối xác nhận ngày chờ, chốt công, trừ lương cơ bản ngày nghỉ không lương" "to_regclass('public.driver_attendance') is not null" \
+  supabase/migrations/20261108000064_driver_attendance.sql

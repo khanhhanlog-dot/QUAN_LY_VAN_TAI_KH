@@ -165,6 +165,25 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
               <p className="py-6 text-center text-muted-foreground">Đang tính…</p>
             ) : (
               <>
+                {p.attendance ? (
+                  <div className="mb-2 rounded border bg-card px-2 py-1.5 text-xs">
+                    <div>
+                      Chấm công: <b>{p.attendance.work}</b> ngày đi làm / {p.standard_days ?? "?"} ngày công chuẩn
+                      {p.attendance.leave_paid ? ` · phép ${p.attendance.leave_paid}` : ""}
+                      {p.attendance.sick ? ` · ốm ${p.attendance.sick}` : ""}
+                      {p.attendance.leave_unpaid ? ` · không lương ${p.attendance.leave_unpaid}` : ""}
+                      {p.attendance.absent ? ` · không báo ${p.attendance.absent}` : ""}
+                    </div>
+                    {p.attendance.pending ? (
+                      <div className="mt-1 text-amber-700 dark:text-amber-400">
+                        Còn {p.attendance.pending} ngày chờ xác nhận (chưa tính công).{" "}
+                        <a href={`/cham-cong?thang=${month}`} target="_blank" rel="noreferrer" className="underline">
+                          Mở Chấm công tài xế
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {p.setup && p.components ? (
                   <>
                     {p.components.map((c) => (

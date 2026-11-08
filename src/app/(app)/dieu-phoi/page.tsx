@@ -60,7 +60,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   let listQ = applyShipmentFilters(supabase.from("shipment_list").select("*"), { ...f, tt: "" });
   if (xe) listQ = listQ.eq("vehicle_id", xe);
   if (tx) listQ = listQ.eq("driver_id", tx);
-  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes] = await Promise.all([
+  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes, attPendingRes] = await Promise.all([
     listQ.order("pickup_at").order("shipment_code").limit(MAX_ROWS),
     // Chuyến chưa phân công ở ngoài khoảng ngày đang xem (từ hôm nay trở đi)
     supabase
@@ -83,7 +83,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       .order("pickup_at")
       .limit(200),
     supabase.rpc("trip_delegation_info"),
+    supabase.rpc("attendance_pending_count"),
   ]);
+  // Lỗi (ví dụ DB chưa nâng cấp chấm công) thì bỏ qua, không chặn màn Điều phối
+  const attPending = attPendingRes.error ? 0 : Number(attPendingRes.data ?? 0);
   const delegation = (delegationRes.data ?? null) as DelegationInfo | null;
   if (listRes.error) throw listRes.error;
   if (upcomingRes.error) throw upcomingRes.error;
@@ -179,6 +182,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       {me.permissions.has("reports.view") ? <ReportLinks /> : null}
 
       <DelegateNotice info={delegation} />
+      {attPending > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          <span>
+            <b>{attPending}</b> ngày công tài xế chờ xác nhận: tài xế không có chuyến và không có đơn xin nghỉ.
+          </span>
+          <Link href="/cham-cong" className="font-medium text-primary hover:underline">
+            Mở Chấm công tài xế để xác nhận
+          </Link>
+        </div>
+      ) : null}
       {pendingAll.length > 0 ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           <span>

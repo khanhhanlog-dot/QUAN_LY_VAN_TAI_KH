@@ -86,6 +86,12 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
     example: "Cột Giá lấy từ cho biết giá đến từ tuyến, địa điểm, vùng hay giá mặc định.",
   },
   {
+    title: "Xác nhận Chấm công tài xế",
+    href: "/cham-cong",
+    body: "Ngày tài xế nhận chuyến được tự chấm công, ngày có đơn xin nghỉ đã duyệt tự ghi nghỉ. Ngày đã qua mà không có chuyến, không có đơn nghỉ hiện ô vàng: điều phối chọn ô rồi bấm Có đi làm, Nghỉ phép, Nghỉ không lương... Cuối tháng kế toán bấm Chốt công tháng.",
+    example: "Anh Nam ngày 15 chờ hàng ở bãi, không có chuyến: chọn ô ngày 15 → Có đi làm, ghi chú Chờ hàng.",
+  },
+  {
     title: "Lập Bảng lương",
     tab: "payrolls",
     body: "Bấm Thêm mới, chọn tài xế và tháng, xem từng khoản bên phải, nhập thưởng / khấu trừ nếu có, rồi gửi Giám đốc duyệt. Hoặc bấm Lập cho tất cả tài xế.",
@@ -165,12 +171,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>Chuyến được tính lương khi đã hoàn thành, vào tháng của ngày hoàn thành.</p>
+                <p>Ngày công (tính tiền ăn mỗi ngày...) = số ngày Đi làm trên bảng Chấm công tài xế.</p>
+                <p>Nếu bật trừ lương cơ bản: Lương cơ bản × (ngày công chuẩn − ngày nghỉ không lương − ngày nghỉ không báo) ÷ ngày công chuẩn.</p>
                 <p>Tổng được nhận = các khoản cộng − các khoản trừ + thưởng − khấu trừ + hoàn chi phí tài xế tự trả đã duyệt.</p>
                 <p>Thực nhận = Tổng được nhận − tiền ứng còn dư (nếu bật trừ tiền ứng).</p>
-                <p className="text-muted-foreground">
-                  Tài xế chưa có mức lương theo khoản nào vẫn được tính như cũ theo các ô lương (cũ) trong hồ sơ tài xế. Ngày công tạm tính bằng số ngày có chuyến hoàn
-                  thành, bảng chấm công sẽ thay ở đợt sau.
-                </p>
+                <p className="text-muted-foreground">Tài xế chưa có mức lương theo khoản nào vẫn được tính như cũ theo các ô lương (cũ) trong hồ sơ tài xế.</p>
               </CardContent>
             </Card>
           </div>

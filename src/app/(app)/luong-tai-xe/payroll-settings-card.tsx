@@ -18,6 +18,7 @@ const DAYS = [
 /** Thiết lập chung của bảng lương: kế toán tự đổi, không cần sửa phần mềm */
 export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
   const [offset, setOffset] = useState(initial.offset_advance);
+  const [deduct, setDeduct] = useState(initial.deduct_base_unpaid ?? true);
   const [off, setOff] = useState<number[]>(initial.weekly_off_days);
   const [pending, start] = useTransition();
   const can = initial.can_edit && !pending;
@@ -27,6 +28,13 @@ export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
       const r = await savePayrollSetting({ key: "payroll.offset_advance", value: !offset });
       if (!r.ok) return void toast.error(r.error);
       setOffset(!offset);
+      toast.success(r.message);
+    });
+  const toggleDeduct = () =>
+    start(async () => {
+      const r = await savePayrollSetting({ key: "payroll.deduct_base_unpaid", value: !deduct });
+      if (!r.ok) return void toast.error(r.error);
+      setDeduct(!deduct);
       toast.success(r.message);
     });
   const toggleDay = (d: number) =>
@@ -52,26 +60,23 @@ export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
               Bật: tiền tài xế đã ứng mà chưa quyết toán hết được trừ vào lương tháng. Tắt: trả đủ lương, tài xế hoàn ứng riêng. Khi lập từng bảng lương vẫn đổi được.
             </div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={offset}
-            aria-label="Trừ tiền ứng còn dư vào lương"
-            disabled={!can}
-            onClick={toggleOffset}
-            className={cn(
-              "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60",
-              offset ? "bg-primary" : "bg-muted-foreground/30",
-            )}
-          >
-            <span className={cn("inline-block size-5 rounded-full bg-white shadow transition-transform", offset ? "translate-x-5" : "translate-x-0.5")} />
-          </button>
+          <Switch on={offset} label="Trừ tiền ứng còn dư vào lương" disabled={!can} onClick={toggleOffset} />
+        </div>
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div>
+            <div className="font-medium">Trừ lương cơ bản ngày nghỉ không lương, nghỉ không báo</div>
+            <div className="text-sm text-muted-foreground">
+              Bật: lương cơ bản chia theo ngày công chuẩn (các ngày không phải ngày nghỉ, lễ trong tháng), trừ các ngày KL và V trên bảng Chấm công tài xế. Tắt: trả đủ lương
+              cơ bản.
+            </div>
+          </div>
+          <Switch on={deduct} label="Trừ lương cơ bản ngày nghỉ không lương" disabled={!can} onClick={toggleDeduct} />
         </div>
         <div className="py-3">
           <div className="font-medium">Ngày nghỉ trong tuần</div>
           <div className="mb-2 text-sm text-muted-foreground">
             Tích các ngày công ty nghỉ. Chuyến chạy vào ngày nghỉ hoặc ngày lễ (tab Ngày nghỉ lễ) được tính khoản &quot;Thêm tiền chuyến ngày nghỉ, lễ&quot; nếu
-            khoản đó có mức. Bảng chấm công (đợt sau) cũng không cảnh báo vào các ngày này.
+            khoản đó có mức. Bảng Chấm công tài xế không bắt xác nhận các ngày này.
           </div>
           <div className="flex flex-wrap gap-2">
             {DAYS.map((d) => (
@@ -91,5 +96,21 @@ export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function Switch({ on, label, disabled, onClick }: { on: boolean; label: string; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60", on ? "bg-primary" : "bg-muted-foreground/30")}
+    >
+      <span className={cn("inline-block size-5 rounded-full bg-white shadow transition-transform", on ? "translate-x-5" : "translate-x-0.5")} />
+    </button>
   );
 }

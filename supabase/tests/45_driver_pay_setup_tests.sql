@@ -23,9 +23,10 @@ insert into t_ps select 'del', delivery_location_id::text from public.shipments 
 insert into t_ps select 'trips', count(*)::text from public.shipments
 where driver_id = (select v::uuid from t_ps where k = 'drv') and status in ('driver_completed', 'closed')
   and date_trunc('month', (completed_at at time zone 'Asia/Ho_Chi_Minh'))::date = (select v::date from t_ps where k = 'month');
-insert into t_ps select 'days', count(distinct (completed_at at time zone 'Asia/Ho_Chi_Minh')::date)::text from public.shipments
-where driver_id = (select v::uuid from t_ps where k = 'drv') and status in ('driver_completed', 'closed')
-  and date_trunc('month', (completed_at at time zone 'Asia/Ho_Chi_Minh')::date) = (select v::date from t_ps where k = 'month');
+-- 0064: ngày công lấy từ bảng chấm công (ngày nhận chuyến hoặc hoàn thành chuyến)
+insert into t_ps select 'days', count(*)::text from private.attendance_rows((select v::date from t_ps where k = 'month'),
+  ((select v::date from t_ps where k = 'month') + interval '1 month - 1 day')::date, (select v::uuid from t_ps where k = 'drv')) a
+where a.status = 'work';
 select tests.assert((select count(*) from t_ps) = 7 and (select v::int from t_ps where k = 'trips') >= 1, 'Có tài xế với chuyến hoàn thành để thử');
 update public.drivers set base_salary = 8000000, per_trip_salary = 300000, meal_allowance = 500000, other_allowance = 0, pay_type = 'base_and_trip'
 where id = (select v::uuid from t_ps where k = 'drv');
@@ -95,7 +96,7 @@ insert into t_ps select 'pv2', pg_temp.pv(jsonb_build_object('PCBX', 50000))::te
 select tests.assert((select (v::jsonb ->> 'setup')::boolean from t_ps where k = 'pv2'), 'Có mức theo khoản: tính theo thiết lập mới');
 select tests.assert((select (v::jsonb ->> 'base_salary')::numeric from t_ps where k = 'pv2') = 7000000, 'Lương cơ bản 7,000,000 (mức tăng lương sau chưa áp dụng)');
 select tests.assert((select (v::jsonb ->> 'meal_allowance')::numeric from t_ps where k = 'pv2') = 40000 * (select v::int from t_ps where k = 'days'),
-  'Tiền ăn = 40,000 × số ngày có chuyến');
+  'Tiền ăn = 40,000 × số ngày công');
 select tests.assert((select (v::jsonb ->> 'other_allowance')::numeric from t_ps where k = 'pv2') = 50000, 'Bốc xếp nhập tay 50,000');
 select tests.assert((select (v::jsonb ->> 'deduction')::numeric from t_ps where k = 'pv2') = 100000, 'Trừ BHXH 100,000');
 select tests.assert((select (v::jsonb ->> 'trip_salary')::numeric from t_ps where k = 'pv2') = 1200000 * (select v::int from t_ps where k = 'trips'), 'Lương chuyến theo đơn giá');

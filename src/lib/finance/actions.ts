@@ -292,6 +292,9 @@ export type PayrollPreview = {
   offset_advance?: boolean;
   offday_trips?: number;
   expense_lines?: { name: string; count: number; amount: number }[];
+  /** 0064: ngày công chuẩn (ngày không phải ngày nghỉ, lễ) và tổng hợp chấm công */
+  standard_days?: number;
+  attendance?: { work: number; leave_paid: number; sick: number; leave_unpaid: number; absent: number; pending: number };
 };
 
 export type PayrollComponentLine = {
@@ -596,10 +599,11 @@ export async function listDebtPayments(kind: "receivable" | "payable", id: strin
 }
 
 // ---------------------------------------------------------------- Thiết lập chung lương tài xế (0063)
-export type PayrollSettings = { offset_advance: boolean; weekly_off_days: number[]; can_edit: boolean };
+export type PayrollSettings = { offset_advance: boolean; weekly_off_days: number[]; deduct_base_unpaid?: boolean; can_edit: boolean };
 
 const payrollSettingSchema = z.discriminatedUnion("key", [
   z.object({ key: z.literal("payroll.offset_advance"), value: z.boolean() }),
+  z.object({ key: z.literal("payroll.deduct_base_unpaid"), value: z.boolean() }),
   z.object({ key: z.literal("payroll.weekly_off_days"), value: z.array(z.number().int().min(0).max(6)).max(7) }),
 ]);
 
@@ -611,5 +615,6 @@ export async function savePayrollSetting(input: z.input<typeof payrollSettingSch
     const { error } = await supabase.rpc("set_payroll_setting", { p_key: d.key, p_value: d.value });
     if (error) throw error;
     revalidatePath("/luong-tai-xe");
+    revalidatePath("/cham-cong");
   }, "Đã lưu thiết lập lương");
 }
