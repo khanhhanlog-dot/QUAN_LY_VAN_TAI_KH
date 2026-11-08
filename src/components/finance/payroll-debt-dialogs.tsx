@@ -19,6 +19,7 @@ import {
   listBillingShipments,
   previewPayroll,
   type BillingShipment,
+  type PayrollComponentLine,
   type PayrollPreview,
 } from "@/lib/finance/actions";
 import { Field, MoneyField, type CreateActionProps } from "./create-dialogs";
@@ -40,6 +41,15 @@ function Line({ label, value, sub, strong, minus }: { label: string; value: numb
   );
 }
 
+/** Diễn giải cách tính một khoản: "24 ngày × 40,000", "42 chuyến"… */
+function componentSub(c: PayrollComponentLine): string | undefined {
+  if (c.method === "trip_rate") return `${c.qty} chuyến`;
+  if (c.method === "per_workday" && c.rate != null) return `${c.qty} ngày × ${formatVND(c.rate)}`;
+  if (c.method === "per_trip" && c.rate != null) return `${c.qty} chuyến × ${formatVND(c.rate)}`;
+  if (c.method === "over_trips" && c.rate != null) return `${c.qty} chuyến vượt × ${formatVND(c.rate)}`;
+  return undefined;
+}
+
 /** Kế toán lập bảng lương tháng cho tài xế: xem trước từng khoản rồi gửi Giám đốc duyệt */
 export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddField, onDone }: CreateActionProps) {
   const fields = useMemo(() => moduleCustomFields("payrolls", customRows), [customRows]);
@@ -47,6 +57,11 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
   const [month, setMonth] = useState(thisMonth());
   const [bonus, setBonus] = useState<number | null>(null);
   const [deduction, setDeduction] = useState<number | null>(null);
+  const [manual, setManual] = useState<Record<string, number | null>>({});
+  const manualClean = useMemo(
+    () => Object.fromEntries(Object.entries(manual).filter((e): e is [string, number] => typeof e[1] === "number" && e[1] > 0)),
+    [manual],
+  );
   const [note, setNote] = useState("");
   const [custom, setCustom] = useState<Record<string, unknown>>({});
   const [preview, setPreview] = useState<PayrollPreview | null>(null);
@@ -58,7 +73,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
     if (!driver || !month) return;
     let alive = true;
     const t = setTimeout(async () => {
-      const r = await previewPayroll({ driverId: driver, month, bonus: bonus ?? 0, deduction: deduction ?? 0 });
+      const r = await previewPayroll({ driverId: driver, month, bonus: bonus ?? 0, deduction: deduction ?? 0, manual: manualClean });
       if (!alive) return;
       if (r.ok) {
         setPreview(r.data ?? null);
@@ -72,7 +87,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
       alive = false;
       clearTimeout(t);
     };
-  }, [driver, month, bonus, deduction]);
+  }, [driver, month, bonus, deduction, manualClean]);
 
   const p = driver ? preview : null;
   return (
@@ -92,7 +107,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
         ) : null}
         <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,20rem)]">
           <div className="grid content-start gap-3 sm:grid-cols-2">
-            <Field label="Tài xế *" htmlFor="pr-driver" help="Mức lương lấy từ hồ sơ tài xế (lương cơ bản, lương mỗi chuyến, phụ cấp)">
+            <Field label="Tài xế *" htmlFor="pr-driver" help="Mức lương lấy từ Lương tài xế (đơn giá lương chuyến, mức lương theo khoản); chưa thiết lập thì lấy từ hồ sơ tài xế">
               <ReferenceSelect id="pr-driver" refKey="drivers" value={driver} onChange={(v) => setDriver(v)} />
             </Field>
             <Field label="Tháng *" htmlFor="pr-month" help="Tính các chuyến hoàn thành trong tháng này">
@@ -104,6 +119,16 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
             <Field label="Khấu trừ" htmlFor="pr-deduction" help="Ví dụ phạt, bảo hiểm, bồi thường hàng hỏng">
               <MoneyField id="pr-deduction" value={deduction} onChange={setDeduction} />
             </Field>
+            {(preview?.manual_components ?? []).map((c) => (
+              <Field
+                key={c.code}
+                label={c.name}
+                htmlFor={`pr-m-${c.code}`}
+                help={c.kind === "deduction" ? "Khoản trừ nhập tay tháng này (Lương tài xế → Khoản lương)" : "Khoản nhập tay tháng này, để trống nếu không có (Lương tài xế → Khoản lương)"}
+              >
+                <MoneyField id={`pr-m-${c.code}`} value={manual[c.code] ?? null} onChange={(v) => setManual((m) => ({ ...m, [c.code]: v }))} />
+              </Field>
+            ))}
             <Field label="Ghi chú" htmlFor="pr-note" wide>
               <Textarea id="pr-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} placeholder="Ví dụ: Thưởng chuyên cần tháng 10" />
             </Field>
@@ -121,12 +146,24 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
               <p className="py-6 text-center text-muted-foreground">Đang tính…</p>
             ) : (
               <>
-                <Line label="Lương cơ bản" value={p.base_salary} />
-                <Line label="Lương chuyến" sub={`${p.trip_count} chuyến × ${formatVND(p.per_trip_salary)}`} value={p.trip_salary} />
-                <Line label="Phụ cấp ăn" value={p.meal_allowance} />
-                <Line label="Phụ cấp khác" value={p.other_allowance} />
-                <Line label="Thưởng" value={p.bonus} />
-                <Line label="Khấu trừ" value={p.deduction} minus />
+                {p.setup && p.components ? (
+                  <>
+                    {p.components.map((c) => (
+                      <Line key={c.code} label={c.name} sub={componentSub(c)} value={c.amount} minus={c.kind === "deduction"} />
+                    ))}
+                    <Line label="Thưởng" value={p.bonus} />
+                    <Line label="Khấu trừ khác" value={p.deduction - p.components.filter((c) => c.kind === "deduction").reduce((a, c) => a + c.amount, 0)} minus />
+                  </>
+                ) : (
+                  <>
+                    <Line label="Lương cơ bản" value={p.base_salary} />
+                    <Line label="Lương chuyến" sub={`${p.trip_count} chuyến`} value={p.trip_salary} />
+                    <Line label="Phụ cấp ăn" value={p.meal_allowance} />
+                    <Line label="Phụ cấp khác" value={p.other_allowance} />
+                    <Line label="Thưởng" value={p.bonus} />
+                    <Line label="Khấu trừ" value={p.deduction} minus />
+                  </>
+                )}
                 <Line label="Hoàn chi phí tự trả" sub={`${p.expense_count} khoản đã duyệt`} value={p.expense_reimbursement} />
                 <Line label="Tổng được nhận" value={p.gross_amount} strong />
                 <Line label="Trừ tiền đã ứng" sub={`đang giữ ${formatVND(p.advance_balance)}`} value={p.advance_offset} minus />
@@ -134,6 +171,14 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                 {p.advance_carry > 0 ? (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
                     Tạm ứng còn {formatVND(p.advance_carry)} chưa trừ hết, tự chuyển sang tháng sau.
+                  </p>
+                ) : null}
+                {p.trips_missing_rate ? (
+                  <p className="mt-2 text-xs text-destructive">
+                    {p.trips_missing_rate} chuyến chưa có đơn giá lương nên đang tính 0 đồng.{" "}
+                    <a href="/luong-tai-xe?tab=trip_pay_lines" target="_blank" rel="noreferrer" className="underline">
+                      Xem bảng kê, bổ sung đơn giá
+                    </a>
                   </p>
                 ) : null}
                 {p.existing ? (
@@ -154,6 +199,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                 const r = await createPayrollsForMonth({ month });
                 if (!r.ok) return void toast.error(r.error);
                 toast.success(`Đã lập ${r.data?.created ?? 0} bảng lương${r.data?.skipped ? `, bỏ qua ${r.data.skipped} tài xế đã có` : ""}`);
+                if (r.data?.trips_missing_rate) toast.warning(`${r.data.trips_missing_rate} chuyến chưa có đơn giá lương (tính 0 đồng). Xem Lương tài xế → Bảng kê lương chuyến.`);
                 onDone();
               })
             }
@@ -174,6 +220,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                     month,
                     bonus: bonus ?? 0,
                     deduction: deduction ?? 0,
+                    manual: manualClean,
                     note: note.trim() || undefined,
                     custom,
                   });

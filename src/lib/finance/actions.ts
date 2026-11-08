@@ -280,23 +280,46 @@ export type PayrollPreview = {
   gross_amount: number;
   net_amount: number;
   existing: string | null;
+  /** 0062: tính theo thiết lập lương (khoản lương, đơn giá lương chuyến) */
+  setup?: boolean;
+  pay_type?: "base_and_trip" | "trip_only" | "monthly_only";
+  workdays?: number;
+  trips_missing_rate?: number;
+  components?: PayrollComponentLine[];
+  /** Các khoản "nhập tay khi lập bảng lương" đang dùng (để hiện ô nhập) */
+  manual_components?: { code: string; name: string; kind: "income" | "deduction" }[];
 };
 
-const previewSchema = z.object({ driverId: uuid, month, bonus: optMoney, deduction: optMoney });
+export type PayrollComponentLine = {
+  code: string;
+  name: string;
+  kind: "income" | "deduction";
+  method: string;
+  qty: number;
+  rate: number | null;
+  amount: number;
+};
+
+const manualSchema = z.record(z.string().max(30), z.number().min(0, "Không được âm").max(1_000_000_000_000)).optional();
+const previewSchema = z.object({ driverId: uuid, month, bonus: optMoney, deduction: optMoney, manual: manualSchema });
 
 export async function previewPayroll(input: z.input<typeof previewSchema>): Promise<ActionResult<PayrollPreview>> {
   return runAction(async () => {
     await requirePermission("settlements.update");
     const d = previewSchema.parse(input);
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("driver_payroll_preview", {
-      p_driver_id: d.driverId,
-      p_month: d.month,
-      p_bonus: d.bonus ?? 0,
-      p_deduction: d.deduction ?? 0,
-    });
+    const [{ data, error }, manual] = await Promise.all([
+      supabase.rpc("driver_payroll_preview", {
+        p_driver_id: d.driverId,
+        p_month: d.month,
+        p_bonus: d.bonus ?? 0,
+        p_deduction: d.deduction ?? 0,
+        p_manual: d.manual ?? {},
+      }),
+      supabase.from("pay_components").select("code, name, kind").eq("method", "manual").eq("is_active", true).order("sort_order"),
+    ]);
     if (error) throw error;
-    return data as PayrollPreview;
+    return { ...(data as PayrollPreview), manual_components: (manual.data ?? []) as PayrollPreview["manual_components"] };
   });
 }
 
@@ -315,6 +338,7 @@ export async function createPayroll(input: z.input<typeof payrollSchema>): Promi
       p_deduction: d.deduction ?? 0,
       p_note: d.note ?? null,
       p_custom_fields: custom,
+      p_manual: d.manual ?? {},
     });
     if (error) throw error;
     refreshFinance();
@@ -322,7 +346,7 @@ export async function createPayroll(input: z.input<typeof payrollSchema>): Promi
   }, "Đã lập bảng lương và gửi Giám đốc duyệt");
 }
 
-export async function createPayrollsForMonth(input: { month: string }): Promise<ActionResult<{ created: number; skipped: number }>> {
+export async function createPayrollsForMonth(input: { month: string }): Promise<ActionResult<{ created: number; skipped: number; trips_missing_rate?: number }>> {
   return runAction(async () => {
     await requirePermission("settlements.update");
     const m = month.parse(input.month);
@@ -330,7 +354,7 @@ export async function createPayrollsForMonth(input: { month: string }): Promise<
     const { data, error } = await supabase.rpc("create_driver_payrolls_for_month", { p_month: m });
     if (error) throw error;
     refreshFinance();
-    return data as { created: number; skipped: number };
+    return data as { created: number; skipped: number; trips_missing_rate?: number };
   });
 }
 

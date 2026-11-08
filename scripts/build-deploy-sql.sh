@@ -163,3 +163,6 @@ upgrade nang-cap-bo-dau-mac-dinh.sql "Bỏ % hỗ trợ dầu mặc định 39% 
 
 upgrade nang-cap-khoa-sua-chuyen.sql "Một chuyến chỉ một người sửa: người sau chỉ xem, báo người đang sửa thoát ra" "to_regprocedure('public.shipment_edit_lock(uuid,bigint)') is not null" \
   supabase/migrations/20261104000061_shipment_edit_lock.sql
+
+upgrade nang-cap-thiet-lap-luong-tai-xe.sql "Thiết lập lương tài xế: đơn giá lương chuyến, vùng lương, khoản lương, hình thức lương" "to_regclass('public.trip_pay_rates') is not null" \
+  supabase/migrations/20261108000062_driver_pay_setup.sql

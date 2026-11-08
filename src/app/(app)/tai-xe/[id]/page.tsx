@@ -29,10 +29,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     driver: entityAccess(drivers, me.permissions),
     sens: entityAccess(getEntity("driver_sensitive"), me.permissions),
     bank: entityAccess(getEntity("driver_bank_accounts"), me.permissions),
+    pay: entityAccess(getEntity("driver_pay_components"), me.permissions),
   };
-  const [sens, banks, vehicle, profile] = await Promise.all([
+  const [sens, banks, pays, vehicle, profile] = await Promise.all([
     acc.sens.view ? loadRecord(supabase, getEntity("driver_sensitive"), [], id) : null,
     acc.bank.view ? loadChildren(supabase, getEntity("driver_bank_accounts"), id) : null,
+    acc.pay.view ? loadChildren(supabase, getEntity("driver_pay_components"), id) : null,
     supabase.from("driver_vehicle_view").select("vehicle_id, plate_number").eq("driver_id", id).maybeSingle(),
     record.profile_id && me.permissions.has("users.view")
       ? supabase.from("profiles").select("email, status").eq("id", record.profile_id as string).maybeSingle()
@@ -92,6 +94,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </Card>
         </div>
         <RecordCard entityKey="drivers" customRows={customRows} record={record} refLabels={refLabels} canEdit={acc.driver.update} title="Hồ sơ tài xế" revalidate={path} />
+        {acc.pay.view ? (
+          <ChildList
+            entityKey="driver_pay_components"
+            parentId={id}
+            rows={pays?.rows ?? []}
+            refLabels={pays?.refLabels}
+            access={acc.pay}
+            title="Mức lương theo khoản (lương cơ bản, phụ cấp, thưởng)"
+            revalidate={path}
+          />
+        ) : null}
         {acc.sens.view ? (
           <>
             <RecordCard

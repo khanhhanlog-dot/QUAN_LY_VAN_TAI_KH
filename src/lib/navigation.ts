@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/giao-viec", label: "Giao việc", icon: "ListChecks", anyOf: ["tasks.view", "tasks.create", "dashboard.view", "dispatch.view", "shipments.view", "approvals.view", "users.view"] },
       { href: "/tro-chuyen", label: "Trò chuyện", icon: "MessageCircle", anyOf: ["dashboard.view", "dispatch.view", "shipments.view", "approvals.view", "users.view"] },
       { href: "/nghi-phep", label: "Xin nghỉ, bàn giao", icon: "CalendarOff", anyOf: ["dashboard.view", "dispatch.view", "shipments.view", "approvals.view", "users.view"] },
+      { href: "/luong-tai-xe", label: "Lương tài xế", icon: "HandCoins", anyOf: ["settlements.view", "settlements.update"] },
     ],
   },
   {
