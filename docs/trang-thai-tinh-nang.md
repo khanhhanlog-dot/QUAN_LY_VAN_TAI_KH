@@ -329,3 +329,9 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Không bị kẹt: quyền sửa tự hết sau 2 phút máy người sửa không báo (tắt tab, mất mạng) và tự nhả sau 10 phút không thao tác.
 - Không ghi đè: người khác đã lưu sau khi trang được tải thì không lưu được, báo "dữ liệu đã cũ, tải lại trang". Không mở khung sửa thì trang tự tải bản mới.
 - Tài xế (app tài xế) không bị khóa chặn. Nâng cấp: supabase/deploy/nang-cap-khoa-sua-chuyen.sql (dòng kiểm tra 40).
+
+## Thông tin tài xế: tự chọn, thêm trường (migration 0066) – 08/11/2026
+- Hộp "Thông tin tài xế gửi khách hàng" có nút "Chọn trường, thêm trường" (người có quyền dispatch.update hoặc settings.configure): đổi tên dòng, đổi trường lấy dữ liệu, lên/xuống, bỏ dòng, thêm dòng từ danh sách (Ngày cấp CCCD, Nơi cấp, SĐT, Ngày sinh, Hạng/hạn GPLX, Loại xe, Mã chuyến, Ngày nhận hàng, Khách hàng… và mọi trường bổ sung tự tạo của Tài xế / Xe). Văn bản xem trước ngay; "Lưu mẫu" dùng chung cho mọi người; "Mẫu mặc định" về 4 dòng cũ.
+- "Tạo trường mới cho tài xế" (người có quyền Trường dữ liệu): tạo trường bổ sung module drivers ngay trong hộp, điền giá trị ở hồ sơ tài xế.
+- Ô trống theo mẫu: cảnh báo từng tài xế + link hồ sơ; CCCD / GPLX vẫn điền nhanh được.
+- Mẫu lưu ở system_settings 'driver.share_template'; dữ liệu qua shipment_driver_share (jsonb). CSDL chưa nâng cấp thì hộp dùng mẫu cố định cũ. Kiểm thử: supabase/tests/48_driver_share_template_tests.sql, tests/driver-share.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-mau-thong-tin-tai-xe.sql (dòng kiểm tra 45).
