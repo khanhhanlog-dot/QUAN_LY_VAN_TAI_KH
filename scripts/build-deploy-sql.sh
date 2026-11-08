@@ -170,3 +170,5 @@ upgrade nang-cap-thiet-lap-luong-chung.sql "Lương tài xế: tự chọn trừ
   supabase/migrations/20261108000063_driver_pay_settings.sql
 upgrade nang-cap-cham-cong-tai-xe.sql "Chấm công tài xế: tự chấm theo chuyến, điều phối xác nhận ngày chờ, chốt công, trừ lương cơ bản ngày nghỉ không lương" "to_regclass('public.driver_attendance') is not null" \
   supabase/migrations/20261108000064_driver_attendance.sql
+upgrade nang-cap-luong-chuyen-chieu-ve.sql "Lương chuyến chiều về tính theo phần trăm (thiết lập chung và từng dòng đơn giá)" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'trip_pay_rates' and column_name = 'return_percent')" \
+  supabase/migrations/20261108000065_trip_pay_return_percent.sql

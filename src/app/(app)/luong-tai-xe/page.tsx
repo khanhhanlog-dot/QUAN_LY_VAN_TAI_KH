@@ -30,12 +30,12 @@ const TABS: { key: string; label?: string }[] = [
 /** Gợi ý ngắn trên từng tab để người mới biết phải làm gì */
 const HINTS: Record<string, string> = {
   trip_pay_rates:
-    "App tìm giá cho mỗi chuyến theo thứ tự: giá riêng tài xế → tuyến Điểm 1 ↔ Điểm 2 (tính cả chiều ngược lại) → một địa điểm → vùng → giá mặc định. Chỉ cần khai các tuyến có giá khác giá mặc định. Để trống Loại cont = cont 20 và 40 cùng giá.",
+    "App tìm giá cho mỗi chuyến theo thứ tự: giá riêng tài xế → tuyến Điểm 1 ↔ Điểm 2 (tính cả chiều ngược lại) → một địa điểm → vùng → giá mặc định. Chỉ cần khai các tuyến có giá khác giá mặc định. Để trống Loại cont = cont 20 và 40 cùng giá. Cột % chiều về để trống = theo Thiết lập chung. Nhiều dòng thì bấm Nhập Excel, tải file mẫu (có sheet Ví dụ) rồi nhập.",
   pay_zones: "Nhóm các địa điểm có cùng lương chuyến (ví dụ Bến Tre, Đồng Tháp 1,000,000). Gán vùng cho từng địa điểm ở Khách hàng và địa điểm → Địa điểm.",
   pay_components:
     "Các khoản trên bảng lương. Lương cơ bản và Lương chuyến là khoản có sẵn. Khoản có Mức mặc định áp cho mọi tài xế; muốn mỗi người một mức thì nhập ở tab Mức lương theo tài xế. Bốc xếp, vá vỏ, vệ sinh cont không đặt ở đây: tài xế nhập chi phí trong chuyến, bảng lương tự hoàn.",
   driver_pay_matrix:
-    "Mỗi dòng là mức của một khoản cho một tài xế. Tăng lương thì thêm dòng mới với ngày áp dụng mới. Hình thức lương (cơ bản + chuyến, chỉ chuyến, chỉ tháng) chọn trong hồ sơ tài xế.",
+    "Mỗi dòng là mức của một khoản cho một tài xế. Nhập nhiều tài xế một lần bằng Nhập Excel (tài xế, khoản lương ghi theo mã như TX001, LCB). Tăng lương thì thêm dòng mới với ngày áp dụng mới. Hình thức lương (cơ bản + chuyến, chỉ chuyến, chỉ tháng) chọn trong hồ sơ tài xế.",
   pay_holidays: "Các ngày nghỉ lễ của công ty. Chuyến chạy ngày lễ được tính khoản Thêm tiền chuyến ngày nghỉ, lễ (nếu khoản đó có mức).",
   trip_pay_lines:
     "Các chuyến tài xế công ty đã hoàn thành và lương chuyến app tính được. Lọc Chưa có đơn giá để bổ sung giá trước khi lập bảng lương.",
@@ -58,7 +58,7 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
   {
     title: "Nhập Đơn giá lương chuyến",
     tab: "trip_pay_rates",
-    body: "Dòng đầu tiên là giá mặc định (để trống Điểm 1, Điểm 2, Vùng). Sau đó thêm giá cho từng vùng, từng địa điểm đặc biệt, từng tuyến có giá riêng.",
+    body: "Dòng đầu tiên là giá mặc định (để trống Điểm 1, Điểm 2, Vùng). Sau đó thêm giá cho từng vùng, từng địa điểm đặc biệt, từng tuyến có giá riêng. Chiều về rẻ hơn thì đặt % chiều về. Nhiều tuyến thì dùng Nhập Excel với file mẫu.",
     example: "Mặc định 700,000 · Vùng Bến Tre 1,000,000 · Địa điểm Sân bay TSN 1,150,000 · Tuyến Cát Lái ↔ Kho Hương Lộ 80 là 750,000.",
   },
   {
@@ -170,7 +170,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
                 <CardTitle className="text-base">App tính lương thế nào</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <p>Chuyến được tính lương khi đã hoàn thành, vào tháng của ngày hoàn thành.</p>
+                <p>Chuyến được tính lương khi đã hoàn thành, vào tháng của ngày hoàn thành. Chuyến chiều về = đơn giá × % chiều về.</p>
                 <p>Ngày công (tính tiền ăn mỗi ngày...) = số ngày Đi làm trên bảng Chấm công tài xế.</p>
                 <p>Nếu bật trừ lương cơ bản: Lương cơ bản × (ngày công chuẩn − ngày nghỉ không lương − ngày nghỉ không báo) ÷ ngày công chuẩn.</p>
                 <p>Tổng được nhận = các khoản cộng − các khoản trừ + thưởng − khấu trừ + hoàn chi phí tài xế tự trả đã duyệt.</p>
