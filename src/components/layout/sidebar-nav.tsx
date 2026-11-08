@@ -3,18 +3,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BadgeCheck, BarChart3, Building2, Bus, CalendarOff, CalendarRange, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
-  ListOrdered, MessageCircle, Receipt, HandCoins, CalendarCheck2, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow, type LucideIcon,
+  ListOrdered, MessageCircle, Receipt, ReceiptText, HandCoins, CalendarCheck2, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 import type { NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
   BadgeCheck, BarChart3, Building2, Bus, CalendarOff, CalendarRange, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
-  ListOrdered, MessageCircle, Receipt, HandCoins, CalendarCheck2, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow,
+  ListOrdered, MessageCircle, Receipt, ReceiptText, HandCoins, CalendarCheck2, Route, ScrollText, Settings, Tags, Truck, Users, Wallet, Workflow,
 };
 
 export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
   const pathname = usePathname();
+  // Mục khớp dài nhất được tô (ví dụ /chuyen-xe/bang-ke không tô cả /chuyen-xe)
+  const match = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const best = groups.flatMap((g) => g.items.map((i) => i.href)).filter(match).sort((a, b) => b.length - a.length)[0];
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Menu chính">
       {groups.map((g) => (
@@ -23,7 +26,7 @@ export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavig
           <ul className="space-y-0.5">
             {g.items.map((item) => {
               const Icon = ICONS[item.icon] ?? LayoutDashboard;
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const active = item.href === best;
               return (
                 <li key={item.href}>
                   <Link

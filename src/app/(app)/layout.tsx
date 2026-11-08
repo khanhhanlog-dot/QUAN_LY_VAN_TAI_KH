@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
+      <aside className="sticky top-0 hidden print:!hidden h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <Brand />
         <SidebarNav groups={groups} />
         {user.isDriver ? (
@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         ) : null}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-card/95 px-3 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 print:hidden flex h-16 items-center gap-3 border-b bg-card/95 px-3 backdrop-blur sm:px-6">
           <MobileNav groups={groups} />
           <NavSearch groups={groups} />
           <div className="flex-1" />
@@ -59,7 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <UserMenu name={displayName} email={user.email} avatarUrl={user.avatarUrl} roles={user.roles.map((r) => r.name)} />
         </header>
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="flex-1 p-4 sm:p-6 print:p-0">
           <OptionAddProvider canAdd={canAddOptions}>{children}</OptionAddProvider>
         </main>
       </div>

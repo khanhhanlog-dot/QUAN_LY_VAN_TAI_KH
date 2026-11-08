@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet, ReceiptText } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { loadTableView } from "@/lib/entities/server";
 import { SHIPMENT_ADV_FIELDS } from "@/lib/shipments";
@@ -119,6 +119,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         actions={
           <>
             <DriverInfoButton variant="outline" shipmentIds={shareIds} label={`Thông tin tài xế (${shareIds.length} chuyến)`} canFill={canFillDriver} />
+            <Button variant="outline" asChild>
+              <Link href={`/chuyen-xe/bang-ke?${new URLSearchParams(f.kh ? { kh: f.kh } : {}).toString()}`}>
+                <ReceiptText /> Bảng kê cước
+              </Link>
+            </Button>
             {me.permissions.has("dispatch.create") ? (
               <Button variant="outline" asChild>
                 <Link href="/dieu-phoi/nhap-excel?tu=chuyen-xe">
