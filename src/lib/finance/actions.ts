@@ -288,6 +288,10 @@ export type PayrollPreview = {
   components?: PayrollComponentLine[];
   /** Các khoản "nhập tay khi lập bảng lương" đang dùng (để hiện ô nhập) */
   manual_components?: { code: string; name: string; kind: "income" | "deduction" }[];
+  /** 0063: có trừ tiền ứng vào lương không; chuyến ngày nghỉ, lễ; hoàn chi phí theo danh mục */
+  offset_advance?: boolean;
+  offday_trips?: number;
+  expense_lines?: { name: string; count: number; amount: number }[];
 };
 
 export type PayrollComponentLine = {
@@ -301,7 +305,7 @@ export type PayrollComponentLine = {
 };
 
 const manualSchema = z.record(z.string().max(30), z.number().min(0, "Không được âm").max(1_000_000_000_000)).optional();
-const previewSchema = z.object({ driverId: uuid, month, bonus: optMoney, deduction: optMoney, manual: manualSchema });
+const previewSchema = z.object({ driverId: uuid, month, bonus: optMoney, deduction: optMoney, manual: manualSchema, offsetAdvance: z.boolean().nullable().optional() });
 
 export async function previewPayroll(input: z.input<typeof previewSchema>): Promise<ActionResult<PayrollPreview>> {
   return runAction(async () => {
@@ -315,6 +319,7 @@ export async function previewPayroll(input: z.input<typeof previewSchema>): Prom
         p_bonus: d.bonus ?? 0,
         p_deduction: d.deduction ?? 0,
         p_manual: d.manual ?? {},
+        p_offset_advance: d.offsetAdvance ?? null,
       }),
       supabase.from("pay_components").select("code, name, kind").eq("method", "manual").eq("is_active", true).order("sort_order"),
     ]);
@@ -339,6 +344,7 @@ export async function createPayroll(input: z.input<typeof payrollSchema>): Promi
       p_note: d.note ?? null,
       p_custom_fields: custom,
       p_manual: d.manual ?? {},
+      p_offset_advance: d.offsetAdvance ?? null,
     });
     if (error) throw error;
     refreshFinance();
@@ -587,4 +593,23 @@ export async function listDebtPayments(kind: "receivable" | "payable", id: strin
     if (error) throw error;
     return ((data ?? []) as Omit<DebtPayment, "can_void">[]).map((p) => ({ ...p, can_void: p.status === "posted" && me.permissions.has("payments.delete") }));
   });
+}
+
+// ---------------------------------------------------------------- Thiết lập chung lương tài xế (0063)
+export type PayrollSettings = { offset_advance: boolean; weekly_off_days: number[]; can_edit: boolean };
+
+const payrollSettingSchema = z.discriminatedUnion("key", [
+  z.object({ key: z.literal("payroll.offset_advance"), value: z.boolean() }),
+  z.object({ key: z.literal("payroll.weekly_off_days"), value: z.array(z.number().int().min(0).max(6)).max(7) }),
+]);
+
+export async function savePayrollSetting(input: z.input<typeof payrollSettingSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("settlements.update");
+    const d = payrollSettingSchema.parse(input);
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("set_payroll_setting", { p_key: d.key, p_value: d.value });
+    if (error) throw error;
+    revalidatePath("/luong-tai-xe");
+  }, "Đã lưu thiết lập lương");
 }

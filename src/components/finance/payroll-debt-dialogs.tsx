@@ -46,6 +46,7 @@ function componentSub(c: PayrollComponentLine): string | undefined {
   if (c.method === "trip_rate") return `${c.qty} chuyến`;
   if (c.method === "per_workday" && c.rate != null) return `${c.qty} ngày × ${formatVND(c.rate)}`;
   if (c.method === "per_trip" && c.rate != null) return `${c.qty} chuyến × ${formatVND(c.rate)}`;
+  if (c.method === "per_trip_offday" && c.rate != null) return `${c.qty} chuyến ngày nghỉ × ${formatVND(c.rate)}`;
   if (c.method === "over_trips" && c.rate != null) return `${c.qty} chuyến vượt × ${formatVND(c.rate)}`;
   return undefined;
 }
@@ -62,6 +63,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
     () => Object.fromEntries(Object.entries(manual).filter((e): e is [string, number] => typeof e[1] === "number" && e[1] > 0)),
     [manual],
   );
+  const [offset, setOffset] = useState<boolean | null>(null);
   const [note, setNote] = useState("");
   const [custom, setCustom] = useState<Record<string, unknown>>({});
   const [preview, setPreview] = useState<PayrollPreview | null>(null);
@@ -73,7 +75,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
     if (!driver || !month) return;
     let alive = true;
     const t = setTimeout(async () => {
-      const r = await previewPayroll({ driverId: driver, month, bonus: bonus ?? 0, deduction: deduction ?? 0, manual: manualClean });
+      const r = await previewPayroll({ driverId: driver, month, bonus: bonus ?? 0, deduction: deduction ?? 0, manual: manualClean, offsetAdvance: offset });
       if (!alive) return;
       if (r.ok) {
         setPreview(r.data ?? null);
@@ -87,7 +89,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
       alive = false;
       clearTimeout(t);
     };
-  }, [driver, month, bonus, deduction, manualClean]);
+  }, [driver, month, bonus, deduction, manualClean, offset]);
 
   const p = driver ? preview : null;
   return (
@@ -129,6 +131,23 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                 <MoneyField id={`pr-m-${c.code}`} value={manual[c.code] ?? null} onChange={(v) => setManual((m) => ({ ...m, [c.code]: v }))} />
               </Field>
             ))}
+            <Field
+              label="Trừ tiền ứng vào lương"
+              htmlFor="pr-offset"
+              wide
+              help="Mặc định theo Lương tài xế → Hướng dẫn, thiết lập chung. Bỏ tích: trả đủ lương, tiền ứng giữ lại để tài xế hoàn riêng."
+            >
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  id="pr-offset"
+                  type="checkbox"
+                  className="size-4"
+                  checked={offset ?? preview?.offset_advance ?? true}
+                  onChange={(e) => setOffset(e.target.checked)}
+                />
+                Trừ tiền đã ứng còn dư vào lương tháng này
+              </label>
+            </Field>
             <Field label="Ghi chú" htmlFor="pr-note" wide>
               <Textarea id="pr-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} placeholder="Ví dụ: Thưởng chuyên cần tháng 10" />
             </Field>
@@ -165,6 +184,14 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                   </>
                 )}
                 <Line label="Hoàn chi phí tự trả" sub={`${p.expense_count} khoản đã duyệt`} value={p.expense_reimbursement} />
+                {(p.expense_lines ?? []).map((e) => (
+                  <div key={e.name} className="flex justify-between gap-3 pl-3 text-xs text-muted-foreground">
+                    <span>
+                      {e.name} ({e.count})
+                    </span>
+                    <span className="tabular-nums">{formatVND(e.amount)}</span>
+                  </div>
+                ))}
                 <Line label="Tổng được nhận" value={p.gross_amount} strong />
                 <Line label="Trừ tiền đã ứng" sub={`đang giữ ${formatVND(p.advance_balance)}`} value={p.advance_offset} minus />
                 <Line label="Thực nhận" value={p.net_amount} strong />
@@ -221,6 +248,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                     bonus: bonus ?? 0,
                     deduction: deduction ?? 0,
                     manual: manualClean,
+                    offsetAdvance: offset,
                     note: note.trim() || undefined,
                     custom,
                   });

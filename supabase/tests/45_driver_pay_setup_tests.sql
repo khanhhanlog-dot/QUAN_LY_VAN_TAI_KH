@@ -6,7 +6,7 @@
 \set QUIET 1
 \o /dev/null
 reset role;
-\i supabase/migrations/20261108000062_driver_pay_setup.sql
+-- (0062 đã chạy cùng các migration; 0063 thay hàm tính lương nên không chạy lại 0062 ở đây)
 
 create temp table t_ps (k text primary key, v text);
 grant all on t_ps to authenticated;
@@ -29,6 +29,8 @@ where driver_id = (select v::uuid from t_ps where k = 'drv') and status in ('dri
 select tests.assert((select count(*) from t_ps) = 7 and (select v::int from t_ps where k = 'trips') >= 1, 'Có tài xế với chuyến hoàn thành để thử');
 update public.drivers set base_salary = 8000000, per_trip_salary = 300000, meal_allowance = 500000, other_allowance = 0, pay_type = 'base_and_trip'
 where id = (select v::uuid from t_ps where k = 'drv');
+-- 0063 tắt khoản nhập tay Bốc xếp (chuyển sang hoàn chi phí); bật lại để thử cách tính nhập tay
+update public.pay_components set is_active = true where code = 'PCBX';
 select tests.assert((select count(*) from public.pay_components where is_system) = 2, 'Có sẵn 2 khoản hệ thống: Lương cơ bản, Lương chuyến');
 select tests.assert((select count(*) from public.pay_components where code in ('PCAN', 'PCDL', 'PCTRO', 'PCLOXE', 'PCDT', 'THUONGVUOT')) = 6, 'Có sẵn các phụ cấp theo bảng lương tài xế cont');
 
@@ -148,6 +150,7 @@ update public.locations set pay_zone_id = null where pay_zone_id is not null;
 delete from public.pay_zones;
 delete from public.pay_components where name = 'Phụ cấp xăng xe máy';
 update public.pay_components set threshold = 41 where code = 'THUONGVUOT';
+update public.pay_components set is_active = false where code = 'PCBX';
 update public.drivers set per_trip_salary = 300000 where id = (select v::uuid from t_ps where k = 'drv');
 
 \o

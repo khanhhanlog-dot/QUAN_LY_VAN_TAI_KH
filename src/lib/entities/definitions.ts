@@ -1130,11 +1130,12 @@ export const ENTITIES: Record<string, EntityDef> = {
       },
       {
         key: "method", label: "Cách tính", type: "select", required: true, list: true, filter: true, defaultValue: "monthly",
-        help: "Cố định tháng: tháng nào cũng bằng mức. Theo ngày công: mức × số ngày đi làm. Theo chuyến: mức × số chuyến. Thưởng vượt chuyến: mức × số chuyến vượt mốc. Nhập tay: kế toán gõ số khi lập bảng lương.",
+        help: "Cố định tháng: tháng nào cũng bằng mức. Theo ngày công: mức × số ngày đi làm. Theo chuyến: mức × số chuyến. Theo chuyến ngày nghỉ, lễ: mức × số chuyến chạy vào ngày nghỉ tuần hoặc ngày lễ. Thưởng vượt chuyến: mức × số chuyến vượt mốc. Nhập tay: kế toán gõ số khi lập bảng lương.",
         options: [
           { value: "monthly", label: "Cố định theo tháng" },
           { value: "per_workday", label: "Theo ngày công" },
           { value: "per_trip", label: "Theo số chuyến" },
+          { value: "per_trip_offday", label: "Theo chuyến ngày nghỉ, lễ" },
           { value: "over_trips", label: "Thưởng vượt chuyến" },
           { value: "manual", label: "Nhập tay khi lập bảng lương" },
           { value: "trip_rate", label: "Theo đơn giá lương chuyến" },
@@ -1146,6 +1147,24 @@ export const ENTITIES: Record<string, EntityDef> = {
       { key: "is_system", label: "Khoản hệ thống", type: "boolean", readOnly: true, hideInForm: true },
       sortOrder,
       isActive,
+    ],
+  },
+  pay_holidays: {
+    key: "pay_holidays",
+    table: "pay_holidays",
+    customModule: "pay_holidays",
+    label: "Ngày nghỉ lễ",
+    singular: "ngày lễ",
+    perm: "settlements",
+    writePerm: "settlements.update",
+    hasExport: true,
+    search: ["name", "notes"],
+    defaultSort: { key: "holiday_date", desc: true },
+    labelCols: ["name"],
+    fields: [
+      { key: "holiday_date", label: "Ngày", type: "date", required: true, list: true, help: "Mỗi ngày nghỉ một dòng. Ví dụ lễ 2/9 nghỉ 2 ngày thì thêm 01/09 và 02/09." },
+      { key: "name", label: "Tên ngày lễ", type: "text", required: true, list: true, maxLength: 150, placeholder: "Ví dụ: Quốc khánh" },
+      notes,
     ],
   },
   driver_pay_components: {
@@ -2471,4 +2490,5 @@ export const CUSTOM_FIELD_MODULES: { module: string; label: string; entity?: str
   { module: "trip_pay_rates", label: "Đơn giá lương chuyến", entity: "trip_pay_rates" },
   { module: "pay_components", label: "Khoản lương", entity: "pay_components" },
   { module: "driver_pay_components", label: "Mức lương theo tài xế", entity: "driver_pay_matrix" },
+  { module: "pay_holidays", label: "Ngày nghỉ lễ", entity: "pay_holidays" },
 ];

@@ -166,3 +166,5 @@ upgrade nang-cap-khoa-sua-chuyen.sql "Một chuyến chỉ một người sửa:
 
 upgrade nang-cap-thiet-lap-luong-tai-xe.sql "Thiết lập lương tài xế: đơn giá lương chuyến, vùng lương, khoản lương, hình thức lương" "to_regclass('public.trip_pay_rates') is not null" \
   supabase/migrations/20261108000062_driver_pay_setup.sql
+upgrade nang-cap-thiet-lap-luong-chung.sql "Lương tài xế: tự chọn trừ tiền ứng, ngày nghỉ trong tuần, ngày lễ, thêm tiền chuyến ngày nghỉ" "to_regclass('public.pay_holidays') is not null" \
+  supabase/migrations/20261108000063_driver_pay_settings.sql
