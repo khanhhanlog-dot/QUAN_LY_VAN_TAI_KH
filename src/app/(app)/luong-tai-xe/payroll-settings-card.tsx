@@ -19,6 +19,8 @@ const DAYS = [
 export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
   const [offset, setOffset] = useState(initial.offset_advance);
   const [deduct, setDeduct] = useState(initial.deduct_base_unpaid ?? true);
+  const [ret, setRet] = useState(String(initial.return_trip_percent ?? 100));
+  const [retSaved, setRetSaved] = useState(String(initial.return_trip_percent ?? 100));
   const [off, setOff] = useState<number[]>(initial.weekly_off_days);
   const [pending, start] = useTransition();
   const can = initial.can_edit && !pending;
@@ -37,6 +39,21 @@ export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
       setDeduct(!deduct);
       toast.success(r.message);
     });
+  const saveReturn = () => {
+    const v = Number(ret.replace(",", "."));
+    if (ret === retSaved) return;
+    if (!Number.isFinite(v) || v < 0 || v > 200) {
+      toast.error("% chiều về phải từ 0 đến 200");
+      return setRet(retSaved);
+    }
+    start(async () => {
+      const r = await savePayrollSetting({ key: "payroll.return_trip_percent", value: v });
+      if (!r.ok) return void toast.error(r.error);
+      setRetSaved(String(v));
+      setRet(String(v));
+      toast.success(r.message);
+    });
+  };
   const toggleDay = (d: number) =>
     start(async () => {
       const next = off.includes(d) ? off.filter((x) => x !== d) : [...off, d].sort();
@@ -71,6 +88,30 @@ export function PayrollSettingsCard({ initial }: { initial: PayrollSettings }) {
             </div>
           </div>
           <Switch on={deduct} label="Trừ lương cơ bản ngày nghỉ không lương" disabled={!can} onClick={toggleDeduct} />
+        </div>
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div>
+            <label htmlFor="pay-return-pct" className="font-medium">
+              Chuyến chiều về tính % đơn giá
+            </label>
+            <div className="text-sm text-muted-foreground">
+              Ví dụ 80: tuyến Cát Lái ↔ Bến Tre 1,000,000 thì chuyến lấy hàng ở Bến Tre chở về được 800,000. 100 = hai chiều như nhau. Từng dòng đơn giá có thể đặt %
+              riêng ở cột % chiều về. Chỉ chuyến có đơn chở hàng mới tính lương.
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <input
+              id="pay-return-pct"
+              inputMode="decimal"
+              value={ret}
+              disabled={!can}
+              onChange={(e) => setRet(e.target.value)}
+              onBlur={saveReturn}
+              onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+              className="h-9 w-20 rounded-md border bg-background px-2 text-right tabular-nums disabled:opacity-60"
+            />
+            <span className="text-sm">%</span>
+          </div>
         </div>
         <div className="py-3">
           <div className="font-medium">Ngày nghỉ trong tuần</div>

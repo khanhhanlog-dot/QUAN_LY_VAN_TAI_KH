@@ -133,6 +133,10 @@ export type EntityDef = {
   rowActions?: string;
   /** Mọi thao tác ghi cần đúng một quyền này (ví dụ approvals.configure) */
   writePerm?: string;
+  /** Thực thể có writePerm vẫn cho nhập Excel (người có writePerm) */
+  importable?: boolean;
+  /** Các dòng ví dụ ghi vào sheet "Vi du" của file mẫu nhập Excel (khóa = key trường, giá trị = chữ như gõ trong Excel) */
+  importExamples?: Record<string, string>[];
   /** Mọi người dùng đang hoạt động đều xem/tạo được (RLS giới hạn dòng: đơn của mình, việc giao cho mình…) */
   openToAll?: boolean;
   /** Quyền hiện nút tạo nghiệp vụ (mặc định {perm}.create) */

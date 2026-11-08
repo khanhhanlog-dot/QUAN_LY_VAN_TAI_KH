@@ -599,11 +599,12 @@ export async function listDebtPayments(kind: "receivable" | "payable", id: strin
 }
 
 // ---------------------------------------------------------------- Thiết lập chung lương tài xế (0063)
-export type PayrollSettings = { offset_advance: boolean; weekly_off_days: number[]; deduct_base_unpaid?: boolean; can_edit: boolean };
+export type PayrollSettings = { offset_advance: boolean; weekly_off_days: number[]; deduct_base_unpaid?: boolean; return_trip_percent?: number; can_edit: boolean };
 
 const payrollSettingSchema = z.discriminatedUnion("key", [
   z.object({ key: z.literal("payroll.offset_advance"), value: z.boolean() }),
   z.object({ key: z.literal("payroll.deduct_base_unpaid"), value: z.boolean() }),
+  z.object({ key: z.literal("payroll.return_trip_percent"), value: z.number().min(0).max(200) }),
   z.object({ key: z.literal("payroll.weekly_off_days"), value: z.array(z.number().int().min(0).max(6)).max(7) }),
 ]);
 

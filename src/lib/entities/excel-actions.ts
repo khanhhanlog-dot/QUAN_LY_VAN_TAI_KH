@@ -100,6 +100,13 @@ export async function importTemplate(entityKey: string): Promise<ActionResult<Fi
     ];
     for (const f of cols) guide.addRow({ label: f.label, req: f.required ? "Có" : "", desc: describeField(f) + (f.key === "code" && entity.autoCode ? ". Để trống để hệ thống tự sinh." : "") });
     styleHeader(guide);
+    if (entity.importExamples?.length) {
+      // Sheet ví dụ (chỉ để xem; khi nhập app chỉ đọc sheet đầu tiên)
+      const ex = wb.addWorksheet("Vi du");
+      ex.columns = cols.map((f) => ({ header: f.label, key: f.key, width: Math.min(40, Math.max(14, f.label.length + 6)) }));
+      for (const r of entity.importExamples) ex.addRow(r);
+      styleHeader(ex);
+    }
     return { filename: `mau-nhap-${entity.key}.xlsx`, base64: await toBase64(wb) };
   });
 }
