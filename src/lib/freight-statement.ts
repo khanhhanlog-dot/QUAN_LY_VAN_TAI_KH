@@ -102,6 +102,10 @@ export const statementConfigSchema = z.object({
   signPlace: z.string().max(80).default("TP. Hồ Chí Minh"),
   note: z.string().max(1000).default(""),
   showWords: z.boolean().default(true),
+  /** Cột tiền/số lượng KHÔNG cộng ở dòng TỔNG CỘNG của bảng */
+  noSum: z.array(z.string().max(80)).max(100).default([]),
+  /** Các khoản ghi rõ trong phần "Tổng tiền thanh toán"; tổng thanh toán = cộng các khoản này */
+  payColumns: z.array(z.string().max(80)).max(30).default(["transport_fee", "pass_through_fee", "declaration_fee", "loading_fee", "other_fee"]),
   /** Mẫu tự chọn khi chọn khách hàng này */
   customerId: z.string().uuid().nullable().default(null),
 });
@@ -139,18 +143,42 @@ export function resolveColumns(catalog: StatementColumn[], config: Pick<Statemen
 /** Cột được cộng ở dòng Tổng cộng */
 export const isSummed = (c: Pick<StatementColumn, "kind">) => c.kind === "money" || c.kind === "number";
 
-export function statementTotals(cols: StatementColumn[], rows: StatementRow[]): Record<string, number> {
+/** Cột có số tổng ở dòng TỔNG CỘNG (người dùng bỏ được từng cột) */
+export const sumsInTable = (c: Pick<StatementColumn, "kind" | "key">, noSum: string[] = []) => isSummed(c) && !noSum.includes(c.key);
+
+export function statementTotals(cols: StatementColumn[], rows: StatementRow[], noSum: string[] = []): Record<string, number> {
   const t: Record<string, number> = {};
   for (const c of cols) {
-    if (!isSummed(c)) continue;
+    if (!sumsInTable(c, noSum)) continue;
     t[c.key] = rows.reduce((a, r) => a + (typeof r.cells[c.key] === "number" ? (r.cells[c.key] as number) : 0), 0);
   }
   return t;
 }
 
-/** Số tiền khách phải trả của bảng kê (dùng cho dòng "Bằng chữ") */
-export function statementGrandTotal(rows: StatementRow[]): number {
-  return rows.reduce((a, r) => a + (typeof r.cells.amount_due === "number" ? r.cells.amount_due : 0), 0);
+/** Cột chọn được cho phần Tổng tiền thanh toán: các cột tiền (không gồm đơn giá) */
+export const isPayable = (c: Pick<StatementColumn, "kind">) => c.kind === "money";
+
+/**
+ * Phần "Tổng tiền thanh toán": từng khoản người dùng chọn (khoản bằng 0 được ẩn) và tổng cộng.
+ * Tổng = cộng các khoản được chọn, nên không chọn trùng (ví dụ "Tổng cộng" cùng "Phí vận chuyển").
+ */
+export function paymentSummary(
+  catalog: StatementColumn[],
+  cfg: Pick<StatementConfig, "payColumns" | "labels">,
+  rows: StatementRow[],
+): { lines: { key: string; label: string; amount: number }[]; total: number } {
+  const byKey = new Map(catalog.map((c) => [c.key, c]));
+  const all = [...new Set(cfg.payColumns)]
+    .map((k) => byKey.get(k))
+    .filter((c): c is StatementColumn => Boolean(c && isPayable(c)))
+    .map((c) => ({
+      key: c.key,
+      label: cfg.labels[c.key]?.trim() || c.label,
+      amount: rows.reduce((a, r) => a + (typeof r.cells[c.key] === "number" ? (r.cells[c.key] as number) : 0), 0),
+    }));
+  const total = all.reduce((a, l) => a + l.amount, 0);
+  const nonZero = all.filter((l) => l.amount !== 0);
+  return { lines: nonZero.length ? nonZero : all, total };
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

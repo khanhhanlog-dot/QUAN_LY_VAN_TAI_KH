@@ -2,17 +2,21 @@ import "server-only";
 import ExcelJS from "exceljs";
 import {
   formatStatementCell,
-  isSummed,
-  statementGrandTotal,
+  paymentSummary,
   statementHeading,
   statementTotals,
+  sumsInTable,
   vndInWords,
   type ResolvedColumn,
+  type StatementColumn,
   type StatementConfig,
 } from "@/lib/freight-statement";
 
 const thin = { style: "thin" as const };
 const BORDER = { top: thin, bottom: thin, left: thin, right: thin };
+/** Tiêu đề cột: nền đen, chữ trắng, vạch trắng "|" ngăn giữa các cột */
+const white = { style: "thin" as const, color: { argb: "FFFFFFFF" } };
+const HEAD_BORDER = { top: thin, bottom: thin, left: white, right: white };
 
 /** Tệp Excel bảng kê: khách hàng (trái) | tiêu đề (giữa) | công ty Khánh Hà (phải), bảng chuyến, tổng cộng, bằng chữ, ký nhận hai bên */
 export async function buildStatementWorkbook(
@@ -22,6 +26,7 @@ export async function buildStatementWorkbook(
   den: string,
   cols: ResolvedColumn[],
   rows: { cells: Record<string, string | number | null> }[],
+  catalog: StatementColumn[],
 ) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "KHÁNH HÀ TMS";
@@ -82,10 +87,10 @@ export async function buildStatementWorkbook(
   cols.forEach((c, i) => {
     const cell = head.getCell(i + 1);
     cell.value = c.title;
-    cell.font = { name: "Times New Roman", size: 11, bold: true };
+    cell.font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F2" } };
-    cell.border = BORDER;
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF000000" } };
+    cell.border = HEAD_BORDER;
   });
   head.height = 32;
   r++;
@@ -99,13 +104,14 @@ export async function buildStatementWorkbook(
       cell.border = BORDER;
       if (typeof v === "number") {
         cell.numFmt = c.kind === "percent" ? '#,##0.##"%"' : c.kind === "money" || c.kind === "price" ? "#,##0" : c.kind === "index" ? "0" : "#,##0.##";
-        cell.alignment = { horizontal: c.kind === "index" ? "center" : "right", vertical: "top" };
-      } else cell.alignment = { vertical: "top", wrapText: true };
+        cell.alignment = { horizontal: c.kind === "index" ? "center" : "right", vertical: "middle" };
+      } else cell.alignment = { vertical: "middle", wrapText: true };
     });
   }
   // Dòng tổng cộng
-  const totals = statementTotals(cols, rows.map((x, i) => ({ id: String(i), cells: x.cells })));
-  const firstNum = cols.findIndex((c) => isSummed(c));
+  const asRows = rows.map((x, i) => ({ id: String(i), cells: x.cells }));
+  const totals = statementTotals(cols, asRows, cfg.noSum);
+  const firstNum = cols.findIndex((c) => sumsInTable(c, cfg.noSum));
   const tr = ws.getRow(r);
   const labelEnd = firstNum > 0 ? firstNum : 1;
   if (labelEnd > 1) ws.mergeCells(r, 1, r, labelEnd);
@@ -115,20 +121,22 @@ export async function buildStatementWorkbook(
     cell.font = { name: "Times New Roman", size: 11, bold: true };
     cell.border = BORDER;
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
-    if (i + 1 > labelEnd && isSummed(c)) {
+    if (i + 1 > labelEnd && sumsInTable(c, cfg.noSum)) {
       cell.value = totals[c.key];
       cell.numFmt = c.kind === "money" ? "#,##0" : "#,##0.##";
-      cell.alignment = { horizontal: "right" };
+      cell.alignment = { horizontal: "right", vertical: "middle" };
     }
   });
-  tr.getCell(1).alignment = { horizontal: "center" };
+  tr.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
   r += 2;
 
   if (cfg.showWords) {
-    const total = statementGrandTotal(rows.map((x, i) => ({ id: String(i), cells: x.cells })));
-    put(r, [1, n], `Tổng số tiền thanh toán: ${formatStatementCell("money", total)} đồng`, { bold: true }, "left");
-    put(r + 1, [1, n], `Bằng chữ: ${vndInWords(total)}.`, { italic: true }, "left");
-    r += 2;
+    // Ghi rõ từng khoản rồi mới đến tổng thanh toán và số tiền bằng chữ
+    const pay = paymentSummary(catalog, cfg, asRows);
+    put(r++, [1, n], "TỔNG TIỀN THANH TOÁN", { bold: true }, "left");
+    for (const l of pay.lines) put(r++, [1, n], `   - ${l.label}: ${formatStatementCell("money", l.amount)} đồng`, {}, "left");
+    put(r++, [1, n], `Tổng số tiền thanh toán: ${formatStatementCell("money", pay.total)} đồng`, { bold: true }, "left");
+    put(r++, [1, n], `Bằng chữ: ${vndInWords(pay.total)}.`, { italic: true }, "left");
   }
   if (cfg.note.trim()) {
     put(r, [1, n], cfg.note.trim(), {}, "left");

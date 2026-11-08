@@ -15,9 +15,11 @@ import {
   isSummed,
   monthRange,
   resolveColumns,
-  statementGrandTotal,
+  paymentSummary,
   statementHeading,
   statementTotals,
+  sumsInTable,
+  isPayable,
   vndInWords,
   type StatementConfig,
   type StatementStatusFilter,
@@ -111,8 +113,8 @@ export function StatementBuilder({
     [shownRows, excluded],
   );
   const sttOf = useMemo(() => new Map(included.map((r) => [r.id, r.cells.stt])), [included]);
-  const totals = useMemo(() => statementTotals(cols, included), [cols, included]);
-  const grand = useMemo(() => statementGrandTotal(included), [included]);
+  const totals = useMemo(() => statementTotals(cols, included, config.noSum), [cols, included, config.noSum]);
+  const pay = useMemo(() => paymentSummary(data.catalog, config, included), [data.catalog, config, included]);
   const heading = statementHeading(config.title, filters.tu, filters.den);
   const customer = data.customer;
 
@@ -185,13 +187,19 @@ export function StatementBuilder({
   const thisMonth = monthRange(today);
   const lastMonth = monthRange(today, -1);
   const totalW = cols.reduce((a, c) => a + c.w, 0) || 1;
-  const firstSum = cols.findIndex((c) => isSummed(c));
+  const firstSum = cols.findIndex((c) => sumsInTable(c, config.noSum));
   const labelSpan = firstSum > 0 ? firstSum : 1;
 
   return (
     <>
       {/* Khổ giấy khi in / lưu PDF */}
-      <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } html, body { background: #fff !important; } }`}</style>
+      <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } html, body { background: #fff !important; } .statement { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        .statement thead th { background-color: #000; color: #fff; border-top-color: #000; border-bottom-color: #000; border-left-color: #fff; border-right-color: #fff; border-right-width: 1px; vertical-align: middle; }
+        .statement thead th:first-child { border-left-color: #000; }
+        .statement thead th:last-child { border-right-color: #000; border-right-width: 1px; }
+        .statement tbody td:last-child { border-right-width: 1px; }
+        .statement table.pay td { border: 0; }
+        .statement table.pay tr.sum td { border-top: 1px solid #000; }`}</style>
       <div className="print:hidden">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -363,7 +371,7 @@ export function StatementBuilder({
             <table className="w-full border-collapse print:!min-w-0" style={{ minWidth: totalW * PX }}>
               <thead className="sticky top-0 print:static">
                 <tr>
-                  <th className="w-7 border border-black bg-white px-1 print:hidden" title="Bỏ tích để không đưa chuyến vào bảng kê">
+                  <th className="w-7 border border-black bg-black px-1 print:hidden" title="Bỏ tích để không đưa chuyến vào bảng kê">
                     <input
                       type="checkbox"
                       aria-label="Chọn tất cả"
@@ -372,7 +380,7 @@ export function StatementBuilder({
                     />
                   </th>
                   {cols.map((c) => (
-                    <th key={c.key} className="relative border border-black bg-[#dce6f2] px-1 py-1 text-center align-middle font-bold" style={{ width: `${((c.w / totalW) * 100).toFixed(2)}%` }}>
+                    <th key={c.key} className="relative border border-x-white border-y-black bg-black px-1 py-1.5 text-center align-middle font-bold text-white first:border-l-black last:border-r-black" style={{ width: `${((c.w / totalW) * 100).toFixed(2)}%` }}>
                       {c.title}
                       <span
                         className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/40 print:hidden"
@@ -388,7 +396,7 @@ export function StatementBuilder({
                   const off = excluded.has(r.id);
                   return (
                     <tr key={r.id} className={cn(off && "text-muted-foreground line-through opacity-50 print:hidden")}>
-                      <td className="border border-black px-1 text-center print:hidden">
+                      <td className="border border-black px-1 text-center align-middle print:hidden">
                         <input
                           type="checkbox"
                           aria-label="Đưa vào bảng kê"
@@ -406,7 +414,7 @@ export function StatementBuilder({
                       {cols.map((c) => (
                         <td
                           key={c.key}
-                          className={cn("border border-black px-1 py-0.5 align-top", c.kind === "index" ? "text-center" : c.kind === "text" ? "" : "text-right whitespace-nowrap")}
+                          className={cn("border border-black px-1 py-1 align-middle", c.kind === "index" ? "text-center" : c.kind === "text" ? "" : "text-right whitespace-nowrap")}
                         >
                           {c.key === "stt" ? (sttOf.get(r.id) ?? "") : formatStatementCell(c.kind, r.cells[c.key])}
                         </td>
@@ -423,12 +431,12 @@ export function StatementBuilder({
                 ) : null}
                 <tr className="bg-[#f2f2f2] font-bold">
                   <td className="border border-black print:hidden" />
-                  <td colSpan={labelSpan} className="border border-black px-1 py-1 text-center">
+                  <td colSpan={labelSpan} className="border border-black px-1 py-1 text-center align-middle">
                     TỔNG CỘNG
                   </td>
                   {cols.slice(labelSpan).map((c) => (
-                    <td key={c.key} className="border border-black px-1 py-1 text-right whitespace-nowrap">
-                      {isSummed(c) ? formatStatementCell(c.kind, totals[c.key]) : ""}
+                    <td key={c.key} className="border border-black px-1 py-1 text-right align-middle whitespace-nowrap">
+                      {sumsInTable(c, config.noSum) ? formatStatementCell(c.kind, totals[c.key]) : ""}
                     </td>
                   ))}
                 </tr>
@@ -437,10 +445,24 @@ export function StatementBuilder({
 
             <div className="mt-3 break-inside-avoid">
               {config.showWords ? (
-                <>
-                  <div className="font-bold">Tổng số tiền thanh toán: {formatStatementCell("money", grand)} đồng</div>
-                  <div className="italic">Bằng chữ: {vndInWords(grand)}.</div>
-                </>
+                <div className="max-w-xl">
+                  <div className="font-bold">TỔNG TIỀN THANH TOÁN</div>
+                  <table className="pay w-full">
+                    <tbody>
+                      {pay.lines.map((l) => (
+                        <tr key={l.key}>
+                          <td className="py-0.5 pl-4">– {l.label}</td>
+                          <td className="py-0.5 text-right whitespace-nowrap">{formatStatementCell("money", l.amount)} đồng</td>
+                        </tr>
+                      ))}
+                      <tr className="sum font-bold">
+                        <td className="py-0.5">Tổng số tiền thanh toán</td>
+                        <td className="py-0.5 text-right whitespace-nowrap">{formatStatementCell("money", pay.total)} đồng</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="italic">Bằng chữ: {vndInWords(pay.total)}.</div>
+                </div>
               ) : null}
               {config.note.trim() ? <div className="mt-1 whitespace-pre-line">{config.note}</div> : null}
               <div className="mt-4 grid grid-cols-2 text-center">
@@ -519,6 +541,18 @@ function ColumnsPanel({ catalog, config, update }: { catalog: StatementData["cat
                   if (v >= 4 && v <= 80) update({ widths: { ...config.widths, [c.key]: v } });
                 }}
               />
+              {isSummed(c) ? (
+                <label className="flex shrink-0 items-center gap-1 px-1 text-xs" title="Hiện số tổng của cột này ở dòng TỔNG CỘNG">
+                  <input
+                    type="checkbox"
+                    checked={!config.noSum.includes(c.key)}
+                    onChange={(e) => update({ noSum: e.target.checked ? config.noSum.filter((k) => k !== c.key) : [...config.noSum, c.key] })}
+                  />
+                  Cộng tổng
+                </label>
+              ) : (
+                <span className="w-[5.6rem] shrink-0" />
+              )}
               <Button variant="ghost" size="icon" className="size-7" onClick={() => move(i, -1)} aria-label="Lên">
                 <ArrowUp className="size-4" />
               </Button>
@@ -553,10 +587,46 @@ function ColumnsPanel({ catalog, config, update }: { catalog: StatementData["cat
           {!groups.length ? <p className="text-sm text-muted-foreground">Không còn cột nào phù hợp.</p> : null}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Cột tiền và số lượng được cộng ở dòng Tổng cộng. Trường bổ sung (ví dụ Số cont, Số booking) thêm ở Trường dữ liệu sẽ tự có ở đây; từng loại phí (phí nâng, phí hạ…) lấy từ Danh mục phí.
+          Cột tiền và số lượng có ô &quot;Cộng tổng&quot; để chọn có hiện số tổng ở dòng TỔNG CỘNG hay không. Trường bổ sung (ví dụ Số cont, Số booking) thêm ở Trường dữ liệu sẽ tự có ở đây; từng loại phí (phí nâng, phí hạ…) lấy từ Danh mục phí.
         </p>
       </div>
+      <PaySection catalog={catalog} config={config} update={update} />
     </Card>
+  );
+}
+
+/** Các khoản ghi rõ trong phần Tổng tiền thanh toán */
+function PaySection({ catalog, config, update }: { catalog: StatementData["catalog"]; config: StatementConfig; update: (p: Partial<StatementConfig>) => void }) {
+  const payable = catalog.filter((c) => isPayable(c));
+  const label = (k: string) => config.labels[k]?.trim() || catalog.find((c) => c.key === k)?.label || k;
+  const chosen = config.payColumns.filter((k) => payable.some((c) => c.key === k));
+  const overlap = chosen.includes("amount_due") && chosen.length > 1;
+  return (
+    <div className="border-t pt-3 lg:col-span-2">
+      <div className="mb-1 text-sm font-medium">Các khoản ghi rõ trong phần &quot;Tổng tiền thanh toán&quot; (tổng thanh toán = cộng các khoản được chọn; khoản bằng 0 tự ẩn)</div>
+      <div className="flex flex-wrap gap-1">
+        {payable.map((c) => {
+          const on = chosen.includes(c.key);
+          return (
+            <Button
+              key={c.key}
+              variant={on ? "default" : "outline"}
+              size="sm"
+              className="h-7"
+              onClick={() => update({ payColumns: on ? chosen.filter((k) => k !== c.key) : [...chosen, c.key] })}
+            >
+              {on ? "✓ " : "+ "}
+              {label(c.key)}
+            </Button>
+          );
+        })}
+      </div>
+      {overlap ? (
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+          &quot;{label("amount_due")}&quot; đã gồm mọi khoản phí: chọn cùng các khoản khác sẽ bị cộng trùng. Chỉ chọn &quot;{label("amount_due")}&quot; hoặc chỉ chọn các khoản lẻ.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -582,7 +652,7 @@ function HeaderPanel({ config, update }: { config: StatementConfig; update: (p: 
       </div>
       <label className="flex items-center gap-2 self-center text-sm">
         <input type="checkbox" checked={config.showWords} onChange={(e) => update({ showWords: e.target.checked })} />
-        Hiện dòng tổng tiền và số tiền bằng chữ
+        Hiện phần Tổng tiền thanh toán (từng khoản, tổng, bằng chữ)
       </label>
       <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">Tên, MST, địa chỉ khách hàng (góc trái) lấy từ Danh mục khách hàng: sửa ở đó để bảng kê tự cập nhật.</p>
     </Card>

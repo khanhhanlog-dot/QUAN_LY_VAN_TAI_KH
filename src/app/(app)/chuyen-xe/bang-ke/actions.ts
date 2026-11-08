@@ -32,7 +32,7 @@ export async function exportStatementExcel(input: z.input<typeof exportSchema>):
     const rows = data.rows.filter((r) => !skip.has(r.id)).map((r, i) => ({ ...r, cells: { ...r.cells, stt: i + 1 } }));
     const cols = resolveColumns(data.catalog, d.config);
     if (!cols.length) throw new ActionError("Chọn ít nhất một cột cho bảng kê.");
-    const buf = await buildStatementWorkbook(d.config, data.customer, d.tu, d.den, cols, rows);
+    const buf = await buildStatementWorkbook(d.config, data.customer, d.tu, d.den, cols, rows, data.catalog);
     return { base64: Buffer.from(buf).toString("base64"), filename: `${statementFileName(data.customer.code, d.tu, d.den)}.xlsx`, count: rows.length };
   });
 }
