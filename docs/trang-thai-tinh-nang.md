@@ -335,3 +335,10 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - "Tạo trường mới cho tài xế" (người có quyền Trường dữ liệu): tạo trường bổ sung module drivers ngay trong hộp, điền giá trị ở hồ sơ tài xế.
 - Ô trống theo mẫu: cảnh báo từng tài xế + link hồ sơ; CCCD / GPLX vẫn điền nhanh được.
 - Mẫu lưu ở system_settings 'driver.share_template'; dữ liệu qua shipment_driver_share (jsonb). CSDL chưa nâng cấp thì hộp dùng mẫu cố định cũ. Kiểm thử: supabase/tests/48_driver_share_template_tests.sql, tests/driver-share.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-mau-thong-tin-tai-xe.sql (dòng kiểm tra 45).
+
+## Tổng chi theo nhóm, trừ chi hộ (migration 0067) – 08/11/2026
+- Menu Tài chính → "Tổng chi theo nhóm" (/tong-chi, quyền reports.view). Lọc từ ngày–đến ngày / tuần / tháng / năm, bật tắt từng nguồn chi.
+- Nguồn chi (view report_spending_lines): chi phí chuyến đã duyệt (shipment_expenses, nhóm = Nhóm phí chi ra), chi phí xe (maintenance_records), trả nhà xe 3PL (shipment_carrier_costs), phiếu chi Đề nghị chi (payments). Không gồm ứng tiền tài xế; chưa gồm lương tài xế.
+- Chi hộ không cộng: phí chi ra đánh dấu "Chi hộ khách" (expense_categories.is_pass_through; tự đánh dấu sẵn phí tên có "chi hộ", "nâng", "cược") và chi hộ trả 3PL. Khoản chờ duyệt để riêng.
+- Tab: Tổng theo nhóm (theo nguồn, %), Theo khoản chi, Theo kỳ, Chi tiết chi (bấm tên nhóm/khoản để xem; lọc Đã tính / Chờ duyệt / Chi hộ). Tìm kiếm, tìm kiếm nâng cao, chọn/đổi cột, Xuất Excel (.xlsx tạo ngay trên trình duyệt, ReportGrid onExport).
+- Kiểm thử: supabase/tests/49_spending_report_tests.sql, tests/spending-report.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-tong-chi-theo-nhom.sql (dòng kiểm tra 46).

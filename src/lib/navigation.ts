@@ -43,6 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/de-nghi", label: "Đề nghị chi, mua sắm", icon: "ClipboardList", anyOf: ["purchase_requests.view", "purchase_requests.create", "purchase_requests.pay"] },
       { href: "/cong-no", label: "Công nợ", icon: "Wallet", anyOf: ["receivables.view", "payments.view"] },
       { href: "/thue-ngoai", label: "Xe thuê ngoài 3PL", icon: "Handshake", anyOf: ["reports.view", "receivables.view"] },
+      { href: "/tong-chi", label: "Tổng chi theo nhóm", icon: "PieChart", anyOf: ["reports.view"] },
       { href: "/phe-duyet", label: "Phê duyệt", icon: "BadgeCheck", anyOf: ["approvals.view"] },
       { href: "/bao-cao", label: "Báo cáo", icon: "BarChart3", anyOf: ["reports.view"] },
     ],

@@ -398,7 +398,7 @@ function Kpi({ label, value, note, strong }: { label: string; value: number; not
 }
 
 /** Chọn kỳ: từ ngày – đến ngày, tuần, tháng, năm; chia bảng theo ngày / tuần / tháng */
-function PeriodBar({ period }: { period: Period }) {
+export function PeriodBar({ period }: { period: Period }) {
   const router = useRouter();
   const path = usePathname();
   const today = todayVN();

@@ -12,7 +12,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { RotateCcw, Save, Search } from "lucide-react";
+import { Download, RotateCcw, Save, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdvancedFilter } from "@/components/advanced-filter";
@@ -52,6 +52,7 @@ export function ReportGrid<T>({
   searchPlaceholder = "Tìm trong bảng…",
   emptyText = "Không có dữ liệu.",
   toolbar,
+  onExport,
 }: {
   tableKey: string;
   rows: T[];
@@ -63,9 +64,12 @@ export function ReportGrid<T>({
   emptyText?: string;
   /** Nút/bộ lọc thêm bên trái thanh công cụ */
   toolbar?: ReactNode;
+  /** Có thì hiện nút "Xuất Excel": nhận các cột đang hiện (đúng thứ tự) và các dòng đang lọc */
+  onExport?: (columns: ReportColumn<T>[], rows: T[]) => void | Promise<void>;
 }) {
   const [savePending, startSave] = useTransition();
   const [term, setTerm] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [adv, setAdv] = useState<AdvCondition[]>([]);
   const [visibility, setVisibility] = useState<VisibilityState>(() => Object.fromEntries((view?.hidden ?? []).map((k) => [k, false])));
   const [order, setOrder] = useState<ColumnOrderState>(() => view?.order ?? []);
@@ -162,6 +166,25 @@ export function ReportGrid<T>({
         </div>
         <AdvancedFilter fields={advFields} value={adv} onApply={setAdv} />
         {toolbar}
+        {onExport ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!filtered.length || exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                await onExport(table.getVisibleLeafColumns().map((c) => meta(c)), filtered);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Không xuất được Excel");
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <Download /> {exporting ? "Đang xuất…" : "Xuất Excel"}
+          </Button>
+        ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <ColumnsMenu columns={table.getAllLeafColumns()} label={(c) => meta(c).label} onMove={moveColumn} />
           <Button

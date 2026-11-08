@@ -757,6 +757,10 @@ export const ENTITIES: Record<string, EntityDef> = {
       { key: "requires_image", label: "Bắt buộc ảnh chứng từ", type: "boolean", defaultValue: false, list: true, help: "Mặc định không bắt buộc: bốc xếp, vá lốp dọc đường thường không có biên lai. Chỉ bật cho mục luôn có hóa đơn (ví dụ đổ dầu)." },
       { key: "requires_approval", label: "Cần phê duyệt", type: "boolean", defaultValue: true, list: true, help: "Bỏ chọn nếu loại chi phí này không cần Giám đốc duyệt (ví dụ rửa xe dưới mức nhỏ)." },
       { key: "counts_to_trip_cost", label: "Tính vào chi phí chuyến", type: "boolean", defaultValue: true },
+      {
+        key: "is_pass_through", label: "Chi hộ khách", type: "boolean", defaultValue: false, list: true, filter: true,
+        help: "Chọn nếu đây là tiền trả thay khách rồi thu lại khách (ví dụ nâng hạ, cược cont). Báo cáo Tổng chi theo nhóm sẽ không cộng khoản này.",
+      },
       sortOrder,
       isActive,
       legacyCode,
