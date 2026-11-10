@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, FileSpreadsheet, Lock, LockOpen, Upload } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, FileSpreadsheet, Lock, LockOpen, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -409,6 +409,11 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
             Tháng {monthLabel(month)}: {total.vehicles} xe, đã chốt {total.locked}/{total.vehicles}
           </span>
           <div className="ml-auto flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/dau-xe/phan-tich?tu=${shiftMonth(month, -2)}&den=${month}`} title="So sánh dầu giữa các xe, tuyến tốn dầu nhất">
+                <BarChart3 /> Phân tích dầu
+              </Link>
+            </Button>
             {canEdit ? (
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                 <Upload /> Nhập Excel
