@@ -174,3 +174,5 @@ upgrade nang-cap-mau-thong-tin-tai-xe.sql "Thông tin tài xế gửi khách: t�
   supabase/migrations/20261108000066_driver_share_template.sql
 upgrade nang-cap-tong-chi-theo-nhom.sql "Báo cáo tổng chi theo nhóm phí (trừ chi hộ), đánh dấu phí chi ra là chi hộ khách" "to_regclass('public.report_spending_lines') is not null" \
   supabase/migrations/20261108000067_spending_report.sql
+upgrade nang-cap-dau-theo-xe.sql "Dầu theo xe: KM, tồn dầu, đổ thêm, còn lại, tỷ trọng, Giám đốc chốt theo tháng" "to_regclass('public.vehicle_fuel_months') is not null" \
+  supabase/migrations/20261110000068_vehicle_fuel.sql

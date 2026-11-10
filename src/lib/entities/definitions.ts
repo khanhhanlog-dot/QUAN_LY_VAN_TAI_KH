@@ -226,7 +226,10 @@ export const ENTITIES: Record<string, EntityDef> = {
       { key: "assigned_driver_id", label: "Tài xế phụ trách", type: "reference", ref: "drivers", list: true },
       { key: "registration_expiry", label: "Hạn đăng kiểm", type: "date", list: true },
       { key: "insurance_expiry", label: "Hạn bảo hiểm", type: "date", list: true },
-      { key: "fuel_norm_l_per_100km", label: "Định mức dầu (lít/100km)", type: "number", min: 0, max: 200 },
+      {
+        key: "fuel_ratio_l_per_km", label: "Tỷ trọng dầu (lít/km)", type: "number", min: 0, max: 10, placeholder: "0.35",
+        help: "Số lít dầu cho 1 km, ví dụ 0.35 (= 35 lít/100 km). Dùng ở Dầu theo xe: Dầu theo KM = (KM cuối tháng − KM đầu tháng) × tỷ trọng.",
+      },
       { key: "status", label: "Trạng thái", type: "select", options: VEHICLE_STATUS, required: true, list: true, filter: true, defaultValue: "active" },
       notes,
     ],

@@ -12,7 +12,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { Download, RotateCcw, Save, Search } from "lucide-react";
+import { Download, Printer, RotateCcw, Save, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdvancedFilter } from "@/components/advanced-filter";
@@ -53,6 +53,7 @@ export function ReportGrid<T>({
   emptyText = "Không có dữ liệu.",
   toolbar,
   onExport,
+  onPrint,
 }: {
   tableKey: string;
   rows: T[];
@@ -66,6 +67,8 @@ export function ReportGrid<T>({
   toolbar?: ReactNode;
   /** Có thì hiện nút "Xuất Excel": nhận các cột đang hiện (đúng thứ tự) và các dòng đang lọc */
   onExport?: (columns: ReportColumn<T>[], rows: T[]) => void | Promise<void>;
+  /** Có thì hiện nút "In": nhận các cột đang hiện (đúng thứ tự) và các dòng đang lọc */
+  onPrint?: (columns: ReportColumn<T>[], rows: T[]) => void;
 }) {
   const [savePending, startSave] = useTransition();
   const [term, setTerm] = useState("");
@@ -185,6 +188,17 @@ export function ReportGrid<T>({
             <Download /> {exporting ? "Đang xuất…" : "Xuất Excel"}
           </Button>
         ) : null}
+        {onPrint ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!filtered.length}
+            title="In các cột đang hiện, hoặc chọn Lưu dưới dạng PDF"
+            onClick={() => onPrint(table.getVisibleLeafColumns().map((c) => meta(c)), filtered)}
+          >
+            <Printer /> In / PDF
+          </Button>
+        ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <ColumnsMenu columns={table.getAllLeafColumns()} label={(c) => meta(c).label} onMove={moveColumn} />
           <Button
@@ -235,7 +249,7 @@ export function ReportGrid<T>({
       ) : (
         <div className="max-h-[calc(100dvh-12rem)] overflow-auto">
           <table className="border-separate border-spacing-0 text-sm" style={{ width: table.getTotalSize(), tableLayout: "fixed" }}>
-            <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
+            <thead className="sticky top-0 z-20 bg-sky-100 text-left text-xs text-sky-950 dark:bg-sky-950 dark:text-sky-100">
               <tr>
                 {table.getFlatHeaders().map((h) => {
                   const col = h.column;
@@ -258,7 +272,7 @@ export function ReportGrid<T>({
                       onDragEnd={() => setDragCol(null)}
                       title="Kéo để đổi vị trí cột"
                       className={cn(
-                        "relative cursor-grab border-b bg-muted px-2 py-2 font-medium whitespace-nowrap active:cursor-grabbing",
+                        "relative cursor-grab border-r border-b border-sky-200 bg-sky-100 px-2 py-2 font-bold whitespace-nowrap active:cursor-grabbing dark:border-sky-800 dark:bg-sky-950",
                         c.align === "right" && "text-right",
                         col.getIsPinned() && col.getIsLastColumn("left") && "border-r",
                         dragCol === col.id && "opacity-50",
@@ -287,7 +301,7 @@ export function ReportGrid<T>({
                         key={cell.id}
                         style={pinStyle(cell.column)}
                         className={cn(
-                          "border-b bg-card px-2 py-1.5 group-hover:bg-muted/40",
+                          "border-r border-b bg-card px-2 py-1.5 group-hover:bg-muted/40",
                           c.align === "right" && "text-right tabular-nums",
                           tall ? "align-top break-words whitespace-normal" : "truncate whitespace-nowrap",
                           cell.column.getIsPinned() && cell.column.getIsLastColumn("left") && "border-r",

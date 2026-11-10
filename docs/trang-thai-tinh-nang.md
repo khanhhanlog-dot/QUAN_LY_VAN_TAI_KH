@@ -342,3 +342,13 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Chi hộ không cộng: phí chi ra đánh dấu "Chi hộ khách" (expense_categories.is_pass_through; tự đánh dấu sẵn phí tên có "chi hộ", "nâng", "cược") và chi hộ trả 3PL. Khoản chờ duyệt để riêng.
 - Tab: Tổng theo nhóm (theo nguồn, %), Theo khoản chi, Theo kỳ, Chi tiết chi (bấm tên nhóm/khoản để xem; lọc Đã tính / Chờ duyệt / Chi hộ). Tìm kiếm, tìm kiếm nâng cao, chọn/đổi cột, Xuất Excel (.xlsx tạo ngay trên trình duyệt, ReportGrid onExport).
 - Kiểm thử: supabase/tests/49_spending_report_tests.sql, tests/spending-report.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-tong-chi-theo-nhom.sql (dòng kiểm tra 46).
+
+## Dầu theo xe (migration 0068) – 10/11/2026
+- Menu Vận hành → "Dầu theo xe" (/dau-xe, quyền mới fuel.view / fuel.update / fuel.approve / fuel.export). Mỗi xe công ty (không gồm xe thuê ngoài 3PL), mỗi tháng một dòng.
+- Trên: thẻ tổng + bảng "Tổng theo loại xe" (xe cont, xe tải…). Dưới: chi tiết từng xe, sửa ngay tại ô: Số KM đầu/cuối tháng, Tồn dầu đầu tháng, Dầu đổ thêm, Dầu còn lại, Tỷ trọng (lít/km), Ghi chú.
+- Tự lấy (chữ nghiêng): KM đầu = KM cuối tháng gần nhất trước đó, Tồn đầu = Dầu còn lại tháng trước, Tỷ trọng = vehicles.fuel_ratio_l_per_km (Phương tiện, lấy sẵn từ định mức lít/100km ÷ 100).
+- Tính: Dầu thực tế = tồn đầu + đổ thêm − còn lại; Dầu theo KM = (KM cuối − KM đầu) × tỷ trọng; Chênh lệch = thực tế − theo KM.
+- Giám đốc (fuel.approve): nhập số chốt + ghi chú, chọn xe → Chốt (ô trống lấy số thực tế / theo KM), Mở chốt. Đã chốt thì không sửa; chốt ghi cố định số tự lấy.
+- Bảng chi tiết dùng ReportGrid (ẩn/hiện, kéo đổi cột, tìm kiếm nâng cao, lưu cấu hình), Xuất Excel, In / PDF (tiêu đề nền đen chữ trắng, căn giữa dòng), Nhập Excel + file mẫu có ghi chú từng cột.
+- ReportGrid (mọi báo cáo dùng chung): tiêu đề chữ đậm nền xanh nhạt, có vạch phân cách giữa các cột, thêm nút In tùy chọn (onPrint).
+- Kiểm thử: supabase/tests/50_vehicle_fuel_tests.sql, tests/vehicle-fuel.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-dau-theo-xe.sql (dòng kiểm tra 47).
