@@ -176,3 +176,5 @@ upgrade nang-cap-tong-chi-theo-nhom.sql "Báo cáo tổng chi theo nhóm phí (t
   supabase/migrations/20261108000067_spending_report.sql
 upgrade nang-cap-dau-theo-xe.sql "Dầu theo xe: KM, tồn dầu, đổ thêm, còn lại, tỷ trọng, Giám đốc chốt theo tháng" "to_regclass('public.vehicle_fuel_months') is not null" \
   supabase/migrations/20261110000068_vehicle_fuel.sql
+upgrade nang-cap-don-gia-dau.sql "Dầu theo xe: đơn giá dầu và thành tiền" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'vehicle_fuel_months' and column_name = 'fuel_price')" \
+  supabase/migrations/20261110000069_vehicle_fuel_price.sql

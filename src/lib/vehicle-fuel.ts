@@ -18,6 +18,9 @@ export type FuelRowRaw = {
   fuel_remaining: number | string | null;
   fuel_ratio: number | string | null;
   fuel_ratio_auto: boolean;
+  /** Có từ bản nâng cấp 0069 */
+  fuel_price?: number | string | null;
+  fuel_price_auto?: boolean;
   final_fuel: number | string | null;
   final_note: string | null;
   note: string | null;
@@ -58,6 +61,12 @@ export type FuelRow = {
   /** Chênh lệch = thực tế − theo KM (dương: tốn hơn định mức) */
   diff: number | null;
   final: number | null;
+  /** Đơn giá dầu (đồng/lít) */
+  price: number | null;
+  priceAuto: boolean;
+  /** Thành tiền = số chốt × đơn giá; chưa có số chốt thì tạm tính theo dầu thực tế */
+  amount: number | null;
+  amountTemp: boolean;
   finalNote: string;
   note: string;
   locked: boolean;
@@ -84,6 +93,9 @@ export function computeFuelRow(r: FuelRowRaw): FuelRow {
   // Không đổ thêm (trống) tính là 0; tồn đầu và còn lại phải có mới tính được thực tế
   const actual = opening !== null && remaining !== null ? round2(opening + (added ?? 0) - remaining) : null;
   const norm = kmRun !== null && ratio !== null ? round2(kmRun * ratio) : null;
+  const final = num(r.final_fuel);
+  const price = num(r.fuel_price);
+  const liters = final ?? actual;
   return {
     id: r.vehicle_id,
     plate: r.plate_number,
@@ -103,7 +115,11 @@ export function computeFuelRow(r: FuelRowRaw): FuelRow {
     ratioAuto: r.fuel_ratio_auto,
     norm,
     diff: actual !== null && norm !== null ? round2(actual - norm) : null,
-    final: num(r.final_fuel),
+    final,
+    price,
+    priceAuto: !!r.fuel_price_auto,
+    amount: price !== null && liters !== null ? Math.round(liters * price) : null,
+    amountTemp: final === null && actual !== null,
     finalNote: r.final_note ?? "",
     note: r.note ?? "",
     locked: !!r.locked_at,
@@ -124,6 +140,7 @@ export type FuelTotals = {
   norm: number;
   diff: number;
   final: number;
+  amount: number;
 };
 
 export function sumFuel(label: string, rows: FuelRow[]): FuelTotals {
@@ -140,6 +157,7 @@ export function sumFuel(label: string, rows: FuelRow[]): FuelTotals {
     norm: s((r) => r.norm),
     diff: s((r) => r.diff),
     final: s((r) => r.final),
+    amount: s((r) => r.amount),
   };
 }
 
@@ -152,7 +170,7 @@ export function summarizeByType(rows: FuelRow[]): FuelTotals[] {
 
 /** Cột của file Excel mẫu / nhập Excel. key là tên ô gửi lên save_vehicle_fuel */
 export type FuelImportColumn = {
-  key: "plate" | "km_start" | "km_end" | "fuel_opening" | "fuel_added" | "fuel_remaining" | "fuel_ratio" | "note";
+  key: "plate" | "km_start" | "km_end" | "fuel_opening" | "fuel_added" | "fuel_remaining" | "fuel_ratio" | "fuel_price" | "note";
   label: string;
   hint: string;
   numeric: boolean;
@@ -187,6 +205,10 @@ export const FUEL_IMPORT_COLUMNS: FuelImportColumn[] = [
   {
     key: "fuel_ratio", label: "Tỷ trọng dầu theo xe (lít/km)", numeric: true, width: 20,
     hint: "Số lít cho 1 km, ví dụ 0.35 (35 lít/100 km). Để trống: lấy Tỷ trọng dầu của xe trong Phương tiện.",
+  },
+  {
+    key: "fuel_price", label: "Đơn giá dầu (đồng/lít)", numeric: true, width: 18,
+    hint: "Giá 1 lít dầu, ví dụ 20,500. Để trống: tự lấy đơn giá tháng trước của xe. Thành tiền = số lít Giám đốc chốt × đơn giá.",
   },
   {
     key: "note", label: "Ghi chú", numeric: false, width: 30,

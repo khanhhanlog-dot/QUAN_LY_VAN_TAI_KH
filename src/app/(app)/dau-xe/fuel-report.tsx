@@ -33,7 +33,7 @@ const fmt4 = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 4 });
 const fmt = (v: number | null | undefined, digits: 2 | 4 = 2) => (v === null || v === undefined ? "" : (digits === 4 ? fmt4 : fmt2).format(v));
 const signed = (v: number | null) => (v === null ? "" : `${v > 0 ? "+" : ""}${fmt(v)}`);
 
-type EditKey = "km_start" | "km_end" | "fuel_opening" | "fuel_added" | "fuel_remaining" | "fuel_ratio";
+type EditKey = "km_start" | "km_end" | "fuel_opening" | "fuel_added" | "fuel_remaining" | "fuel_ratio" | "fuel_price";
 
 /** Ô số sửa tại chỗ: gõ số rồi Enter / bấm ra ngoài để lưu, xóa trống = lấy số tự động */
 function NumCell({
@@ -134,6 +134,7 @@ const AUTO_HINT = {
   km_start: "Chữ nghiêng: tự lấy KM cuối tháng trước. Gõ số để sửa, xóa trống để lấy lại số tự động.",
   fuel_opening: "Chữ nghiêng: tự lấy Dầu còn lại tháng trước. Gõ số để sửa, xóa trống để lấy lại số tự động.",
   fuel_ratio: "Chữ nghiêng: lấy Tỷ trọng dầu của xe trong Phương tiện. Gõ số để dùng riêng cho tháng này.",
+  fuel_price: "Chữ nghiêng: tự lấy đơn giá dầu tháng trước của xe. Gõ số để sửa.",
 };
 
 export function FuelReport({ month, data, view }: { month: string; data: FuelMonth; view: TableViewConfig | null }) {
@@ -300,6 +301,23 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
         />
       ),
     },
+    num("price", "Đơn giá dầu (đồng/lít)", (r) => r.price, { edit: "fuel_price", auto: (r) => r.priceAuto, width: 130, hint: AUTO_HINT.fuel_price }),
+    {
+      key: "amount",
+      label: "Thành tiền",
+      width: 140,
+      align: "right",
+      kind: "number",
+      value: (r) => r.amount,
+      render: (r) => (
+        <span
+          className={cn("tabular-nums", r.amountTemp ? "text-muted-foreground italic" : "font-semibold")}
+          title={r.amountTemp ? "Tạm tính theo dầu thực tế × đơn giá, chưa có số Giám đốc chốt" : "Số lít Giám đốc chốt × đơn giá"}
+        >
+          {fmt(r.amount)}
+        </span>
+      ),
+    },
     {
       key: "status",
       label: "Trạng thái",
@@ -344,7 +362,7 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
     const sum = sumFuel("Tổng cộng", list);
     const sumKey: Record<string, number> = {
       kmRun: sum.kmRun, opening: sum.opening, added: sum.added, remaining: sum.remaining,
-      actual: sum.actual, norm: sum.norm, diff: sum.diff, final: sum.final,
+      actual: sum.actual, norm: sum.norm, diff: sum.diff, final: sum.final, amount: sum.amount,
     };
     await downloadXlsx({
       filename: `Dau theo xe ${month}`,
@@ -403,7 +421,7 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
         </div>
 
         {/* Phần trên: tổng */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
           <Kpi label="Tổng KM chạy" value={fmt(total.kmRun)} note="km" />
           <Kpi label="Tồn dầu đầu tháng" value={fmt(total.opening)} note="lít" />
           <Kpi label="Dầu đổ thêm" value={fmt(total.added)} note="lít" />
@@ -411,6 +429,7 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
           <Kpi label="Dầu thực tế tiêu hao" value={fmt(total.actual)} note="tồn đầu + đổ thêm − còn lại" />
           <Kpi label="Dầu theo KM × tỷ trọng" value={fmt(total.norm)} note={`chênh lệch ${signed(total.diff)} lít`} />
           <Kpi label="Giám đốc chốt" value={fmt(total.final)} note={`${total.locked}/${total.vehicles} xe đã chốt`} strong />
+          <Kpi label="Thành tiền dầu" value={fmt(total.amount)} note="đồng, số chốt × đơn giá" strong />
         </div>
         <Card className="mt-3 gap-0 py-0">
           <div className="border-b px-4 py-2 text-sm font-semibold">Tổng theo loại xe</div>
@@ -434,7 +453,10 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
             onExport={data.can_export ? exportExcel : undefined}
             onPrint={(cols, list) => setPrinting({ cols: cols.filter((c) => c.key !== "pick"), rows: list })}
             toolbar={
-              canLock ? (
+              canEdit || canLock ? (
+                <>
+                  {canEdit ? <PriceAllButton month={monthDate} rows={pickable} onDone={() => router.refresh()} /> : null}
+                  {canLock ? (
                 <>
                   <Button
                     variant="outline"
@@ -453,6 +475,8 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
                     </Button>
                   ) : null}
                 </>
+                  ) : null}
+                </>
               ) : null
             }
           />
@@ -461,7 +485,7 @@ export function FuelReport({ month, data, view }: { month: string; data: FuelMon
           Ô chữ nghiêng là số tự lấy: KM đầu tháng = KM cuối tháng trước, Tồn dầu đầu tháng = Dầu còn lại tháng trước, Tỷ trọng = Tỷ trọng dầu (lít/km) của
           xe trong <Link href="/phuong-tien" className="text-primary underline">Phương tiện</Link>. Dầu theo KM và tỷ trọng = (Số KM cuối tháng − Số KM đầu
           tháng) × Tỷ trọng dầu theo xe. Chênh lệch dương (đỏ) là xe tốn dầu hơn định mức. Giám đốc nhập số chốt hoặc chọn xe rồi bấm Chốt để lấy số thực tế /
-          số theo KM; xe đã chốt không ai sửa được nữa (Giám đốc mở chốt được). Xe thuê ngoài 3PL không có ở đây.
+          số theo KM; xe đã chốt không ai sửa được nữa (Giám đốc mở chốt được). Đơn giá dầu để trống thì lấy đơn giá tháng trước của xe; Thành tiền = số lít Giám đốc chốt × đơn giá (chữ nghiêng: chưa chốt, tạm tính theo dầu thực tế). Xe thuê ngoài 3PL không có ở đây.
         </p>
       </div>
 
@@ -538,6 +562,7 @@ const SUMMARY_COLS: { key: keyof FuelTotals; label: string }[] = [
   { key: "norm", label: "Dầu theo KM × tỷ trọng" },
   { key: "diff", label: "Chênh lệch" },
   { key: "final", label: "Giám đốc chốt" },
+  { key: "amount", label: "Thành tiền" },
 ];
 
 function SummaryTable({ groups, total, print }: { groups: FuelTotals[]; total: FuelTotals; print?: boolean }) {
@@ -660,7 +685,7 @@ async function downloadTemplate(month: string, rows: FuelRow[]) {
     if (c.numeric) col.numFmt = c.key === "fuel_ratio" ? "0.0###" : "#,##0.##";
   });
   for (const r of rows.filter((x) => !x.locked)) {
-    ws.addRow([r.plate, r.kmStartAuto ? null : r.kmStart, r.kmEnd, r.openingAuto ? null : r.opening, r.added, r.remaining, r.ratioAuto ? null : r.ratio, r.note || null]);
+    ws.addRow([r.plate, r.kmStartAuto ? null : r.kmStart, r.kmEnd, r.openingAuto ? null : r.opening, r.added, r.remaining, r.ratioAuto ? null : r.ratio, r.priceAuto ? null : r.price, r.note || null]);
   }
   ws.views = [{ state: "frozen", ySplit: 1 }];
   const guide = wb.addWorksheet("Hướng dẫn");
@@ -813,5 +838,58 @@ function ErrorList({ errors }: { errors: { row: number; plate: string; error: st
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Đặt cùng một đơn giá dầu cho mọi xe chưa chốt trong tháng */
+function PriceAllButton({ month, rows, onDone }: { month: string; rows: FuelRow[]; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [pending, start] = useTransition();
+  const price = parseFuelNumber(text);
+  return (
+    <>
+      <Button variant="outline" size="sm" disabled={!rows.length} onClick={() => setOpen(true)} title="Gõ một đơn giá dùng chung cho mọi xe chưa chốt">
+        Đơn giá cho mọi xe
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Đơn giá dầu cho mọi xe chưa chốt</DialogTitle>
+            <DialogDescription>Áp dụng cho {rows.length} xe chưa chốt của tháng này. Xe nào giá khác thì sửa riêng ở cột Đơn giá dầu.</DialogDescription>
+          </DialogHeader>
+          <input
+            autoFocus
+            inputMode="decimal"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Ví dụ 20,500"
+            className="h-9 rounded-md border bg-background px-2 text-right tabular-nums"
+            aria-label="Đơn giá dầu (đồng/lít)"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              disabled={pending || price === undefined || price === null || price < 0}
+              onClick={() =>
+                start(async () => {
+                  const res = await importVehicleFuel({ month, rows: rows.map((r, i) => ({ row: i + 1, plate: r.plate, fuel_price: price as number })) });
+                  if (!res.ok) return void toast.error(res.error);
+                  if (res.data!.errors.length) toast.error(`${res.data!.errors.length} xe không lưu được: ${res.data!.errors[0].error}`);
+                  else toast.success(`Đã đặt đơn giá cho ${res.data!.saved} xe`);
+                  setOpen(false);
+                  setText("");
+                  onDone();
+                })
+              }
+            >
+              {pending ? "Đang lưu…" : "Áp dụng"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -19,6 +19,7 @@ const saveSchema = z.object({
       fuel_added: numOrNull,
       fuel_remaining: numOrNull,
       fuel_ratio: numOrNull,
+      fuel_price: numOrNull,
       note: z.string().max(500).nullable(),
     })
     .partial()
@@ -95,9 +96,10 @@ const importSchema = z.object({
           fuel_added: numOrNull,
           fuel_remaining: numOrNull,
           fuel_ratio: numOrNull,
+          fuel_price: numOrNull,
           note: z.string().max(500).nullable(),
         })
-        .partial({ km_start: true, km_end: true, fuel_opening: true, fuel_added: true, fuel_remaining: true, fuel_ratio: true, note: true })
+        .partial({ km_start: true, km_end: true, fuel_opening: true, fuel_added: true, fuel_remaining: true, fuel_ratio: true, fuel_price: true, note: true })
         .strict(),
     )
     .min(1, "File không có dòng nào")

@@ -352,3 +352,4 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Bảng chi tiết dùng ReportGrid (ẩn/hiện, kéo đổi cột, tìm kiếm nâng cao, lưu cấu hình), Xuất Excel, In / PDF (tiêu đề nền đen chữ trắng, căn giữa dòng), Nhập Excel + file mẫu có ghi chú từng cột.
 - ReportGrid (mọi báo cáo dùng chung): tiêu đề chữ đậm nền xanh nhạt, có vạch phân cách giữa các cột, thêm nút In tùy chọn (onPrint).
 - Kiểm thử: supabase/tests/50_vehicle_fuel_tests.sql, tests/vehicle-fuel.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-dau-theo-xe.sql (dòng kiểm tra 47).
+- 10/11/2026 (0069): thêm Đơn giá dầu (đồng/lít, trống thì lấy tháng trước của xe, nút "Đơn giá cho mọi xe") và Thành tiền = số chốt × đơn giá (chưa chốt thì tạm tính theo dầu thực tế, chữ nghiêng). Tệp nâng cấp nang-cap-don-gia-dau.sql (dòng kiểm tra 48), kiểm thử 51_vehicle_fuel_price_tests.sql.

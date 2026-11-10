@@ -34,6 +34,16 @@ describe("Dầu theo xe", () => {
     expect(r.norm).toBe(875); // 2500 × 0.35
     expect(r.diff).toBe(-5);
   });
+  it("thành tiền = số chốt × đơn giá, chưa chốt thì tạm tính theo thực tế", () => {
+    const tmp = computeFuelRow(raw({ fuel_price: "20500" }));
+    expect(tmp.amount).toBe(870 * 20500);
+    expect(tmp.amountTemp).toBe(true);
+    const fin = computeFuelRow(raw({ fuel_price: 20500, final_fuel: "875" }));
+    expect(fin.amount).toBe(875 * 20500);
+    expect(fin.amountTemp).toBe(false);
+    expect(computeFuelRow(raw()).amount).toBeNull();
+    expect(sumFuel("T", [tmp, fin]).amount).toBe(1745 * 20500);
+  });
   it("thiếu số thì không tính (không đoán)", () => {
     const r = computeFuelRow(raw({ km_end: null, fuel_remaining: null, fuel_added: null }));
     expect(r.kmRun).toBeNull();
