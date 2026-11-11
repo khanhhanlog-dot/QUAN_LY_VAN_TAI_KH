@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DispatchTable } from "@/components/dispatch/dispatch-table";
 import { DispatchFilterBar } from "@/components/dispatch/dispatch-filter-bar";
+import { DeleteCancelledButton } from "@/components/dispatch/cancel-dialog";
 
 export const metadata: Metadata = { title: "Chuyến hủy" };
 
@@ -98,20 +99,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       <CompactDensity />
       <PageHeader
         title="Chuyến hủy"
-        description={`Chuyến đã hủy, ${rangeText}. Không hiện ở Điều phối và Quản lý chuyến. Bấm Khôi phục để đưa chuyến về Chưa phân công rồi phân công lại.`}
+        description={`Chuyến đã hủy, ${rangeText}. Không hiện ở Điều phối và Quản lý chuyến. Bấm Khôi phục để đưa chuyến về Chưa phân công rồi phân công lại, hoặc Xóa để xóa vĩnh viễn.`}
         actions={
-          <Button variant="outline" asChild>
-            <Link href="/dieu-phoi">
-              <ArrowLeft /> Về Điều phối
-            </Link>
-          </Button>
+          <>
+            {canRestore ? <DeleteCancelledButton ids={rows.map((r) => r.id)} label={`${rows.length} chuyến hủy đang lọc`} /> : null}
+            <Button variant="outline" asChild>
+              <Link href="/dieu-phoi">
+                <ArrowLeft /> Về Điều phối
+              </Link>
+            </Button>
+          </>
         }
       />
       <DispatchFilterBar keepRange filters={{ tu: f.tu, den: f.den, kh: f.kh, xe, tx, q: f.q, adv: f.adv, xem: "" }} today={today} advFields={advFields} advLabels={advLabels} />
       <Card className="overflow-hidden">
         <div className="border-b px-4 py-3 text-sm">
           <b>{rows.length}</b> chuyến đã hủy
-          {canRestore ? "" : ". Bạn chỉ xem được, cần quyền hủy chuyến (Điều phối: Xóa) để khôi phục."}
+          {canRestore ? "" : ". Bạn chỉ xem được, cần quyền hủy chuyến (Điều phối: Xóa) để khôi phục hoặc xóa."}
         </div>
         {rows.length >= MAX_ROWS ? (
           <p className="border-b bg-warning/10 px-4 py-2 text-xs">Chỉ hiển thị {MAX_ROWS} chuyến mới nhất. Thu hẹp khoảng ngày hoặc thêm điều kiện lọc để xem đủ.</p>
@@ -125,6 +129,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
           canAddField={me.permissions.has("fields.configure")}
           canAssign={false}
           canCancel={canRestore}
+          canDelete={canRestore}
           canFillDriver={false}
           showDate
           exportName={{ filename: `chuyen-huy-${f.tu}_${f.den}`, title: `CHUYẾN HỦY – ${rangeText}` }}

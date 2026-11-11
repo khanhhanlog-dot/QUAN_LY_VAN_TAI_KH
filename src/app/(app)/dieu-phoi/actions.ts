@@ -1308,6 +1308,25 @@ export async function restoreShipment(input: z.input<typeof restoreSchema>): Pro
   }, "Đã khôi phục chuyến về Chưa phân công. Phân công lại xe, tài xế.");
 }
 
+const deleteCancelledSchema = z.object({ ids: z.array(uuid).min(1, "Chưa chọn chuyến nào").max(2000, "Mỗi lần xóa tối đa 2.000 chuyến"), confirm: z.string().max(20) });
+export type DeleteCancelledResult = { deleted: number; orders_deleted: number; skipped: { code: string; reason: string }[] };
+
+/** Xóa vĩnh viễn chuyến đã hủy (CSDL giữ lại chuyến đã có chi phí, tạm ứng, thanh toán, công nợ) */
+export async function deleteCancelledShipments(input: z.input<typeof deleteCancelledSchema>): Promise<ActionResult<DeleteCancelledResult>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.delete", "shipments.delete");
+    const p = deleteCancelledSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    if (p.data.confirm.trim().toUpperCase() !== "XOA") throw new ActionError("Gõ XOA để xác nhận xóa vĩnh viễn.");
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("delete_cancelled_shipments", { p_ids: p.data.ids, p_confirm: p.data.confirm });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    return data as DeleteCancelledResult;
+  });
+}
+
 const crewSchema = z.object({
   shipmentId: uuid,
   vehicleId: uuid,

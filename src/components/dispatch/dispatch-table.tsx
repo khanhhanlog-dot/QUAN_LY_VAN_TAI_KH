@@ -35,7 +35,7 @@ import { AssignDialog } from "./assign-dialog";
 import { CrewChangeDialog } from "./crew-change-dialog";
 import { CORRECT_CREW_STATUSES, UNACCEPT_STATUSES } from "@/lib/crew-change";
 import { VehicleOrderCell } from "./vehicle-order-cell";
-import { CancelDialog, RestoreShipmentButton } from "./cancel-dialog";
+import { CancelDialog, DeleteCancelledButton, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 import { DriverInfoButton } from "./driver-info-button";
 
@@ -283,6 +283,7 @@ export function DispatchTable({
   rows,
   canAssign,
   canCancel,
+  canDelete = false,
   showOrder = true,
   emptyText = "Không có chuyến.",
   tableKey = "dispatch_list",
@@ -297,6 +298,8 @@ export function DispatchTable({
   rows: ShipmentListRow[];
   canAssign: boolean;
   canCancel: boolean;
+  /** Nút xóa vĩnh viễn trên dòng chuyến đã hủy (danh sách Chuyến hủy) */
+  canDelete?: boolean;
   /** Giữ để tương thích: luôn hiện ngày nhận */
   showDate?: boolean;
   showOrder?: boolean;
@@ -380,14 +383,14 @@ export function DispatchTable({
         sortUndefined: "last" as const,
         cell: ({ row }) =>
           c.key === "actions" ? (
-            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canFillDriver={fillDriver} />
+            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canDelete={canDelete} canFillDriver={fillDriver} />
           ) : c.key === "vehicle_day_order" ? (
             <VehicleOrderCell r={row.original} editable={canAssign} />
           ) : (
             c.render(row.original, now)
           ),
       })),
-    [cols, canAssign, canCancel, fillDriver, now],
+    [cols, canAssign, canCancel, canDelete, fillDriver, now],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -662,7 +665,7 @@ export function DispatchTable({
   );
 }
 
-function Actions({ r, canAssign, canCancel, canFillDriver }: { r: ShipmentListRow; canAssign: boolean; canCancel: boolean; canFillDriver: boolean }) {
+function Actions({ r, canAssign, canCancel, canDelete, canFillDriver }: { r: ShipmentListRow; canAssign: boolean; canCancel: boolean; canDelete: boolean; canFillDriver: boolean }) {
   return (
     <div className="flex flex-wrap justify-end gap-1">
       {r.driver_id && r.status !== "cancelled" ? <DriverInfoButton compact shipmentIds={[r.id]} canFill={canFillDriver} /> : null}
@@ -712,6 +715,7 @@ function Actions({ r, canAssign, canCancel, canFillDriver }: { r: ShipmentListRo
       ) : null}
       {canCancel && CANCELLABLE_STATUSES.includes(r.status) ? <CancelDialog compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
       {canCancel && r.status === "cancelled" ? <RestoreShipmentButton compact shipmentId={r.id} shipmentCode={r.shipment_code} /> : null}
+      {canDelete && r.status === "cancelled" ? <DeleteCancelledButton compact ids={[r.id]} label={`chuyến ${r.shipment_code}`} /> : null}
     </div>
   );
 }
