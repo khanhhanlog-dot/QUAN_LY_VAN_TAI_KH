@@ -329,8 +329,8 @@ export function DispatchTable({
       label: c.label,
       width: 140,
       align: c.numeric ? "right" : undefined,
-      custom: true,
-      defaultHidden: !c.serviceKind,
+      custom: !c.visible,
+      defaultHidden: !c.serviceKind && !c.visible,
       sort: (r) => val(r, c.key)?.[1],
       text: (r) => {
         const v = val(r, c.key);

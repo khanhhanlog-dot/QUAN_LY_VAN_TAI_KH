@@ -67,6 +67,7 @@ export async function exportShipments(sp: Record<string, string | string[] | und
     const custom = await shipmentCustomFields(supabase, me.permissions);
     const f = parseShipmentFilters(sp, custom.adv);
     const { data, error } = await applyShipmentFilters(supabase.from("shipment_list").select("*"), f)
+      .neq("status", "cancelled")
       .order("pickup_at")
       .order("shipment_code")
       .limit(EXPORT_LIMIT + 1);

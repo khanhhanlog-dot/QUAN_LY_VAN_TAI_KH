@@ -16,6 +16,8 @@ export type DispatchExtraColumn = {
   /** Trường "Điểm hạ hàng": hiện thêm một dòng "Hạ hàng: ..." trong ô Tuyến đường */
   dropOff?: boolean;
   source: "shipment" | "order";
+  /** Hiện sẵn (mặc định cột bổ sung bị ẩn) */
+  visible?: boolean;
 };
 /** Giá trị theo chuyến: [chữ hiển thị, giá trị để sắp xếp] */
 export type DispatchExtraValues = Record<string, Record<string, [string, string | number | null]>>;

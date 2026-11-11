@@ -14,7 +14,20 @@ export type DispatchFilters = { tu: string; den: string; kh: string; xe: string;
 const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 /** Bộ lọc màn hình Điều phối: khoảng ngày nhận hàng, khách hàng, xe, tài xế, từ khóa, tìm kiếm nâng cao */
-export function DispatchFilterBar({ filters, today, advFields, advLabels }: { filters: DispatchFilters; today: string; advFields: AdvField[]; advLabels: Record<string, string> }) {
+export function DispatchFilterBar({
+  filters,
+  today,
+  advFields,
+  advLabels,
+  keepRange = false,
+}: {
+  filters: DispatchFilters;
+  today: string;
+  advFields: AdvField[];
+  advLabels: Record<string, string>;
+  /** Luôn ghi khoảng ngày lên URL (trang có khoảng ngày mặc định khác "hôm nay") */
+  keepRange?: boolean;
+}) {
   const [v, setV] = useState(filters);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -26,7 +39,7 @@ export function DispatchFilterBar({ filters, today, advFields, advLabels }: { fi
     if (!den) den = tu;
     if (den < tu) [tu, den] = [den, tu];
     const q = new URLSearchParams();
-    if (tu !== today || den !== today) {
+    if (keepRange || tu !== today || den !== today) {
       q.set("tu", tu);
       q.set("den", den);
     }

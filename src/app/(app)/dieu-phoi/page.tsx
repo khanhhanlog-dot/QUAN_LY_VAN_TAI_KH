@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Truck, ListChecks, ListOrdered, FileSpreadsheet } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Ban, Plus, Truck, ListChecks, ListOrdered, FileSpreadsheet } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysYMD, formatDate, startOfDayVN, todayVN } from "@/lib/format";
@@ -50,6 +51,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const f = parseShipmentFilters({ ...raw, tu: tuRaw, den: denRaw }, custom.adv);
   if (f.den > addDaysYMD(f.tu, MAX_SPAN - 1)) f.den = addDaysYMD(f.tu, MAX_SPAN - 1);
   const xe = isUuid(one(raw.xe) ?? "") ? one(raw.xe)! : "";
+  // Liên kết cũ tới tab Đã hủy: chuyển sang danh sách Chuyến hủy
+  if (f.tt === "cancelled") redirect(`/dieu-phoi/chuyen-huy?${new URLSearchParams({ tu: f.tu, den: f.den }).toString()}`);
   const tx = isUuid(one(raw.tx) ?? "") ? one(raw.tx)! : "";
   const xem = one(raw.xem) === "xe-trong" ? "xe-trong" : "";
   const tab = f.tt;
@@ -57,10 +60,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const totalDays = Math.round((Date.parse(f.den) - Date.parse(f.tu)) / 86400000) + 1;
   const advFields = [...SHIPMENT_ADV_FIELDS, ...custom.adv];
 
-  let listQ = applyShipmentFilters(supabase.from("shipment_list").select("*"), { ...f, tt: "" });
+  // Chuyến hủy không hiện ở Điều phối: xem và khôi phục ở danh sách Chuyến hủy
+  let listQ = applyShipmentFilters(supabase.from("shipment_list").select("*"), { ...f, tt: "" }).neq("status", "cancelled");
   if (xe) listQ = listQ.eq("vehicle_id", xe);
   if (tx) listQ = listQ.eq("driver_id", tx);
-  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes, attPendingRes] = await Promise.all([
+  let cancelQ = applyShipmentFilters(supabase.from("shipment_list").select("id", { count: "exact", head: true }), { ...f, tt: "" }).eq("status", "cancelled");
+  if (xe) cancelQ = cancelQ.eq("vehicle_id", xe);
+  if (tx) cancelQ = cancelQ.eq("driver_id", tx);
+  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes, attPendingRes, cancelRes] = await Promise.all([
     listQ.order("pickup_at").order("shipment_code").limit(MAX_ROWS),
     // Chuyến chưa phân công ở ngoài khoảng ngày đang xem (từ hôm nay trở đi)
     supabase
@@ -84,7 +91,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       .limit(200),
     supabase.rpc("trip_delegation_info"),
     supabase.rpc("attendance_pending_count"),
+    cancelQ,
   ]);
+  const cancelledCount = cancelRes.count ?? 0;
   // Lỗi (ví dụ DB chưa nâng cấp chấm công) thì bỏ qua, không chặn màn Điều phối
   const attPending = attPendingRes.error ? 0 : Number(attPendingRes.data ?? 0);
   const delegation = (delegationRes.data ?? null) as DelegationInfo | null;
@@ -117,7 +126,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const myApprovals = pendingAll.filter((r) => r.can_approve_dispatch && r.dispatch_approval_request_id).map((r) => r.dispatch_approval_request_id!);
   const extras = xem ? { columns: [], values: {} } : await dispatchExtraColumns(supabase, me.permissions, [...all, ...upcoming]);
   const tableProps = { view, extraColumns: extras.columns, extraValues: extras.values, canAddField: me.permissions.has("fields.configure") };
-  const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, all.filter((r) => r.status === s.value).length]));
+  const counts = Object.fromEntries(SHIPMENT_STATUS.filter((s) => s.value !== "cancelled").map((s) => [s.value, all.filter((r) => r.status === s.value).length]));
   const freeCount = free.filter((v) => v.free_days > 0).length;
   const filtered = Boolean(f.kh || xe || tx || f.q || f.adv.length);
 
@@ -145,6 +154,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     const s = q.toString();
     return s ? `/dieu-phoi?${s}` : "/dieu-phoi";
   };
+  // Danh sách Chuyến hủy giữ khoảng ngày và bộ lọc đang xem
+  const cancelHref = (() => {
+    const q = new URLSearchParams({ tu: f.tu, den: f.den });
+    if (f.kh) q.set("kh", f.kh);
+    if (xe) q.set("xe", xe);
+    if (tx) q.set("tx", tx);
+    if (f.q) q.set("q", f.q);
+    for (const a of f.adv) q.append("a", a);
+    return `/dieu-phoi/chuyen-huy?${q.toString()}`;
+  })();
   const tabLabel =
     tab === "tat-ca" ? "Tất cả" : tab === "tre" ? "Trễ giờ giao" : tab === "cho-duyet" ? "Chờ GĐ duyệt / bị từ chối" : (SHIPMENT_STATUS.find((s) => s.value === tab)?.label ?? tab);
   const rangeText = single ? `ngày ${formatDate(f.tu)}${f.tu === today ? " (hôm nay)" : ""}` : `từ ${formatDate(f.tu)} đến ${formatDate(f.den)} (${totalDays} ngày)`;
@@ -217,6 +236,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         <Link href={`/so-chuyen?thang=${f.tu.slice(0, 7)}`} className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
           <ListOrdered className="size-4" /> Số chuyến xe, tài xế trong tháng
         </Link>
+        <Link
+          href={cancelHref}
+          className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+          title="Chuyến đã hủy không hiện ở đây. Tìm và khôi phục ở danh sách Chuyến hủy."
+        >
+          <Ban className="size-4 text-destructive" /> Chuyến hủy
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{cancelledCount}</span>
+        </Link>
       </div>
 
       {xem ? (
@@ -237,7 +264,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
           <div className="flex flex-wrap gap-1 border-b px-4 py-3" role="tablist">
             <TabLink href={href({ tt: "tat-ca" })} active={tab === "tat-ca"} label={single ? "Tổng chuyến trong ngày" : "Tổng chuyến"} count={all.length} tone="default" />
             <TabLink href={href({ tt: "" })} active={!tab} label="Cần điều phối" count={active.length} />
-            {SHIPMENT_STATUS.filter((s) => counts[s.value] > 0 || ["draft", "assigned"].includes(s.value)).map((s) => (
+            {SHIPMENT_STATUS.filter((s) => s.value !== "cancelled" && (counts[s.value] > 0 || ["draft", "assigned"].includes(s.value))).map((s) => (
               <TabLink key={s.value} href={href({ tt: s.value })} active={tab === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
             ))}
             {approvalCount > 0 || tab === "cho-duyet" ? (

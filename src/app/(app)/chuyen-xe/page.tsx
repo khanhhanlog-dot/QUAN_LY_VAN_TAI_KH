@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileSpreadsheet, ReceiptText } from "lucide-react";
+import { Ban, FileSpreadsheet, ReceiptText } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requirePagePermission } from "@/lib/auth/session";
 import { loadTableView } from "@/lib/entities/server";
 import { SHIPMENT_ADV_FIELDS } from "@/lib/shipments";
@@ -48,10 +49,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const custom = await shipmentCustomFields(supabase, me.permissions);
   const f = parseShipmentFilters(sp, custom.adv);
   const page = Math.max(1, Math.min(1000, Number(sp.trang) || 1));
+  // Chuyến hủy không hiện ở Quản lý chuyến: xem và khôi phục ở danh sách Chuyến hủy
+  if (f.tt === "cancelled") redirect(`/dieu-phoi/chuyen-huy?${new URLSearchParams({ tu: f.tu, den: f.den }).toString()}`);
   const canEdit = me.permissions.has("shipments.update") || me.permissions.has("dispatch.update");
 
   const [listRes, sumRes, view, advLabels] = await Promise.all([
     applyShipmentFilters(supabase.from("shipment_list").select("*", { count: "exact" }), f)
+      .neq("status", "cancelled")
       .order("pickup_at", { ascending: false })
       .order("shipment_code", { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
@@ -87,7 +91,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const shareIds = rows.filter((r) => r.driver_id && r.status !== "cancelled").map((r) => r.id).slice(0, 500);
   const total = listRes.count ?? rows.length;
   const summary = sumRes.data as Summary;
-  const counts = Object.fromEntries(SHIPMENT_STATUS.map((s) => [s.value, summary.by_status[s.value]?.count ?? 0]));
+  const cancelledCount = summary.by_status.cancelled?.count ?? 0;
+  const allCount = summary.total - cancelledCount;
+  const counts = Object.fromEntries(SHIPMENT_STATUS.filter((s) => s.value !== "cancelled").map((s) => [s.value, summary.by_status[s.value]?.count ?? 0]));
   // Thẻ tổng theo nhóm phí (không tính chuyến hủy)
   const money = Object.entries(summary.by_status)
     .filter(([st]) => st !== "cancelled" && (!f.tt || f.tt === "tre" || f.tt === "cho-duyet" || f.tt === st))
@@ -108,6 +114,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     if (p.trang && p.trang > 1) q.set("trang", String(p.trang));
     return `/chuyen-xe?${q.toString()}`;
   };
+  const cancelHref = (() => {
+    const q = new URLSearchParams({ tu: f.tu, den: f.den });
+    if (f.kh) q.set("kh", f.kh);
+    if (f.q) q.set("q", f.q);
+    for (const a of f.adv) q.append("a", a);
+    return `/dieu-phoi/chuyen-huy?${q.toString()}`;
+  })();
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -147,10 +160,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       </div>
       <Card className="overflow-hidden">
         <div className="flex flex-wrap gap-1 border-b px-4 py-3" role="tablist">
-          <TabLink href={href({ tt: "", trang: 1 })} active={!f.tt} label="Tất cả" count={summary.total} />
-          {SHIPMENT_STATUS.filter((s) => counts[s.value] > 0).map((s) => (
+          <TabLink href={href({ tt: "", trang: 1 })} active={!f.tt} label="Tất cả" count={allCount} />
+          {SHIPMENT_STATUS.filter((s) => s.value !== "cancelled" && counts[s.value] > 0).map((s) => (
             <TabLink key={s.value} href={href({ tt: s.value, trang: 1 })} active={f.tt === s.value} label={s.label} count={counts[s.value]} tone={TONE_BADGE[s.tone]} />
           ))}
+          <Link
+            href={cancelHref}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Chuyến đã hủy không hiện ở đây. Tìm và khôi phục ở danh sách Chuyến hủy."
+          >
+            <Ban className="size-4 text-destructive" /> Chuyến hủy ({cancelledCount})
+          </Link>
         </div>
         <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} canFillDriver={canFillDriver} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
