@@ -6,24 +6,22 @@ import { requirePermission, runAction, type ActionResult } from "@/lib/auth/acti
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const STATUS = z.enum(["work", "leave_paid", "sick", "leave_unpaid", "absent", "off"]);
-
 const setSchema = z.object({
   cells: z.array(z.object({ driverId: uuid, date })).min(1, "Chọn ô ngày công").max(2000),
-  status: STATUS.nullable(),
+  reasonId: uuid.nullable(),
   note: z.string().max(500).optional(),
 });
 
-/** Điều phối / kế toán xác nhận hoặc sửa ngày công (status null = trả về tự động) */
+/** Điều phối / kế toán xác nhận hoặc sửa ngày công theo lý do (reasonId null = trả về tự động) */
 export async function setAttendance(input: z.input<typeof setSchema>): Promise<ActionResult<number>> {
   return runAction(async () => {
     await requirePermission("dispatch.update", "settlements.update");
     const d = setSchema.parse(input);
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("set_driver_attendance", {
+    const { data, error } = await supabase.rpc("set_driver_attendance_reason", {
       p_driver_ids: d.cells.map((c) => c.driverId),
       p_dates: d.cells.map((c) => c.date),
-      p_status: d.status,
+      p_reason_id: d.reasonId,
       p_note: d.note?.trim() || null,
     });
     if (error) throw error;

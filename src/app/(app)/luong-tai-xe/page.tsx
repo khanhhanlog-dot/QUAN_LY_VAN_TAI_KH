@@ -23,6 +23,7 @@ const TABS: { key: string; label?: string }[] = [
   { key: "pay_components" },
   { key: "driver_pay_matrix" },
   { key: "pay_holidays", label: "Ngày nghỉ lễ" },
+  { key: "attendance_reasons" },
   { key: "trip_pay_lines" },
   { key: "payrolls", label: "Bảng lương" },
 ];
@@ -37,6 +38,8 @@ const HINTS: Record<string, string> = {
   driver_pay_matrix:
     "Mỗi dòng là mức của một khoản cho một tài xế. Nhập nhiều tài xế một lần bằng Nhập Excel (tài xế, khoản lương ghi theo mã như TX001, LCB). Tăng lương thì thêm dòng mới với ngày áp dụng mới. Hình thức lương (cơ bản + chuyến, chỉ chuyến, chỉ tháng) chọn trong hồ sơ tài xế.",
   pay_holidays: "Các ngày nghỉ lễ của công ty. Chuyến chạy ngày lễ được tính khoản Thêm tiền chuyến ngày nghỉ, lễ (nếu khoản đó có mức).",
+  attendance_reasons:
+    "Các lý do điều phối chọn trên bảng Chấm công tài xế. Thêm lý do mới bằng nút Thêm mới, chọn Tính lương như để bảng lương biết có tính công, có trừ lương cơ bản không. Lý do có sẵn đổi tên được, không xóa.",
   trip_pay_lines:
     "Các chuyến tài xế công ty đã hoàn thành và lương chuyến app tính được. Lọc Chưa có đơn giá để bổ sung giá trước khi lập bảng lương.",
   payrolls: "Lập bảng lương tháng theo các thiết lập ở các tab trước, gửi Giám đốc duyệt, rồi chi trả.",

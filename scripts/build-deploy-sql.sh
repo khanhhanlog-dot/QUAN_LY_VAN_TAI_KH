@@ -183,3 +183,5 @@ upgrade nang-cap-xoa-chuyen-huy.sql "Xóa vĩnh viễn chuyến đã hủy" "to_
 upgrade nang-cap-cham-cong-theo-ngay-nhan.sql "Chấm công theo ngày nhận của điều phối, Số ngày giao, bỏ xe 3PL; lương chuyến chiều về theo phần trăm" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'delivery_days')" \
   supabase/migrations/20261108000065_trip_pay_return_percent.sql \
   supabase/migrations/20261111000071_attendance_by_pickup.sql
+upgrade nang-cap-ly-do-ngay-cong.sql "Danh mục lý do ngày công (thai sản, việc riêng có lương, nghỉ bù...)" "to_regclass('public.attendance_reasons') is not null" \
+  supabase/migrations/20261111000072_attendance_reasons.sql
