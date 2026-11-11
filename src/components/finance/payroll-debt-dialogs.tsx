@@ -110,7 +110,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
         <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,20rem)]">
           <div className="grid content-start gap-3 sm:grid-cols-2">
             <Field label="Tài xế *" htmlFor="pr-driver" help="Mức lương lấy từ Lương tài xế (đơn giá lương chuyến, mức lương theo khoản); chưa thiết lập thì lấy từ hồ sơ tài xế">
-              <ReferenceSelect id="pr-driver" refKey="drivers" value={driver} onChange={(v) => setDriver(v)} />
+              <ReferenceSelect id="pr-driver" refKey="drivers_internal" value={driver} onChange={(v) => setDriver(v)} />
             </Field>
             <Field label="Tháng *" htmlFor="pr-month" help="Tính các chuyến hoàn thành trong tháng này">
               <Input id="pr-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />

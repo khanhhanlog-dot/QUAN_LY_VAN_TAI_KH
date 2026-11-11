@@ -180,3 +180,6 @@ upgrade nang-cap-don-gia-dau.sql "Dầu theo xe: đơn giá dầu và thành ti�
   supabase/migrations/20261110000069_vehicle_fuel_price.sql
 upgrade nang-cap-xoa-chuyen-huy.sql "Xóa vĩnh viễn chuyến đã hủy" "to_regprocedure('public.delete_cancelled_shipments(uuid[],text)') is not null" \
   supabase/migrations/20261111000070_delete_cancelled_shipments.sql
+upgrade nang-cap-cham-cong-theo-ngay-nhan.sql "Chấm công theo ngày nhận của điều phối, Số ngày giao, bỏ xe 3PL; lương chuyến chiều về theo phần trăm" "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shipments' and column_name = 'delivery_days')" \
+  supabase/migrations/20261108000065_trip_pay_return_percent.sql \
+  supabase/migrations/20261111000071_attendance_by_pickup.sql

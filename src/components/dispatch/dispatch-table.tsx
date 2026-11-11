@@ -35,6 +35,7 @@ import { AssignDialog } from "./assign-dialog";
 import { CrewChangeDialog } from "./crew-change-dialog";
 import { CORRECT_CREW_STATUSES, UNACCEPT_STATUSES } from "@/lib/crew-change";
 import { VehicleOrderCell } from "./vehicle-order-cell";
+import { DeliveryDaysCell } from "./delivery-days-cell";
 import { CancelDialog, DeleteCancelledButton, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 import { DriverInfoButton } from "./driver-info-button";
@@ -233,6 +234,16 @@ const BASE_COLS: Col[] = [
     text: (r) => r.vehicle_day_order ?? null,
     render: () => null,
   },
+  {
+    key: "delivery_days",
+    label: "Số ngày giao",
+    width: 84,
+    align: "right",
+    hint: "Chuyến đi xa nhiều ngày thì nhập số ngày (2, 3…). Bảng chấm công tính công từ ngày nhận tới hết số ngày này. Để trống = 1 ngày, hoặc tự tính theo Ngày giao dự kiến (số nhạt). Bấm vào ô để sửa.",
+    sort: (r) => r.work_days ?? 1,
+    text: (r) => r.delivery_days ?? (r.work_days && r.work_days > 1 ? r.work_days : null),
+    render: () => null,
+  },
   { key: "plan_code", label: "Kế hoạch", width: 100, defaultHidden: true, sort: (r) => r.plan_code, render: (r) => r.plan_code },
   { key: "quantity", label: "SL", width: 64, align: "right", defaultHidden: true, sort: (r) => Number(r.quantity), render: (r) => formatNumber(r.quantity) },
   {
@@ -386,6 +397,8 @@ export function DispatchTable({
             <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canDelete={canDelete} canFillDriver={fillDriver} />
           ) : c.key === "vehicle_day_order" ? (
             <VehicleOrderCell r={row.original} editable={canAssign} />
+          ) : c.key === "delivery_days" ? (
+            <DeliveryDaysCell r={row.original} editable={canAssign} />
           ) : (
             c.render(row.original, now)
           ),

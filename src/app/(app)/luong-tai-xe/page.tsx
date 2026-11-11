@@ -88,7 +88,7 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
   {
     title: "Xác nhận Chấm công tài xế",
     href: "/cham-cong",
-    body: "Ngày tài xế nhận chuyến được tự chấm công, ngày có đơn xin nghỉ đã duyệt tự ghi nghỉ. Ngày đã qua mà không có chuyến, không có đơn nghỉ hiện ô vàng: điều phối chọn ô rồi bấm Có đi làm, Nghỉ phép, Nghỉ không lương... Cuối tháng kế toán bấm Chốt công tháng.",
+    body: "Ngày nhận hàng của chuyến điều phối đã chỉ định được tự chấm công (chuyến đi xa: nhập Số ngày giao ở Điều phối để cộng đủ ngày), ngày có đơn xin nghỉ đã duyệt tự ghi nghỉ. Xe 3PL không tính. Ngày đã qua mà không có chuyến, không có đơn nghỉ hiện ô vàng: điều phối chọn ô rồi bấm Có đi làm, Nghỉ phép, Nghỉ không lương... Cuối tháng kế toán bấm Chốt công tháng.",
     example: "Anh Nam ngày 15 chờ hàng ở bãi, không có chuyến: chọn ô ngày 15 → Có đi làm, ghi chú Chờ hàng.",
   },
   {

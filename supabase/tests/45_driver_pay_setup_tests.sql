@@ -12,16 +12,16 @@ create temp table t_ps (k text primary key, v text);
 grant all on t_ps to authenticated;
 insert into t_ps values ('drv', '40000000-0000-0000-0000-000000000001');
 insert into t_ps select 'month', date_trunc('month', (completed_at at time zone 'Asia/Ho_Chi_Minh'))::date::text
-from public.shipments where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed')
+from public.shipments where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed') and not private.shipment_is_3pl(vehicle_id)
 order by completed_at desc limit 1;
 insert into t_ps select 's', id::text from public.shipments
-where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed')
+where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed') and not private.shipment_is_3pl(vehicle_id)
   and date_trunc('month', (completed_at at time zone 'Asia/Ho_Chi_Minh'))::date = (select v::date from t_ps where k = 'month')
 order by completed_at desc limit 1;
 insert into t_ps select 'pick', pickup_location_id::text from public.shipments where id = (select v::uuid from t_ps where k = 's');
 insert into t_ps select 'del', delivery_location_id::text from public.shipments where id = (select v::uuid from t_ps where k = 's');
 insert into t_ps select 'trips', count(*)::text from public.shipments
-where driver_id = (select v::uuid from t_ps where k = 'drv') and status in ('driver_completed', 'closed')
+where driver_id = (select v::uuid from t_ps where k = 'drv') and status in ('driver_completed', 'closed') and not private.shipment_is_3pl(vehicle_id)
   and date_trunc('month', (completed_at at time zone 'Asia/Ho_Chi_Minh'))::date = (select v::date from t_ps where k = 'month');
 -- 0064: ngày công lấy từ bảng chấm công (ngày nhận chuyến hoặc hoàn thành chuyến)
 insert into t_ps select 'days', count(*)::text from private.attendance_rows((select v::date from t_ps where k = 'month'),

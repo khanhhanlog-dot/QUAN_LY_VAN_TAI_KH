@@ -10,7 +10,7 @@ reset role;
 create temp table t_rt (k text primary key, v text);
 grant all on t_rt to authenticated;
 insert into t_rt select 's', id::text from public.shipments
-where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed')
+where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed') and not private.shipment_is_3pl(vehicle_id)
   and pickup_location_id is not null and delivery_location_id is not null and pickup_location_id <> delivery_location_id
 order by completed_at desc limit 1;
 insert into t_rt select 'pick', pickup_location_id::text from public.shipments where id = (select v::uuid from t_rt where k = 's');

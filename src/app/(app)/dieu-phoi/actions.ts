@@ -1381,6 +1381,23 @@ export async function correctShipmentCrew(input: z.input<typeof crewSchema>): Pr
 
 const orderOnlySchema = z.object({ shipmentId: uuid, order: dayOrder.nullable() });
 
+const deliveryDaysSchema = z.object({ shipmentId: uuid, days: z.number().int().min(1, "Số ngày giao từ 1 đến 60").max(60, "Số ngày giao từ 1 đến 60").nullable() });
+
+/** Sửa "Số ngày giao" (chuyến dài ngày) ngay trên bảng Điều phối: bảng chấm công cộng đủ số ngày từ ngày nhận */
+export async function setDeliveryDays(input: z.input<typeof deliveryDaysSchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update", "dispatch.create");
+    const p = deliveryDaysSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("set_shipment_delivery_days", { p_shipment_id: p.data.shipmentId, p_days: p.data.days });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    revalidatePath("/cham-cong");
+  }, "Đã lưu số ngày giao.");
+}
+
 /** Sửa "Thứ tự xe" của một chuyến ngay trên bảng Điều phối (tài xế thấy chuyến có thứ tự nhỏ nhất trước) */
 export async function setVehicleOrder(input: z.input<typeof orderOnlySchema>): Promise<ActionResult> {
   return runAction(async () => {

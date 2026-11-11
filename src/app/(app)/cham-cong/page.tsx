@@ -18,7 +18,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     <>
       <PageHeader
         title="Chấm công tài xế"
-        description="Ngày tài xế nhận chuyến được tự chấm công. Ô vàng là ngày đã qua mà không có chuyến, không có đơn nghỉ: điều phối chọn ô rồi xác nhận. Ngày nghỉ tuần, ngày lễ đặt ở Lương tài xế → Hướng dẫn, thiết lập chung."
+        description="Ngày nhận hàng của chuyến điều phối đã chỉ định cho tài xế (xe nội bộ) được tự chấm công; chuyến nhiều ngày cộng theo cột Số ngày giao ở Điều phối. Chuyến hủy hoặc đổi tài xế thì tự bỏ. Ô vàng là ngày đã qua mà không có chuyến, không có đơn nghỉ: điều phối chọn ô rồi xác nhận. Ngày nghỉ tuần, ngày lễ đặt ở Lương tài xế → Hướng dẫn, thiết lập chung."
       />
       <AttendanceGrid key={raw} month={raw} data={data as AttendanceMonth} today={todayVN()} />
     </>

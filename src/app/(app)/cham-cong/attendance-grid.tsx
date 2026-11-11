@@ -10,7 +10,7 @@ import { lockAttendance, setAttendance } from "@/lib/attendance/actions";
 import { cn } from "@/lib/utils";
 
 type Status = "work" | "leave_paid" | "sick" | "leave_unpaid" | "absent" | "off" | "pending" | "upcoming";
-type Cell = { s: Status; src: "manual" | "trip" | "leave_request" | "auto"; t: number; n: string | null };
+type Cell = { s: Status; src: "manual" | "trip" | "trip_long" | "leave_request" | "auto"; t: number; n: string | null };
 export type AttendanceMonth = {
   month: string;
   days: { date: string; off: boolean; holiday: string | null }[];
@@ -139,7 +139,14 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
               {LOOK[s].label}
             </span>
           ))}
-        <span>Số trong ô xanh = số chuyến nhận trong ngày. Ô có viền = điều phối đã xác nhận / sửa tay.</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-dashed border-emerald-400 px-1 font-semibold text-emerald-700">1</span>
+          Đã lên lịch (ngày sắp tới)
+        </span>
+        <span>
+          Số trong ô = số chuyến có ngày nhận hôm đó (xe nội bộ). Chuyến nhiều ngày (cột Số ngày giao ở Điều phối) tính công đủ các ngày, hiện ✓. Ô có viền = điều phối đã
+          xác nhận / sửa tay.
+        </span>
       </div>
 
       {data.can_edit ? (
@@ -184,6 +191,9 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
                   </th>
                 );
               })}
+              <th className="border-b border-l px-1.5 py-1 text-center" title="Tổng số chuyến trong tháng (xe nội bộ, kể cả chuyến đã lên lịch)">
+                Chuyến
+              </th>
               {SUMMARY.map((s) => (
                 <th key={s} className="border-b border-l px-1.5 py-1 text-center" title={LOOK[s].label}>
                   {s === "work" ? "Công" : LOOK[s].sym}
@@ -194,8 +204,10 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
           <tbody>
             {drivers.map((dr) => {
               const counts = Object.fromEntries(SUMMARY.map((s) => [s, 0])) as Record<Status, number>;
+              let tripTotal = 0;
               Object.values(dr.cells).forEach((c) => {
                 if (c.s in counts) counts[c.s] += 1;
+                tripTotal += c.t;
               });
               return (
                 <tr key={dr.id} className="hover:bg-muted/40">
@@ -211,7 +223,14 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
                     if (!c) return <td key={d.date} className="border-b bg-muted/30" />;
                     const k = key(dr.id, d.date);
                     const look = LOOK[c.s];
-                    const title = [look.label, c.t ? `${c.t} chuyến` : "", c.src === "manual" ? "đã xác nhận tay" : c.src === "leave_request" ? "theo đơn xin nghỉ" : "", c.n ?? ""]
+                    const planned = c.s === "upcoming" && c.t > 0;
+                    const title = [
+                      planned ? "Đã lên lịch" : look.label,
+                      c.t ? `${c.t} chuyến nhận hàng hôm nay` : "",
+                      c.src === "trip_long" ? "đang chạy chuyến nhiều ngày" : "",
+                      c.src === "manual" ? "đã xác nhận tay" : c.src === "leave_request" ? "theo đơn xin nghỉ" : "",
+                      c.n ?? "",
+                    ]
                       .filter(Boolean)
                       .join(" · ");
                     return (
@@ -224,15 +243,17 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
                           className={cn(
                             "h-7 w-7 rounded text-[11px] font-semibold disabled:cursor-default",
                             look.cls,
+                            planned && "border border-dashed border-emerald-400 text-emerald-700",
                             c.src === "manual" && "ring-1 ring-foreground/40",
                             sel.has(k) && "ring-2 ring-primary ring-offset-1",
                           )}
                         >
-                          {c.s === "work" && c.t > 0 ? c.t : look.sym}
+                          {(c.s === "work" || planned) && c.t > 0 ? c.t : look.sym}
                         </button>
                       </td>
                     );
                   })}
+                  <td className="border-b border-l px-1.5 text-center font-medium tabular-nums">{tripTotal || ""}</td>
                   {SUMMARY.map((s) => (
                     <td key={s} className={cn("border-b border-l px-1.5 text-center tabular-nums", s === "pending" && counts[s] > 0 && "font-semibold text-yellow-700")}>
                       {counts[s] || ""}
@@ -243,7 +264,7 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
             })}
             {!drivers.length ? (
               <tr>
-                <td colSpan={data.days.length + 1 + SUMMARY.length} className="p-6 text-center text-muted-foreground">
+                <td colSpan={data.days.length + 2 + SUMMARY.length} className="p-6 text-center text-muted-foreground">
                   Không có tài xế nào.
                 </td>
               </tr>
