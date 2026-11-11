@@ -5,7 +5,6 @@
 \set QUIET 1
 \o /dev/null
 reset role;
-\i supabase/migrations/20261108000064_driver_attendance.sql
 
 create temp table t_at (k text primary key, v text);
 grant all on t_at to authenticated;

@@ -48,6 +48,12 @@ export type ShipmentListRow = {
   /** Số ngày giao điều phối nhập (trống = 1 ngày hoặc theo ngày giao dự kiến); work_days = số ngày công tính được */
   delivery_days?: number | null;
   work_days?: number | null;
+  /** Lương chuyến tài xế (0073): số tiền, giá lấy từ đâu, sửa tay */
+  driver_pay?: number | null;
+  driver_pay_source?: string | null;
+  driver_pay_override?: number | null;
+  driver_pay_note?: string | null;
+  can_override_pay?: boolean;
   order_custom_fields?: Record<string, unknown> | null;
   /** Giám đốc duyệt chuyến: not_required | pending | approved | rejected */
   dispatch_approval?: string;

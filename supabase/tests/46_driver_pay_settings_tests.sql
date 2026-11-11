@@ -6,18 +6,17 @@
 \set QUIET 1
 \o /dev/null
 reset role;
-\i supabase/migrations/20261108000063_driver_pay_settings.sql
 
 create temp table t_st (k text primary key, v text);
 grant all on t_st to authenticated;
 insert into t_st values ('drv', '40000000-0000-0000-0000-000000000001');
 insert into t_st select 's', id::text from public.shipments
-where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed')
+where driver_id = '40000000-0000-0000-0000-000000000001' and status in ('driver_completed', 'closed') and not private.shipment_is_3pl(vehicle_id)
 order by completed_at desc limit 1;
 insert into t_st select 'day', (completed_at at time zone 'Asia/Ho_Chi_Minh')::date::text from public.shipments where id = (select v::uuid from t_st where k = 's');
 insert into t_st select 'month', date_trunc('month', v::date)::date::text from t_st where k = 'day';
 insert into t_st select 'trips_on_day', count(*)::text from public.shipments
-where driver_id = (select v::uuid from t_st where k = 'drv') and status in ('driver_completed', 'closed')
+where driver_id = (select v::uuid from t_st where k = 'drv') and status in ('driver_completed', 'closed') and not private.shipment_is_3pl(vehicle_id)
   and (completed_at at time zone 'Asia/Ho_Chi_Minh')::date = (select v::date from t_st where k = 'day');
 select tests.assert((select count(*) from t_st) = 5, 'Có chuyến hoàn thành để thử');
 select tests.assert((select not is_active from public.pay_components where code = 'PCBX'), 'Khoản nhập tay Bốc xếp đã tắt (chuyển sang hoàn chi phí)');

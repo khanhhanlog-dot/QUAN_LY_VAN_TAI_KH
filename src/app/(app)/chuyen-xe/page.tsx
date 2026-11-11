@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { attachDriverPay } from "@/lib/driver-pay";
 import Link from "next/link";
 import { Ban, FileSpreadsheet, ReceiptText } from "lucide-react";
 import { redirect } from "next/navigation";
@@ -73,7 +74,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   ]);
   if (listRes.error) throw listRes.error;
   if (sumRes.error) throw sumRes.error;
-  const listRows = (listRes.data ?? []) as ShipmentListRow[];
+  const listRows = await attachDriverPay(supabase, (listRes.data ?? []) as ShipmentListRow[]);
   // Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế
   const canFillDriver = me.permissions.has("dispatch.update") || (me.permissions.has("drivers.view_sensitive") && me.permissions.has("drivers.update"));
   // Lời/lỗ từng chuyến của trang đang xem (chỉ người có quyền xem chi phí hoặc báo cáo)

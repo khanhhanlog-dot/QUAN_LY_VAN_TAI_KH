@@ -185,3 +185,5 @@ upgrade nang-cap-cham-cong-theo-ngay-nhan.sql "Chấm công theo ngày nhận c�
   supabase/migrations/20261111000071_attendance_by_pickup.sql
 upgrade nang-cap-ly-do-ngay-cong.sql "Danh mục lý do ngày công (thai sản, việc riêng có lương, nghỉ bù...)" "to_regclass('public.attendance_reasons') is not null" \
   supabase/migrations/20261111000072_attendance_reasons.sql
+upgrade nang-cap-dien-gia-tuyen.sql "Lấy tuyến từ các chuyến để điền giá lương chuyến, cột lương chuyến, sửa tay lương chuyến" "to_regprocedure('public.route_pay_gaps(integer)') is not null" \
+  supabase/migrations/20261111000073_route_pay_fill.sql

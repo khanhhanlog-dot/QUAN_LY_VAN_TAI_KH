@@ -61,7 +61,7 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
   {
     title: "Nhập Đơn giá lương chuyến",
     tab: "trip_pay_rates",
-    body: "Dòng đầu tiên là giá mặc định (để trống Điểm 1, Điểm 2, Vùng). Sau đó thêm giá cho từng vùng, từng địa điểm đặc biệt, từng tuyến có giá riêng. Chiều về rẻ hơn thì đặt % chiều về. Nhiều tuyến thì dùng Nhập Excel với file mẫu.",
+    body: "Dòng đầu tiên là giá mặc định (để trống Điểm 1, Điểm 2, Vùng). Sau đó bấm Lấy tuyến từ các chuyến để điền giá cho từng tuyến đã chạy, không phải tự nhập tuyến. Thêm giá vùng, địa điểm đặc biệt nếu cần. Chiều về rẻ hơn thì đặt % chiều về. Nhiều tuyến thì dùng Nhập Excel với file mẫu.",
     example: "Mặc định 700,000 · Vùng Bến Tre 1,000,000 · Địa điểm Sân bay TSN 1,150,000 · Tuyến Cát Lái ↔ Kho Hương Lộ 80 là 750,000.",
   },
   {
@@ -186,6 +186,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       ) : (
         <>
           {HINTS[active] ? <p className="mb-3 text-sm text-muted-foreground">{HINTS[active]}</p> : null}
+          {active === "trip_pay_rates" ? (
+            <div className="mb-3">
+              <Link href="/dieu-phoi/tuyen-chua-gia" className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
+                Lấy tuyến từ các chuyến (điền giá cho tuyến chưa có giá)
+              </Link>
+            </div>
+          ) : null}
           <EntityListSection key={active} entityKey={active} searchParams={sp} revalidate="/luong-tai-xe" />
         </>
       )}

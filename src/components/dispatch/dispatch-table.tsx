@@ -36,6 +36,7 @@ import { CrewChangeDialog } from "./crew-change-dialog";
 import { CORRECT_CREW_STATUSES, UNACCEPT_STATUSES } from "@/lib/crew-change";
 import { VehicleOrderCell } from "./vehicle-order-cell";
 import { DeliveryDaysCell } from "./delivery-days-cell";
+import { DriverPayCell } from "./driver-pay-cell";
 import { CancelDialog, DeleteCancelledButton, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 import { DriverInfoButton } from "./driver-info-button";
@@ -235,6 +236,16 @@ const BASE_COLS: Col[] = [
     render: () => null,
   },
   {
+    key: "driver_pay",
+    label: "Lương chuyến",
+    width: 110,
+    align: "right",
+    hint: "Lương tài xế của chuyến, tự lấy từ Lương tài xế → Đơn giá lương chuyến (tuyến, địa điểm, vùng, giá mặc định). Chữ đỏ Chưa có giá: bấm để điền giá cho tuyến. Số có dấu * là kế toán đã sửa tay.",
+    sort: (r) => r.driver_pay ?? null,
+    text: (r) => (r.driver_pay_source === "missing" ? "Chưa có giá" : (r.driver_pay ?? null)),
+    render: () => null,
+  },
+  {
     key: "delivery_days",
     label: "Số ngày giao",
     width: 84,
@@ -397,6 +408,8 @@ export function DispatchTable({
             <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canDelete={canDelete} canFillDriver={fillDriver} />
           ) : c.key === "vehicle_day_order" ? (
             <VehicleOrderCell r={row.original} editable={canAssign} />
+          ) : c.key === "driver_pay" ? (
+            <DriverPayCell r={row.original} />
           ) : c.key === "delivery_days" ? (
             <DeliveryDaysCell r={row.original} editable={canAssign} />
           ) : (

@@ -1381,6 +1381,49 @@ export async function correctShipmentCrew(input: z.input<typeof crewSchema>): Pr
 
 const orderOnlySchema = z.object({ shipmentId: uuid, order: dayOrder.nullable() });
 
+const routeRatesSchema = z.object({
+  rows: z
+    .array(z.object({ a: uuid, b: uuid, amount: z.number().min(0, "Lương mỗi chuyến không âm").max(100_000_000, "Lương mỗi chuyến quá lớn") }))
+    .min(1, "Nhập lương mỗi chuyến cho ít nhất một tuyến")
+    .max(1000),
+});
+
+/** Điều phối / kế toán điền giá lương chuyến cho các tuyến chưa có giá (lấy từ các chuyến) */
+export async function saveRoutePayRates(input: z.input<typeof routeRatesSchema>): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    await requirePermission("dispatch.update", "settlements.update");
+    const p = routeRatesSchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("save_route_pay_rates", { p_rows: p.data.rows });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/luong-tai-xe");
+    return data as number;
+  }, "Đã lưu giá lương chuyến");
+}
+
+const driverPaySchema = z.object({
+  shipmentId: uuid,
+  amount: z.number().min(0).max(100_000_000).nullable(),
+  note: z.string().max(300).optional(),
+});
+
+/** Kế toán sửa tay lương một chuyến (amount null = theo đơn giá) */
+export async function setShipmentDriverPay(input: z.input<typeof driverPaySchema>): Promise<ActionResult> {
+  return runAction(async () => {
+    await requirePermission("settlements.update");
+    const p = driverPaySchema.safeParse(input);
+    if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("set_shipment_driver_pay", { p_shipment_id: p.data.shipmentId, p_amount: p.data.amount, p_note: p.data.note?.trim() || null });
+    if (error) throw error;
+    revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
+    revalidatePath("/luong-tai-xe");
+  }, input.amount === null ? "Đã trả lương chuyến về theo đơn giá" : "Đã sửa tay lương chuyến");
+}
+
 const deliveryDaysSchema = z.object({ shipmentId: uuid, days: z.number().int().min(1, "Số ngày giao từ 1 đến 60").max(60, "Số ngày giao từ 1 đến 60").nullable() });
 
 /** Sửa "Số ngày giao" (chuyến dài ngày) ngay trên bảng Điều phối: bảng chấm công cộng đủ số ngày từ ngày nhận */

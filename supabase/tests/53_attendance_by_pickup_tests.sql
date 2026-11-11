@@ -5,7 +5,6 @@
 \set QUIET 1
 \o /dev/null
 reset role;
-\i supabase/migrations/20261111000071_attendance_by_pickup.sql
 
 create temp table t_ap (k text primary key, v text);
 grant all on t_ap to authenticated;

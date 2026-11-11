@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { attachDriverPay } from "@/lib/driver-pay";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Ban, Plus, Truck, ListChecks, ListOrdered, FileSpreadsheet } from "lucide-react";
@@ -67,7 +68,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   let cancelQ = applyShipmentFilters(supabase.from("shipment_list").select("id", { count: "exact", head: true }), { ...f, tt: "" }).eq("status", "cancelled");
   if (xe) cancelQ = cancelQ.eq("vehicle_id", xe);
   if (tx) cancelQ = cancelQ.eq("driver_id", tx);
-  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes, attPendingRes, cancelRes] = await Promise.all([
+  const [listRes, upcomingRes, free, view, advLabels, approvalRes, delegationRes, attPendingRes, routeGapRes, cancelRes] = await Promise.all([
     listQ.order("pickup_at").order("shipment_code").limit(MAX_ROWS),
     // Chuyến chưa phân công ở ngoài khoảng ngày đang xem (từ hôm nay trở đi)
     supabase
@@ -91,15 +92,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       .limit(200),
     supabase.rpc("trip_delegation_info"),
     supabase.rpc("attendance_pending_count"),
+    supabase.rpc("route_pay_gap_count"),
     cancelQ,
   ]);
   const cancelledCount = cancelRes.count ?? 0;
   // Lỗi (ví dụ DB chưa nâng cấp chấm công) thì bỏ qua, không chặn màn Điều phối
   const attPending = attPendingRes.error ? 0 : Number(attPendingRes.data ?? 0);
+  const routeGaps = routeGapRes.error ? 0 : Number(routeGapRes.data ?? 0);
   const delegation = (delegationRes.data ?? null) as DelegationInfo | null;
   if (listRes.error) throw listRes.error;
   if (upcomingRes.error) throw upcomingRes.error;
-  const all = (listRes.data ?? []) as ShipmentListRow[];
+  const all = await attachDriverPay(supabase, (listRes.data ?? []) as ShipmentListRow[]);
   const term = f.q.toLowerCase();
   const upcoming = ((upcomingRes.data ?? []) as ShipmentListRow[]).filter(
     (r) =>
@@ -201,6 +204,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       {me.permissions.has("reports.view") ? <ReportLinks /> : null}
 
       <DelegateNotice info={delegation} />
+      {routeGaps > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          <span>
+            <b>{routeGaps}</b> tuyến mới (có chuyến trong 30 ngày) chưa có giá lương chuyến riêng, đang lấy giá mặc định hoặc chưa có giá.
+          </span>
+          <Link href="/dieu-phoi/tuyen-chua-gia" className="font-medium text-primary hover:underline">
+            Điền giá lương chuyến
+          </Link>
+        </div>
+      ) : null}
       {attPending > 0 ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           <span>

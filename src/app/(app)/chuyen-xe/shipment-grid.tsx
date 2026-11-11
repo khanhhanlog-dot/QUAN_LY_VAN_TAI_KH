@@ -1,4 +1,5 @@
 "use client";
+import { DriverPayCell } from "@/components/dispatch/driver-pay-cell";
 import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -88,6 +89,7 @@ const COLS: Col[] = [
     render: (r) => (r.offroute_return_name ? <span className="font-medium text-amber-700 dark:text-amber-400">{r.offroute_return_name}</span> : null),
   },
   { key: "trip_order", label: "Thứ tự chuyến", width: 90, align: "right", render: (r) => (r.trip_order ? formatNumber(r.trip_order) : "") },
+  { key: "driver_pay", label: "Lương chuyến", width: 110, align: "right", render: (r) => <DriverPayCell r={r} /> },
   {
     key: "delivery_days",
     label: "Số ngày giao",

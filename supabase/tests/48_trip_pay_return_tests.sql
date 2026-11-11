@@ -5,7 +5,6 @@
 \set QUIET 1
 \o /dev/null
 reset role;
-\i supabase/migrations/20261108000065_trip_pay_return_percent.sql
 
 create temp table t_rt (k text primary key, v text);
 grant all on t_rt to authenticated;
