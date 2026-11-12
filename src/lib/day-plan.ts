@@ -33,7 +33,7 @@ export const DAY_PLAN_COLUMNS: { key: keyof DayPlanRow; label: string; group?: s
   { key: "kind", label: "Loại hình", xl: 10, px: 100 },
   { key: "pickup", label: "Nơi lấy cont", group: "Tuyến vận tải", xl: 16, px: 150 },
   { key: "stuffing", label: "Nơi đóng hàng", group: "Tuyến vận tải", xl: 32, px: 280 },
-  { key: "dropoff", label: "Nơi hạ hàng", group: "Tuyến vận tải", xl: 16, px: 150 },
+  { key: "dropoff", label: "Nơi hạ", group: "Tuyến vận tải", xl: 16, px: 150 },
 ];
 
 /** Loại cont 20 hoặc 40 (45 tính vào 40) đọc từ tên loại xe/loại cont, ví dụ "Cont 40", "40HC", "20'" */
@@ -51,3 +51,12 @@ export const CONTAINER_FIELD_RE = /^\s*s[oố]\s*(cont|container)\b/i;
 export const PICKUP_FIELD_RE = /(n[oơ]i|đi[eể]m)\s*l[aấ]y\s*(cont|container|r[oỗ]ng)/i;
 export const STUFFING_FIELD_RE = /(n[oơ]i|đi[eể]m|kho)\s*(đ[oó]ng|r[uú]t)\s*h[aà]ng/i;
 export const DROPOFF_FIELD_RE = /(n[oơ]i|đi[eể]m)\s*h[aạ]\s*(h[aà]ng|cont|container)/i;
+
+/** Dòng tổng dưới bảng: tổng cont 20, tổng cont 40, Total = cont 20 + cont 40 */
+export function dayPlanTotals(rows: DayPlanRow[]) {
+  const c20 = rows.reduce((a, r) => a + (r.c20 ?? 0), 0);
+  const c40 = rows.reduce((a, r) => a + (r.c40 ?? 0), 0);
+  return { c20, c40, total: c20 + c40 };
+}
+/** Vị trí cột cont 20 (cột 40 ngay sau) */
+export const C20_INDEX = DAY_PLAN_COLUMNS.findIndex((c) => c.key === "c20");

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { exportDayPlan, loadDayPlan } from "@/app/(app)/dieu-phoi/day-plan-actions";
-import { DAY_PLAN_ADDRESS, DAY_PLAN_COLUMNS, DAY_PLAN_TITLE, type DayPlan } from "@/lib/day-plan";
+import { C20_INDEX, DAY_PLAN_ADDRESS, DAY_PLAN_COLUMNS, DAY_PLAN_TITLE, dayPlanTotals, type DayPlan } from "@/lib/day-plan";
 import { cellText, drawPlan } from "./day-plan-image";
 
 const STORE = "dayPlanHeader.v1";
@@ -188,12 +188,32 @@ export function DayPlanButton() {
                       </td>
                     </tr>
                   ) : null}
+                  {(() => {
+                    const sum = dayPlanTotals(plan.rows);
+                    const rest = DAY_PLAN_COLUMNS.length - C20_INDEX - 2;
+                    const td = "border border-black/60 bg-[#DCE6F1] px-1 py-1 font-semibold";
+                    return (
+                      <>
+                        <tr>
+                          <td colSpan={C20_INDEX} className={td}>Tổng</td>
+                          <td className={td}>{sum.c20}</td>
+                          <td className={td}>{sum.c40}</td>
+                          {rest > 0 ? <td colSpan={rest} className={td} /> : null}
+                        </tr>
+                        <tr>
+                          <td colSpan={C20_INDEX} className={td}>TOTAL</td>
+                          <td colSpan={2} className={td}>{sum.total}</td>
+                          {rest > 0 ? <td colSpan={rest} className={td} /> : null}
+                        </tr>
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Nơi lấy cont = Điểm nhận, Nơi đóng hàng = Điểm giao, Nơi hạ hàng = Điểm hạ rỗng (hoặc hạ rỗng trái tuyến). Cont 20/40 lấy theo Loại cont. Loại hình và Số cont lấy từ trường bổ sung &quot;Loại hình...&quot; và &quot;Số cont&quot; của chuyến hoặc đơn (nếu chưa có trường Số cont, hệ thống tìm số cont trong hàng hóa và ghi chú).
+            Nơi lấy cont = Điểm nhận, Nơi đóng hàng = Điểm giao, Nơi hạ = Điểm hạ rỗng (hoặc hạ rỗng trái tuyến). Cont 20/40 lấy theo Loại cont, dòng Total = tổng cont 20 + tổng cont 40. Loại hình và Số cont lấy từ trường bổ sung &quot;Loại hình...&quot; và &quot;Số cont&quot; của chuyến hoặc đơn (nếu chưa có trường Số cont, hệ thống tìm số cont trong hàng hóa và ghi chú).
           </p>
           <DialogFooter className="gap-2">
             <Button variant="outline" disabled={busy || copying} onClick={doCopy}>

@@ -15,7 +15,9 @@ import {
   DROPOFF_FIELD_RE,
   PICKUP_FIELD_RE,
   STUFFING_FIELD_RE,
+  C20_INDEX,
   contSize,
+  dayPlanTotals,
   type DayPlan,
   type DayPlanRow,
 } from "@/lib/day-plan";
@@ -156,6 +158,32 @@ export async function exportDayPlan(date: string, address: string, title: string
       });
       xr.height = 22;
     });
+    // Dòng tổng: "Tổng" từng loại cont, "TOTAL" = cont 20 + cont 40 (gộp ô dưới hai cột)
+    const sum = dayPlanTotals(plan.rows);
+    const c20 = C20_INDEX + 1;
+    const fr = h2 + 1 + plan.rows.length;
+    ws.mergeCells(fr, 1, fr, c20 - 1);
+    ws.mergeCells(fr + 1, 1, fr + 1, c20 - 1);
+    ws.mergeCells(fr + 1, c20, fr + 1, c20 + 1);
+    if (c20 + 2 <= n) {
+      ws.mergeCells(fr, c20 + 2, fr, n);
+      ws.mergeCells(fr + 1, c20 + 2, fr + 1, n);
+    }
+    ws.getCell(fr, 1).value = "Tổng";
+    ws.getCell(fr, c20).value = sum.c20;
+    ws.getCell(fr, c20 + 1).value = sum.c40;
+    ws.getCell(fr + 1, 1).value = "TOTAL";
+    ws.getCell(fr + 1, c20).value = sum.total;
+    for (const r of [fr, fr + 1]) {
+      ws.getRow(r).height = 22;
+      for (let c = 1; c <= n; c++) {
+        const cell = ws.getCell(r, c);
+        cell.font = { ...font, bold: true };
+        cell.alignment = center;
+        cell.border = border;
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
+      }
+    }
     ws.views = [{ state: "frozen", ySplit: h2 }];
     const buf = await wb.xlsx.writeBuffer();
     return {

@@ -1,4 +1,4 @@
-import { DAY_PLAN_COLUMNS, type DayPlan, type DayPlanRow } from "@/lib/day-plan";
+import { C20_INDEX, DAY_PLAN_COLUMNS, dayPlanTotals, type DayPlan, type DayPlanRow } from "@/lib/day-plan";
 
 export const cellText = (r: DayPlanRow, k: keyof DayPlanRow) => (r[k] === null || r[k] === undefined ? "" : String(r[k]));
 
@@ -32,7 +32,8 @@ export function drawPlan(plan: DayPlan, address: string, title: string, dateLabe
   const top = 112;
   const hdr1 = 36;
   const hdr2 = 44;
-  const height = top + hdr1 + hdr2 + rowH.reduce((a, b) => a + b, 0) + 16;
+  const footH = 34;
+  const height = top + hdr1 + hdr2 + rowH.reduce((a, b) => a + b, 0) + footH * 2 + 16;
 
   const cv = document.createElement("canvas");
   cv.width = (width + 2) * scale;
@@ -98,9 +99,28 @@ export function drawPlan(plan: DayPlan, address: string, title: string, dateLabe
     });
     y += rowH[ri];
   });
-  if (!plan.rows.length) {
-    g.font = `italic 14px ${font}`;
-    g.fillText("Chưa có chuyến nào trong ngày này.", width / 2, y + 4);
+  // Dòng tổng: "Tổng" từng loại cont, rồi "TOTAL" = cont 20 + cont 40 (gộp ô dưới hai cột)
+  const sum = dayPlanTotals(plan.rows);
+  const left = cols.slice(0, C20_INDEX).reduce((a, c) => a + c.px, 0);
+  const w20 = cols[C20_INDEX].px;
+  const w40 = cols[C20_INDEX + 1].px;
+  const rest = width - left - w20 - w40;
+  const foot = "#DCE6F1";
+  g.font = `bold 14px ${font}`;
+  for (const [label, cells] of [
+    ["Tổng", [[w20, String(sum.c20)], [w40, String(sum.c40)]]],
+    ["TOTAL", [[w20 + w40, String(sum.total)]]],
+  ] as [string, [number, string][]][]) {
+    box(0, y, left, footH, foot);
+    text([label], 0, y, left, footH);
+    x = left;
+    for (const [w, v] of cells) {
+      box(x, y, w, footH, foot);
+      text([v], x, y, w, footH);
+      x += w;
+    }
+    if (rest > 0) box(x, y, rest, footH, foot);
+    y += footH;
   }
   return cv;
 }
