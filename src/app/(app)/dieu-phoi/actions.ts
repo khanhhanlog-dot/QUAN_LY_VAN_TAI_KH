@@ -1381,26 +1381,27 @@ export async function correctShipmentCrew(input: z.input<typeof crewSchema>): Pr
 
 const orderOnlySchema = z.object({ shipmentId: uuid, order: dayOrder.nullable() });
 
-const routeRatesSchema = z.object({
+const tripPaysSchema = z.object({
   rows: z
-    .array(z.object({ a: uuid, b: uuid, amount: z.number().min(0, "Lương mỗi chuyến không âm").max(100_000_000, "Lương mỗi chuyến quá lớn") }))
-    .min(1, "Nhập lương mỗi chuyến cho ít nhất một tuyến")
-    .max(1000),
+    .array(z.object({ id: uuid, amount: z.number().min(0, "Lương chuyến không âm").max(100_000_000, "Lương chuyến quá lớn"), note: z.string().max(300).optional() }))
+    .min(1, "Nhập lương chuyến cho ít nhất một chuyến")
+    .max(2000, "Mỗi lần lưu tối đa 2,000 chuyến"),
 });
 
-/** Điều phối / kế toán điền giá lương chuyến cho các tuyến chưa có giá (lấy từ các chuyến) */
-export async function saveRoutePayRates(input: z.input<typeof routeRatesSchema>): Promise<ActionResult<number>> {
+/** Điều phối / kế toán nhập lương chuyến cho nhiều chuyến một lần */
+export async function saveShipmentDriverPays(input: z.input<typeof tripPaysSchema>): Promise<ActionResult<number>> {
   return runAction(async () => {
     await requirePermission("dispatch.update", "settlements.update");
-    const p = routeRatesSchema.safeParse(input);
+    const p = tripPaysSchema.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("save_route_pay_rates", { p_rows: p.data.rows });
+    const { data, error } = await supabase.rpc("save_shipment_driver_pays", { p_rows: p.data.rows });
     if (error) throw error;
     revalidatePath("/dieu-phoi", "layout");
+    revalidatePath("/chuyen-xe", "layout");
     revalidatePath("/luong-tai-xe");
     return data as number;
-  }, "Đã lưu giá lương chuyến");
+  }, "Đã lưu lương chuyến");
 }
 
 const driverPaySchema = z.object({
@@ -1409,10 +1410,10 @@ const driverPaySchema = z.object({
   note: z.string().max(300).optional(),
 });
 
-/** Kế toán sửa tay lương một chuyến (amount null = theo đơn giá) */
+/** Điều phối / kế toán nhập lương chuyến cho tài xế ngay trên chuyến (amount null = xóa số đã nhập) */
 export async function setShipmentDriverPay(input: z.input<typeof driverPaySchema>): Promise<ActionResult> {
   return runAction(async () => {
-    await requirePermission("settlements.update");
+    await requirePermission("dispatch.update", "settlements.update");
     const p = driverPaySchema.safeParse(input);
     if (!p.success) throw new ActionError(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
     const supabase = await createClient();
@@ -1421,7 +1422,7 @@ export async function setShipmentDriverPay(input: z.input<typeof driverPaySchema
     revalidatePath("/dieu-phoi", "layout");
     revalidatePath("/chuyen-xe", "layout");
     revalidatePath("/luong-tai-xe");
-  }, input.amount === null ? "Đã trả lương chuyến về theo đơn giá" : "Đã sửa tay lương chuyến");
+  }, input.amount === null ? "Đã xóa lương chuyến đã nhập" : "Đã lưu lương chuyến");
 }
 
 const deliveryDaysSchema = z.object({ shipmentId: uuid, days: z.number().int().min(1, "Số ngày giao từ 1 đến 60").max(60, "Số ngày giao từ 1 đến 60").nullable() });

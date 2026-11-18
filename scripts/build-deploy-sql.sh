@@ -187,3 +187,5 @@ upgrade nang-cap-ly-do-ngay-cong.sql "Danh mục lý do ngày công (thai sản,
   supabase/migrations/20261111000072_attendance_reasons.sql
 upgrade nang-cap-dien-gia-tuyen.sql "Lấy tuyến từ các chuyến để điền giá lương chuyến, cột lương chuyến, sửa tay lương chuyến" "to_regprocedure('public.route_pay_gaps(integer)') is not null" \
   supabase/migrations/20261111000073_route_pay_fill.sql
+upgrade nang-cap-luong-chuyen-nhap-tay.sql "Lương chuyến do điều phối nhập theo từng chuyến (bỏ bảng giá cố định), lương cơ bản giữ như cũ" "to_regprocedure('public.save_shipment_driver_pays(jsonb)') is not null" \
+  supabase/migrations/20261118000074_trip_pay_entered.sql

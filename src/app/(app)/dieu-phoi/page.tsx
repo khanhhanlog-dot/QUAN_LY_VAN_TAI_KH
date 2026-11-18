@@ -92,7 +92,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       .limit(200),
     supabase.rpc("trip_delegation_info"),
     supabase.rpc("attendance_pending_count"),
-    supabase.rpc("route_pay_gap_count"),
+    supabase.rpc("trip_pay_missing_count"),
     cancelQ,
   ]);
   const cancelledCount = cancelRes.count ?? 0;
@@ -207,10 +207,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       {routeGaps > 0 ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           <span>
-            <b>{routeGaps}</b> tuyến mới (có chuyến trong 30 ngày) chưa có giá lương chuyến riêng, đang lấy giá mặc định hoặc chưa có giá.
+            <b>{routeGaps}</b> chuyến xe nội bộ (ngày nhận trong 60 ngày gần đây) chưa nhập lương chuyến cho tài xế.
           </span>
-          <Link href="/dieu-phoi/tuyen-chua-gia" className="font-medium text-primary hover:underline">
-            Điền giá lương chuyến
+          <Link href="/dieu-phoi/luong-chuyen" className="font-medium text-primary hover:underline">
+            Nhập lương chuyến
           </Link>
         </div>
       ) : null}

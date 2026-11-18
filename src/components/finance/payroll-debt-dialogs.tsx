@@ -109,7 +109,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
         ) : null}
         <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,20rem)]">
           <div className="grid content-start gap-3 sm:grid-cols-2">
-            <Field label="Tài xế *" htmlFor="pr-driver" help="Mức lương lấy từ Lương tài xế (đơn giá lương chuyến, mức lương theo khoản); chưa thiết lập thì lấy từ hồ sơ tài xế">
+            <Field label="Tài xế *" htmlFor="pr-driver" help="Lương chuyến = tổng số điều phối nhập cho từng chuyến; lương cơ bản, phụ cấp lấy từ Mức lương theo tài xế (chưa thiết lập thì lấy từ hồ sơ tài xế)">
               <ReferenceSelect id="pr-driver" refKey="drivers_internal" value={driver} onChange={(v) => setDriver(v)} />
             </Field>
             <Field label="Tháng *" htmlFor="pr-month" help="Tính các chuyến hoàn thành trong tháng này">
@@ -221,9 +221,9 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                 ) : null}
                 {p.trips_missing_rate ? (
                   <p className="mt-2 text-xs text-destructive">
-                    {p.trips_missing_rate} chuyến chưa có đơn giá lương nên đang tính 0 đồng.{" "}
-                    <a href="/luong-tai-xe?tab=trip_pay_lines" target="_blank" rel="noreferrer" className="underline">
-                      Xem bảng kê, bổ sung đơn giá
+                    {p.trips_missing_rate} chuyến chưa nhập lương chuyến nên đang tính 0 đồng.{" "}
+                    <a href="/dieu-phoi/luong-chuyen" target="_blank" rel="noreferrer" className="underline">
+                      Nhập lương chuyến
                     </a>
                   </p>
                 ) : null}
@@ -245,7 +245,7 @@ export function CreatePayrollDialog({ open, onOpenChange, customRows, canAddFiel
                 const r = await createPayrollsForMonth({ month });
                 if (!r.ok) return void toast.error(r.error);
                 toast.success(`Đã lập ${r.data?.created ?? 0} bảng lương${r.data?.skipped ? `, bỏ qua ${r.data.skipped} tài xế đã có` : ""}`);
-                if (r.data?.trips_missing_rate) toast.warning(`${r.data.trips_missing_rate} chuyến chưa có đơn giá lương (tính 0 đồng). Xem Lương tài xế → Bảng kê lương chuyến.`);
+                if (r.data?.trips_missing_rate) toast.warning(`${r.data.trips_missing_rate} chuyến chưa nhập lương chuyến (tính 0 đồng). Nhập ở Điều phối → Nhập lương chuyến.`);
                 onDone();
               })
             }

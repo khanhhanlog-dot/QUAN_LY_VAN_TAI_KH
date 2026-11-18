@@ -18,8 +18,6 @@ type SP = Record<string, string | string[] | undefined>;
 const GUIDE = "huong-dan";
 const TABS: { key: string; label?: string }[] = [
   { key: GUIDE, label: "Hướng dẫn, thiết lập chung" },
-  { key: "trip_pay_rates" },
-  { key: "pay_zones" },
   { key: "pay_components" },
   { key: "driver_pay_matrix" },
   { key: "pay_holidays", label: "Ngày nghỉ lễ" },
@@ -30,9 +28,6 @@ const TABS: { key: string; label?: string }[] = [
 
 /** Gợi ý ngắn trên từng tab để người mới biết phải làm gì */
 const HINTS: Record<string, string> = {
-  trip_pay_rates:
-    "App tìm giá cho mỗi chuyến theo thứ tự: giá riêng tài xế → tuyến Điểm 1 ↔ Điểm 2 (tính cả chiều ngược lại) → một địa điểm → vùng → giá mặc định. Chỉ cần khai các tuyến có giá khác giá mặc định. Để trống Loại cont = cont 20 và 40 cùng giá. Cột % chiều về để trống = theo Thiết lập chung. Nhiều dòng thì bấm Nhập Excel, tải file mẫu (có sheet Ví dụ) rồi nhập.",
-  pay_zones: "Nhóm các địa điểm có cùng lương chuyến (ví dụ Bến Tre, Đồng Tháp 1,000,000). Gán vùng cho từng địa điểm ở Khách hàng và địa điểm → Địa điểm.",
   pay_components:
     "Các khoản trên bảng lương. Lương cơ bản và Lương chuyến là khoản có sẵn. Khoản có Mức mặc định áp cho mọi tài xế; muốn mỗi người một mức thì nhập ở tab Mức lương theo tài xế. Bốc xếp, vá vỏ, vệ sinh cont không đặt ở đây: tài xế nhập chi phí trong chuyến, bảng lương tự hoàn.",
   driver_pay_matrix:
@@ -41,7 +36,7 @@ const HINTS: Record<string, string> = {
   attendance_reasons:
     "Các lý do điều phối chọn trên bảng Chấm công tài xế. Thêm lý do mới bằng nút Thêm mới, chọn Tính lương như để bảng lương biết có tính công, có trừ lương cơ bản không. Lý do có sẵn đổi tên được, không xóa.",
   trip_pay_lines:
-    "Các chuyến tài xế công ty đã hoàn thành và lương chuyến app tính được. Lọc Chưa có đơn giá để bổ sung giá trước khi lập bảng lương.",
+    "Các chuyến tài xế công ty đã hoàn thành và lương chuyến điều phối đã nhập. Lọc Chưa nhập lương rồi nhập ở Điều phối → Nhập lương chuyến trước khi lập bảng lương.",
   payrolls: "Lập bảng lương tháng theo các thiết lập ở các tab trước, gửi Giám đốc duyệt, rồi chi trả.",
 };
 
@@ -53,16 +48,10 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
     example: "Anh Nam: Lương cơ bản + chuyến.",
   },
   {
-    title: "Khai Vùng lương và gán vùng cho địa điểm",
-    tab: "pay_zones",
-    body: "Thêm các vùng có lương chuyến khác giá mặc định, rồi mở từng địa điểm giao hàng chọn ô Vùng lương. Bỏ qua bước này nếu chỉ tính theo tuyến.",
-    example: "Vùng Bến Tre, Đồng Tháp; địa điểm KCN Giao Long chọn vùng Bến Tre, Đồng Tháp.",
-  },
-  {
-    title: "Nhập Đơn giá lương chuyến",
-    tab: "trip_pay_rates",
-    body: "Dòng đầu tiên là giá mặc định (để trống Điểm 1, Điểm 2, Vùng). Sau đó bấm Lấy tuyến từ các chuyến để điền giá cho từng tuyến đã chạy, không phải tự nhập tuyến. Thêm giá vùng, địa điểm đặc biệt nếu cần. Chiều về rẻ hơn thì đặt % chiều về. Nhiều tuyến thì dùng Nhập Excel với file mẫu.",
-    example: "Mặc định 700,000 · Vùng Bến Tre 1,000,000 · Địa điểm Sân bay TSN 1,150,000 · Tuyến Cát Lái ↔ Kho Hương Lộ 80 là 750,000.",
+    title: "Điều phối nhập Lương chuyến cho từng chuyến",
+    href: "/dieu-phoi/luong-chuyen",
+    body: "Không cần bảng giá cố định. Ở Điều phối hoặc Quản lý chuyến, bấm vào ô Lương chuyến của chuyến và nhập số tiền trả tài xế. Nhập nhiều chuyến một lần ở trang Nhập lương chuyến: ô trống có gợi ý = số đã nhập lần trước cho cùng tuyến, bấm Áp gợi ý để điền nhanh. Điều phối thấy cảnh báo khi còn chuyến chưa nhập.",
+    example: "Chuyến SNOV-0187 Cát Lái → KCN Giao Long: nhập 1,000,000.",
   },
   {
     title: "Xem lại Khoản lương",
@@ -85,8 +74,8 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
   {
     title: "Kiểm tra Bảng kê lương chuyến",
     tab: "trip_pay_lines",
-    body: "Lọc Chưa có đơn giá. Chuyến nào chưa có giá thì thêm dòng ở Đơn giá lương chuyến, bảng kê tự cập nhật.",
-    example: "Cột Giá lấy từ cho biết giá đến từ tuyến, địa điểm, vùng hay giá mặc định.",
+    body: "Lọc Chưa nhập lương. Chuyến nào chưa nhập thì điều phối nhập ở Nhập lương chuyến, bảng kê tự cập nhật.",
+    example: "Cột Lương lấy từ cho biết số do điều phối nhập hay lấy từ hồ sơ tài xế (cũ).",
   },
   {
     title: "Xác nhận Chấm công tài xế",
@@ -98,7 +87,7 @@ const STEPS: { title: string; tab?: string; href?: string; body: string; example
     title: "Lập Bảng lương",
     tab: "payrolls",
     body: "Bấm Thêm mới, chọn tài xế và tháng, xem từng khoản bên phải, nhập thưởng / khấu trừ nếu có, rồi gửi Giám đốc duyệt. Hoặc bấm Lập cho tất cả tài xế.",
-    example: "Lương chuyến = tổng đơn giá các chuyến hoàn thành trong tháng; hoàn chi phí bốc xếp, nâng hạ lấy từ chi phí tài xế đã duyệt.",
+    example: "Lương chuyến = tổng lương chuyến điều phối đã nhập cho các chuyến hoàn thành trong tháng; hoàn chi phí bốc xếp, nâng hạ lấy từ chi phí tài xế đã duyệt.",
   },
 ];
 
@@ -121,7 +110,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     <>
       <PageHeader
         title="Lương tài xế"
-        description="Thiết lập đơn giá lương chuyến, phụ cấp và mức lương từng tài xế; app tự tính lương chuyến từ các chuyến đã hoàn thành."
+        description="Lương cơ bản, phụ cấp thiết lập theo từng tài xế; lương chuyến = tổng số điều phối nhập cho từng chuyến đã hoàn thành."
       />
       <div className="mb-4 flex gap-1 overflow-x-auto border-b">
         {allowed.map((t) => (
@@ -141,7 +130,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Các bước thiết lập (làm một lần, sau đó chỉ cập nhật khi đổi giá)</CardTitle>
+              <CardTitle className="text-base">Các bước thiết lập và làm hằng tháng</CardTitle>
             </CardHeader>
             <CardContent>
               <ol className="space-y-4">
@@ -173,7 +162,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
                 <CardTitle className="text-base">App tính lương thế nào</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <p>Chuyến được tính lương khi đã hoàn thành, vào tháng của ngày hoàn thành. Chuyến chiều về = đơn giá × % chiều về.</p>
+                <p>Lương chuyến = tổng Lương chuyến điều phối nhập cho các chuyến đã hoàn thành, vào tháng của ngày hoàn thành. Lương cơ bản lấy theo Mức lương theo tài xế như cũ.</p>
                 <p>Ngày công (tính tiền ăn mỗi ngày...) = số ngày Đi làm trên bảng Chấm công tài xế.</p>
                 <p>Nếu bật trừ lương cơ bản: Lương cơ bản × (ngày công chuẩn − ngày nghỉ không lương − ngày nghỉ không báo) ÷ ngày công chuẩn.</p>
                 <p>Tổng được nhận = các khoản cộng − các khoản trừ + thưởng − khấu trừ + hoàn chi phí tài xế tự trả đã duyệt.</p>
@@ -186,13 +175,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       ) : (
         <>
           {HINTS[active] ? <p className="mb-3 text-sm text-muted-foreground">{HINTS[active]}</p> : null}
-          {active === "trip_pay_rates" ? (
-            <div className="mb-3">
-              <Link href="/dieu-phoi/tuyen-chua-gia" className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
-                Lấy tuyến từ các chuyến (điền giá cho tuyến chưa có giá)
-              </Link>
-            </div>
-          ) : null}
           <EntityListSection key={active} entityKey={active} searchParams={sp} revalidate="/luong-tai-xe" />
         </>
       )}

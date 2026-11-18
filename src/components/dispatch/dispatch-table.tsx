@@ -240,9 +240,9 @@ const BASE_COLS: Col[] = [
     label: "Lương chuyến",
     width: 110,
     align: "right",
-    hint: "Lương tài xế của chuyến, tự lấy từ Lương tài xế → Đơn giá lương chuyến (tuyến, địa điểm, vùng, giá mặc định). Chữ đỏ Chưa có giá: bấm để điền giá cho tuyến. Số có dấu * là kế toán đã sửa tay.",
+    hint: "Lương trả tài xế cho chuyến này, điều phối bấm vào ô để nhập (ví dụ 900,000). Chữ đỏ Nhập = chưa nhập, số trong ngoặc là gợi ý cùng tuyến lần trước. Bảng lương tháng cộng các số này thành lương chuyến.",
     sort: (r) => r.driver_pay ?? null,
-    text: (r) => (r.driver_pay_source === "missing" ? "Chưa có giá" : (r.driver_pay ?? null)),
+    text: (r) => (r.driver_pay_source === "missing" ? "Chưa nhập" : (r.driver_pay ?? null)),
     render: () => null,
   },
   {

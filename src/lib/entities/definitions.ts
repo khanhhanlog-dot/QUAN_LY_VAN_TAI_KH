@@ -1290,28 +1290,16 @@ export const ENTITIES: Record<string, EntityDef> = {
       { key: "vehicle_id", label: "Xe", type: "reference", ref: "vehicles", readOnly: true },
       money("pay_amount", "Lương chuyến"),
       {
-        key: "pay_source", label: "Giá lấy từ", type: "select", list: true, filter: true, readOnly: true,
+        key: "pay_source", label: "Lương lấy từ", type: "select", list: true, filter: true, readOnly: true,
         options: [
-          { value: "route", label: "Tuyến", tone: "green" },
-          { value: "place", label: "Địa điểm", tone: "green" },
-          { value: "zone", label: "Vùng", tone: "teal" },
-          { value: "default", label: "Giá mặc định", tone: "gray" },
+          { value: "manual", label: "Điều phối nhập", tone: "green" },
           { value: "driver_legacy", label: "Hồ sơ tài xế (cũ)", tone: "amber" },
           { value: "monthly_only", label: "Lương tháng, không tính chuyến", tone: "gray" },
-          { value: "missing", label: "Chưa có đơn giá", tone: "red" },
+          { value: "missing", label: "Chưa nhập lương", tone: "red" },
         ],
       },
-      {
-        key: "trip_direction", label: "Chiều", type: "select", list: true, filter: true, readOnly: true,
-        options: [
-          { value: "outbound", label: "Đi", tone: "blue" },
-          { value: "return", label: "Về", tone: "purple" },
-        ],
-      },
-      { key: "return_percent", label: "% chiều về", type: "number", list: true, readOnly: true },
-      money("rate_amount", "Đơn giá gốc"),
-      { key: "rate_id", label: "Dòng đơn giá", type: "reference", ref: "trip_pay_rates", readOnly: true },
-      { key: "missing_rate", label: "Chưa có đơn giá", type: "boolean", filter: true, readOnly: true },
+      { key: "pay_note", label: "Ghi chú lương chuyến", type: "text", list: true, readOnly: true },
+      { key: "missing_rate", label: "Chưa nhập lương", type: "boolean", filter: true, readOnly: true },
     ],
   },
   catalog_items: {

@@ -6,17 +6,13 @@ type PayRow = { id: string; amount: number | null; source: string; override: num
 
 /** Nguồn giá lương chuyến hiển thị cho người dùng */
 export const PAY_SOURCE_LABEL: Record<string, string> = {
-  route: "Theo tuyến",
-  place: "Theo địa điểm",
-  zone: "Theo vùng",
-  default: "Giá mặc định",
+  manual: "Điều phối nhập",
   driver_legacy: "Hồ sơ tài xế (cũ)",
   monthly_only: "Lương tháng, không tính chuyến",
-  manual: "Sửa tay",
-  missing: "Chưa có giá",
+  missing: "Chưa nhập lương",
 };
 
-/** Gắn lương chuyến tài xế (theo đơn giá hoặc sửa tay) vào các dòng chuyến đang xem. Lỗi (CSDL chưa nâng cấp) thì bỏ qua. */
+/** Gắn lương chuyến tài xế (điều phối nhập từng chuyến) vào các dòng chuyến đang xem. Lỗi (CSDL chưa nâng cấp) thì bỏ qua. */
 export async function attachDriverPay<T extends ShipmentListRow>(supabase: Supabase, rows: T[]): Promise<T[]> {
   const ids = rows.filter((r) => r.driver_id && r.status !== "cancelled").map((r) => r.id).slice(0, 2000);
   if (!ids.length) return rows;

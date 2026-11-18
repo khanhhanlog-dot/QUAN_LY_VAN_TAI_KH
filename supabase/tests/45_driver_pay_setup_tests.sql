@@ -54,35 +54,17 @@ set role authenticated;
 select tests.assert((pg_temp.pv() ->> 'trip_salary')::numeric = 300000 * (select v::int from t_ps where k = 'trips'), 'Chưa có đơn giá: lương chuyến theo hồ sơ tài xế như cũ');
 select tests.assert((pg_temp.pv() ->> 'base_salary')::numeric = 8000000 and not (pg_temp.pv() ->> 'setup')::boolean, 'Chưa có mức theo khoản: lương cơ bản theo hồ sơ');
 
--- Giá mặc định → vùng → một địa điểm → tuyến (chiều ngược) → riêng tài xế
-insert into public.trip_pay_rates (name, amount) values ('Mặc định', 700000);
-select tests.assert((pg_temp.pv() ->> 'trip_salary')::numeric = 700000 * (select v::int from t_ps where k = 'trips'), 'Giá mặc định 700,000 thay lương chuyến cũ');
-insert into public.pay_zones (name) values ('Bến Tre');
-insert into t_ps select 'zone', id::text from public.pay_zones where name = 'Bến Tre';
-select tests.assert((select code from public.pay_zones where id = (select v::uuid from t_ps where k = 'zone')) like 'VL%', 'Mã vùng tự sinh');
+-- 0074: lương chuyến do điều phối nhập từng chuyến (không tính theo bảng giá cố định)
 reset role;
-update public.locations set pay_zone_id = (select v::uuid from t_ps where k = 'zone') where id = (select v::uuid from t_ps where k = 'del');
+update public.shipments s set driver_pay_override = 1200000
+where s.driver_id = (select v::uuid from t_ps where k = 'drv') and s.status in ('driver_completed', 'closed') and not private.shipment_is_3pl(s.vehicle_id)
+  and date_trunc('month', (s.completed_at at time zone 'Asia/Ho_Chi_Minh'))::date = (select v::date from t_ps where k = 'month');
+reset role;
 select tests.login('00000000-0000-0000-0000-0000000000c1');
 set role authenticated;
-insert into public.trip_pay_rates (zone_id, amount) values ((select v::uuid from t_ps where k = 'zone'), 1000000);
-select tests.assert((public.trip_pay_rate_preview((select v::uuid from t_ps where k = 's')) ->> 'pay_amount')::numeric = 1000000, 'Điểm giao thuộc vùng Bến Tre: 1,000,000');
-select tests.assert((public.trip_pay_rate_preview((select v::uuid from t_ps where k = 's')) ->> 'rate_scope') = 'zone', 'Nguồn giá: vùng');
-insert into public.trip_pay_rates (location_a_id, amount) values ((select v::uuid from t_ps where k = 'del'), 1100000);
-select tests.assert((public.trip_pay_rate_preview((select v::uuid from t_ps where k = 's')) ->> 'pay_amount')::numeric = 1100000, 'Giá riêng một địa điểm thắng giá vùng');
--- Tuyến khai theo chiều ngược lại (Điểm 1 = điểm giao, Điểm 2 = điểm nhận) vẫn khớp
-insert into public.trip_pay_rates (location_a_id, location_b_id, amount)
-values ((select v::uuid from t_ps where k = 'del'), (select v::uuid from t_ps where k = 'pick'), 1150000);
-select tests.assert((public.trip_pay_rate_preview((select v::uuid from t_ps where k = 's')) ->> 'pay_amount')::numeric = 1150000, 'Tuyến (tính cả chiều ngược lại) thắng giá địa điểm');
--- Giá hết hiệu lực không dùng
-insert into public.trip_pay_rates (location_a_id, location_b_id, amount, effective_from, effective_to)
-values ((select v::uuid from t_ps where k = 'pick'), (select v::uuid from t_ps where k = 'del'), 5000000, date '2020-01-01', date '2020-12-31');
-select tests.assert((public.trip_pay_rate_preview((select v::uuid from t_ps where k = 's')) ->> 'pay_amount')::numeric = 1150000, 'Đơn giá đã hết hiệu lực không dùng');
-insert into public.trip_pay_rates (driver_id, amount) values ((select v::uuid from t_ps where k = 'drv'), 1200000);
-select tests.assert((public.trip_pay_rate_preview((select v::uuid from t_ps where k = 's')) ->> 'pay_amount')::numeric = 1200000, 'Giá riêng cho tài xế thắng mọi giá chung');
-select tests.assert_fails($$insert into public.trip_pay_rates (zone_id, location_a_id, amount) values ((select v::uuid from t_ps where k = 'zone'), (select v::uuid from t_ps where k = 'del'), 1)$$,
-  'Không chọn cùng lúc vùng và địa điểm');
-select tests.assert_fails($$insert into public.trip_pay_rates (location_b_id, amount) values ((select v::uuid from t_ps where k = 'del'), 1)$$, 'Có Điểm 2 thì phải có Điểm 1');
-select tests.assert(exists (select 1 from public.trip_pay_lines where id = (select v::uuid from t_ps where k = 's') and pay_amount = 1200000), 'Bảng kê lương chuyến hiện đúng đơn giá');
+insert into public.trip_pay_rates (name, amount) values ('Mặc định (không còn dùng)', 700000);
+select tests.assert((pg_temp.pv() ->> 'trip_salary')::numeric = 1200000 * (select v::int from t_ps where k = 'trips'), 'Lương chuyến = tổng số điều phối nhập (bảng giá cố định không dùng)');
+select tests.assert(exists (select 1 from public.trip_pay_lines where id = (select v::uuid from t_ps where k = 's') and pay_amount = 1200000 and pay_source = 'manual'), 'Bảng kê lương chuyến hiện số điều phối nhập');
 
 -- Mức theo khoản cho tài xế: lương cơ bản 7,000,000, tiền ăn 40,000/ngày, BHXH trừ 100,000, bốc xếp nhập tay
 insert into public.driver_pay_components (driver_id, component_id, amount)
@@ -99,7 +81,7 @@ select tests.assert((select (v::jsonb ->> 'meal_allowance')::numeric from t_ps w
   'Tiền ăn = 40,000 × số ngày công');
 select tests.assert((select (v::jsonb ->> 'other_allowance')::numeric from t_ps where k = 'pv2') = 50000, 'Bốc xếp nhập tay 50,000');
 select tests.assert((select (v::jsonb ->> 'deduction')::numeric from t_ps where k = 'pv2') = 100000, 'Trừ BHXH 100,000');
-select tests.assert((select (v::jsonb ->> 'trip_salary')::numeric from t_ps where k = 'pv2') = 1200000 * (select v::int from t_ps where k = 'trips'), 'Lương chuyến theo đơn giá');
+select tests.assert((select (v::jsonb ->> 'trip_salary')::numeric from t_ps where k = 'pv2') = 1200000 * (select v::int from t_ps where k = 'trips'), 'Lương chuyến theo số điều phối nhập');
 select tests.assert((select jsonb_path_exists(v::jsonb, '$.components[*] ? (@.code == "LCHUYEN")') from t_ps where k = 'pv2'), 'Chi tiết khoản có Lương chuyến');
 select tests.assert(not (select jsonb_path_exists(v::jsonb, '$.components[*] ? (@.code == "PCTRO")') from t_ps where k = 'pv2'), 'Khoản 0 đồng (tiền trọ) không hiện');
 select tests.assert_fails($$select pg_temp.pv(jsonb_build_object('PCBX', -1))$$, 'Khoản nhập tay âm bị từ chối');
@@ -128,7 +110,7 @@ reset role;
 update public.drivers set pay_type = 'base_and_trip' where id = (select v::uuid from t_ps where k = 'drv');
 
 -- Không còn đơn giá nào và hồ sơ không có lương chuyến: báo chuyến chưa có đơn giá
-update public.trip_pay_rates set is_active = false;
+update public.shipments set driver_pay_override = null where driver_id = (select v::uuid from t_ps where k = 'drv');
 update public.drivers set per_trip_salary = 0 where id = (select v::uuid from t_ps where k = 'drv');
 select tests.login('00000000-0000-0000-0000-0000000000c1');
 set role authenticated;
