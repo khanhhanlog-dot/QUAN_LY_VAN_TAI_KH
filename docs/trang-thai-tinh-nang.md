@@ -354,3 +354,9 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Kiểm thử: supabase/tests/50_vehicle_fuel_tests.sql, tests/vehicle-fuel.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-dau-theo-xe.sql (dòng kiểm tra 47).
 - 10/11/2026 (0069): thêm Đơn giá dầu (đồng/lít, trống thì lấy tháng trước của xe, nút "Đơn giá cho mọi xe") và Thành tiền = số chốt × đơn giá (chưa chốt thì tạm tính theo dầu thực tế, chữ nghiêng). Tệp nâng cấp nang-cap-don-gia-dau.sql (dòng kiểm tra 48), kiểm thử 51_vehicle_fuel_price_tests.sql.
 - 10/11/2026: Phân tích dầu (/dau-xe/phan-tich, nút ở Dầu theo xe, không cần SQL): chọn từ tháng–đến tháng; tab So sánh xe (lít/100 km, vượt định mức, so với TB cùng loại, tiền dầu/km, KM/chuyến), Theo tuyến (ước tính: dầu xe/tháng chia cho chuyến theo km tuyến), Theo tháng (lít/100 km từng xe qua các tháng). src/lib/fuel-analysis.ts, tests/fuel-analysis.test.ts.
+
+## Nhập cước nhanh (18/11/2026, không cần SQL)
+- Nút "Nhập cước" ở đầu trang chi tiết chuyến, nút "Cước" ở cột Thao tác (Điều phối, chi tiết đơn hàng) và cạnh Mã chuyến (Quản lý chuyến). Mở một khung: Đơn giá, % hỗ trợ dầu (tiền dầu tính ngay), Phụ phí bảng giá (nếu có), các nhóm phí thu khách (Phí vận chuyển, Chi hộ kèm số hóa đơn + PDF, Tờ khai, Bốc xếp…) dùng lại FeesEditor, tổng từng nhóm và Khách phải trả.
+- Chuyến 3PL (xe thuê ngoài / có nhà xe) có thêm tab "Chi phí trả 3PL" (CarrierCostsEditor, chép phí chi hộ đang nhập sang). Một nút Lưu lưu phần đã đổi: giá (saveQuickFreightPrice), phí thu khách (set_shipment_fees), chi phí 3PL (set_shipment_carrier_costs).
+- Mở khung thì nhận quyền sửa chuyến (khóa 0061); người khác đang sửa thì khung chỉ xem, có nút báo người kia thoát. Chuyến đã lập công nợ phải thu: không sửa giá và phí thu khách.
+- Mã: src/components/dispatch/quick-freight-dialog.tsx, src/lib/finance/quick-freight-actions.ts.

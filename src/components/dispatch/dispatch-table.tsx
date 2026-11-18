@@ -40,6 +40,7 @@ import { DriverPayCell } from "./driver-pay-cell";
 import { CancelDialog, DeleteCancelledButton, RestoreShipmentButton } from "./cancel-dialog";
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 import { DriverInfoButton } from "./driver-info-button";
+import { QuickFreightButton } from "./quick-freight-dialog";
 
 type SortVal = string | number | null | undefined;
 type Col = {
@@ -315,6 +316,7 @@ export function DispatchTable({
   canAddField = false,
   toolbar = true,
   canFillDriver,
+  canFreight,
   exportName,
 }: {
   rows: ShipmentListRow[];
@@ -337,13 +339,16 @@ export function DispatchTable({
   toolbar?: boolean;
   /** Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế (mặc định theo quyền phân công) */
   canFillDriver?: boolean;
+  /** Nút "Cước" mở khung nhập cước, phí thu khách, chi phí 3PL (mặc định theo quyền phân công) */
+  canFreight?: boolean;
   /** Có thì hiện nút Xuất Excel: tên tệp và tiêu đề trong tệp */
   exportName?: { filename: string; title: string };
 }) {
   const fillDriver = canFillDriver ?? canAssign;
+  const freight = canFreight ?? canAssign;
   const [savePending, startSave] = useTransition();
   const [exportPending, startExport] = useTransition();
-  const showActions = canAssign || canCancel || rows.some((r) => r.can_approve_dispatch || r.driver_id);
+  const showActions = canAssign || canCancel || freight || rows.some((r) => r.can_approve_dispatch || r.driver_id);
   const kindCol = extraColumns.find((c) => c.serviceKind);
   const dropCol = extraColumns.find((c) => c.dropOff);
 
@@ -405,7 +410,7 @@ export function DispatchTable({
         sortUndefined: "last" as const,
         cell: ({ row }) =>
           c.key === "actions" ? (
-            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canDelete={canDelete} canFillDriver={fillDriver} />
+            <Actions r={row.original} canAssign={canAssign} canCancel={canCancel} canDelete={canDelete} canFillDriver={fillDriver} canFreight={freight} />
           ) : c.key === "vehicle_day_order" ? (
             <VehicleOrderCell r={row.original} editable={canAssign} />
           ) : c.key === "driver_pay" ? (
@@ -416,7 +421,7 @@ export function DispatchTable({
             c.render(row.original, now)
           ),
       })),
-    [cols, canAssign, canCancel, canDelete, fillDriver, now],
+    [cols, canAssign, canCancel, canDelete, fillDriver, freight, now],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -691,9 +696,24 @@ export function DispatchTable({
   );
 }
 
-function Actions({ r, canAssign, canCancel, canDelete, canFillDriver }: { r: ShipmentListRow; canAssign: boolean; canCancel: boolean; canDelete: boolean; canFillDriver: boolean }) {
+function Actions({
+  r,
+  canAssign,
+  canCancel,
+  canDelete,
+  canFillDriver,
+  canFreight,
+}: {
+  r: ShipmentListRow;
+  canAssign: boolean;
+  canCancel: boolean;
+  canDelete: boolean;
+  canFillDriver: boolean;
+  canFreight: boolean;
+}) {
   return (
     <div className="flex flex-wrap justify-end gap-1">
+      {canFreight && r.status !== "cancelled" ? <QuickFreightButton compact shipmentId={r.id} code={r.shipment_code} /> : null}
       {r.driver_id && r.status !== "cancelled" ? <DriverInfoButton compact shipmentIds={[r.id]} canFill={canFillDriver} /> : null}
       {r.can_approve_dispatch && r.dispatch_approval_request_id ? <TripApprovalButtons compact requestIds={[r.dispatch_approval_request_id]} label={r.shipment_code} /> : null}
       {canAssign && r.dispatch_approval === "rejected" && r.status === "assigned" ? (

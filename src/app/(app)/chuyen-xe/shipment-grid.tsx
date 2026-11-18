@@ -34,6 +34,7 @@ import { ASSIGNED_ROW_CELL, DROP_OFF_RE, SHIPMENT_ADV_FIELDS, isAssignedRow, isL
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
+import { QuickFreightButton } from "@/components/dispatch/quick-freight-dialog";
 
 type Col = {
   key: string;
@@ -266,6 +267,13 @@ export function ShipmentGrid({
         cell: ({ row }) => {
           const r = row.original;
           const editable = canEdit && c.edit && (c.edit === "notes" || !LOCKED_STATUSES.includes(r.status));
+          if (c.key === "shipment_code" && canEdit && r.status !== "cancelled")
+            return (
+              <div className="flex items-center gap-1">
+                <span className="min-w-0 flex-1 truncate">{c.render(r)}</span>
+                <QuickFreightButton compact shipmentId={r.id} code={r.shipment_code} />
+              </div>
+            );
           if (c.key === "driver_name" && r.driver_id)
             return (
               <div className="flex items-center gap-1">

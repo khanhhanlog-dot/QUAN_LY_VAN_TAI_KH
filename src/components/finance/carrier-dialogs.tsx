@@ -70,6 +70,258 @@ const lineAmount = (l: Line) => {
   return q !== null && p !== null ? Math.round(q * p) : 0;
 };
 
+/** Dữ liệu đang nhập của khung chi phí 3PL */
+export type CarrierForm = { supplier: string; invoice: string; due: string; lines: Line[] };
+
+/** Dựng dữ liệu nhập từ các khoản 3PL đã lưu (chưa có thì một dòng Cước 3PL trống) */
+export function carrierFormFrom(p: { supplierId: string | null; invoiceNo: string | null; dueDate: string | null; costs: CarrierCost[] }): CarrierForm {
+  return {
+    supplier: p.supplierId ?? "",
+    invoice: p.invoiceNo ?? "",
+    due: p.dueDate ?? "",
+    lines: p.costs.length
+      ? p.costs.map((c) =>
+          newLine({
+            kind: c.cost_kind,
+            fee_type_id: c.fee_type_id ?? "",
+            fee_label: c.fee_type?.name ?? "",
+            description: c.description,
+            quantity: txt(c.quantity),
+            unit_price: txt(c.unit_price),
+            amount: txt(c.amount),
+            ref_no: c.ref_no ?? "",
+            note: c.note ?? "",
+          }),
+        )
+      : [newLine({ kind: "freight", description: "Cước 3PL" })],
+  };
+}
+
+/** Kiểm tra số và dựng dữ liệu gửi saveCarrierCosts */
+export function carrierFormPayload(shipmentId: string, f: CarrierForm): { error: string } | { input: Parameters<typeof saveCarrierCosts>[0] } {
+  const bad = f.lines.find((l) => [l.amount, l.quantity, l.unit_price].some((s) => s.trim() && n(s) === null));
+  if (bad) return { error: `Số không hợp lệ ở khoản "${bad.description || CARRIER_KIND_LABEL[bad.kind]}"` };
+  return {
+    input: {
+      shipmentId,
+      supplierId: f.supplier || null,
+      invoiceNo: f.invoice,
+      dueDate: f.due || null,
+      lines: f.lines
+        .filter((l) => lineAmount(l) > 0)
+        .map((l) => ({
+          kind: l.kind,
+          feeTypeId: l.fee_type_id || null,
+          description: l.description,
+          quantity: n(l.quantity),
+          unitPrice: n(l.unit_price),
+          amount: n(l.amount) ?? lineAmount(l),
+          refNo: l.ref_no,
+          note: l.note,
+        })),
+    },
+  };
+}
+
+/** Tổng phải trả nhà xe của dữ liệu đang nhập */
+export const carrierFormTotal = (f: CarrierForm) => f.lines.reduce((a, l) => a + lineAmount(l), 0);
+
+/** Phần nhập nhà xe, hóa đơn, các khoản cước / chi hộ / chi phí khác trả 3PL (dùng trong khung riêng và khung Nhập cước nhanh) */
+export function CarrierCostsEditor({
+  value,
+  onChange,
+  supplierLabel,
+  paidAmount,
+  customerPassThrough,
+  idPrefix = "cc-",
+}: {
+  value: CarrierForm;
+  onChange: (f: CarrierForm) => void;
+  supplierLabel: string | null;
+  paidAmount: number;
+  customerPassThrough: CustomerPassThrough[];
+  idPrefix?: string;
+}) {
+  const total = carrierFormTotal(value);
+  const set = (p: Partial<CarrierForm>) => onChange({ ...value, ...p });
+  const setLines = (lines: Line[]) => set({ lines });
+  const patch = (key: number, p: Partial<Line>) => setLines(value.lines.map((l) => (l.key === key ? { ...l, ...p } : l)));
+
+  const copyPassThrough = () => {
+    if (!customerPassThrough.length) return void toast.info("Chuyến chưa có phí chi hộ thu khách để chép.");
+    const have = new Set(value.lines.filter((l) => l.kind === "pass_through").map((l) => l.fee_type_id));
+    const add = customerPassThrough
+      .filter((f) => !have.has(f.fee_type_id))
+      .map((f) =>
+        newLine({
+          kind: "pass_through",
+          fee_type_id: f.fee_type_id,
+          fee_label: f.name,
+          description: f.name,
+          amount: formatNumber(Number(f.amount)),
+          ref_no: f.ref_no ?? "",
+          note: f.note ?? "",
+        }),
+      );
+    if (!add.length) return void toast.info("Các phí chi hộ thu khách đã có trong danh sách.");
+    setLines([...value.lines.filter((l) => lineAmount(l) > 0 || l.description.trim()), ...add]);
+  };
+
+  return (
+    <>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}supplier`}>Nhà xe 3PL nhận tiền *</Label>
+        <ReferenceSelect id={`${idPrefix}supplier`} refKey="suppliers" value={value.supplier} initialLabel={supplierLabel ?? ""} onChange={(v) => set({ supplier: v })} />
+        <p className="text-xs text-muted-foreground">
+          Tự điền theo xe (Phương tiện → Nhà xe 3PL). Chưa có thì gõ tên để thêm mới.{paidAmount > 0 ? " Đã trả tiền thì không đổi nhà xe được." : ""}
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}invoice`}>Số hóa đơn / bảng kê của nhà xe</Label>
+        <Input id={`${idPrefix}invoice`} value={value.invoice} onChange={(e) => set({ invoice: e.target.value })} maxLength={100} placeholder="Ví dụ 0001234" />
+        <p className="text-xs text-muted-foreground">Không bắt buộc, để đối chiếu khi nhà xe gửi hóa đơn.</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}due`}>Hạn trả</Label>
+        <Input id={`${idPrefix}due`} type="date" value={value.due} onChange={(e) => set({ due: e.target.value })} />
+        <p className="text-xs text-muted-foreground">Để trống: ngày chuyến + số ngày công nợ của nhà xe (danh mục Nhà cung cấp).</p>
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <div className="hidden gap-1.5 px-1 text-xs font-medium text-muted-foreground lg:grid lg:grid-cols-[8.5rem_minmax(0,1fr)_5rem_7rem_8rem_7rem_minmax(0,9rem)_2rem]">
+        <span>Loại khoản</span>
+        <span>Nội dung</span>
+        <span>SL</span>
+        <span>Đơn giá</span>
+        <span>Số tiền (đ)</span>
+        <span>Số HĐ/chứng từ</span>
+        <span>Ghi chú</span>
+        <span />
+      </div>
+      {value.lines.map((l, i) => (
+        <div key={l.key} className="grid gap-1.5 rounded-lg border p-2 lg:grid-cols-[8.5rem_minmax(0,1fr)_5rem_7rem_8rem_7rem_minmax(0,9rem)_2rem] lg:items-start lg:border-0 lg:p-0">
+          <NativeSelect
+            aria-label={`Loại khoản dòng ${i + 1}`}
+            className="h-8"
+            value={l.kind}
+            onChange={(e) => patch(l.key, { kind: e.target.value as CarrierKind })}
+          >
+            <option value="freight">Cước 3PL</option>
+            <option value="pass_through">Chi hộ 3PL</option>
+            <option value="other">Chi phí khác</option>
+          </NativeSelect>
+          {l.kind === "pass_through" ? (
+            <div>
+              <ReferenceSelect
+                id={`${idPrefix}fee-${l.key}`}
+                refKey="fee_types"
+                value={l.fee_type_id}
+                initialLabel={l.fee_label}
+                onChange={(id, label) => patch(l.key, { fee_type_id: id, fee_label: label, description: label || l.description })}
+              />
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Chọn loại phí (Phí nâng, Phí hạ, Phí cược…) để đối chiếu với chi hộ thu khách</p>
+            </div>
+          ) : (
+            <Input
+              aria-label={`Nội dung dòng ${i + 1}`}
+              className="h-8"
+              maxLength={200}
+              placeholder={l.kind === "freight" ? "Cước 3PL" : "Ví dụ: Neo xe, bốc xếp"}
+              value={l.description}
+              onChange={(e) => patch(l.key, { description: e.target.value })}
+            />
+          )}
+          <Input
+            aria-label={`Số lượng dòng ${i + 1}`}
+            className="h-8 text-right tabular-nums"
+            inputMode="decimal"
+            placeholder="SL"
+            value={l.quantity}
+            onChange={(e) => patch(l.key, { quantity: e.target.value, amount: "" })}
+          />
+          <Input
+            aria-label={`Đơn giá dòng ${i + 1}`}
+            className="h-8 text-right tabular-nums"
+            inputMode="numeric"
+            placeholder="Đơn giá"
+            value={l.unit_price}
+            onChange={(e) => patch(l.key, { unit_price: e.target.value, amount: "" })}
+            onBlur={(e) => {
+              const v = n(e.target.value);
+              if (v !== null) patch(l.key, { unit_price: formatNumber(v) });
+            }}
+          />
+          <Input
+            aria-label={`Số tiền dòng ${i + 1}`}
+            className="h-8 text-right tabular-nums"
+            inputMode="numeric"
+            placeholder={l.quantity && l.unit_price ? formatNumber(lineAmount(l)) : "Ví dụ 3,000,000"}
+            value={l.amount}
+            onChange={(e) => patch(l.key, { amount: e.target.value })}
+            onBlur={(e) => {
+              const v = n(e.target.value);
+              if (v !== null) patch(l.key, { amount: formatNumber(v) });
+            }}
+          />
+          <Input
+            aria-label={`Số hóa đơn dòng ${i + 1}`}
+            className="h-8"
+            maxLength={100}
+            placeholder="Số HĐ"
+            value={l.ref_no}
+            onChange={(e) => patch(l.key, { ref_no: e.target.value })}
+          />
+          <Input
+            aria-label={`Ghi chú dòng ${i + 1}`}
+            className="h-8"
+            maxLength={500}
+            placeholder="Ghi chú"
+            value={l.note}
+            onChange={(e) => patch(l.key, { note: e.target.value })}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="size-8 text-destructive"
+            aria-label={`Xóa dòng ${i + 1}`}
+            onClick={() => setLines(value.lines.filter((x) => x.key !== l.key))}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => setLines([...value.lines, newLine({ kind: value.lines.some((x) => x.kind === "freight") ? "pass_through" : "freight" })])}>
+          <Plus /> Thêm khoản
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={copyPassThrough} disabled={!customerPassThrough.length}>
+          <Copy /> Chép phí chi hộ thu khách
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Nhập Số tiền, hoặc nhập SL × Đơn giá để tự tính. Dòng số tiền bằng 0 bị bỏ qua. Xóa hết các khoản thì công nợ 3PL chưa trả bị hủy.
+      </p>
+    </div>
+
+    <div className="grid gap-1 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-4">
+      {(["freight", "pass_through", "other"] as CarrierKind[]).map((k) => (
+        <div key={k}>
+          <div className="text-xs text-muted-foreground">{CARRIER_KIND_LABEL[k]}</div>
+          <div className="tabular-nums">{formatVND(value.lines.filter((l) => l.kind === k).reduce((a, l) => a + lineAmount(l), 0))}</div>
+        </div>
+      ))}
+      <div>
+        <div className="text-xs text-muted-foreground">Tổng phải trả nhà xe</div>
+        <div className="font-semibold tabular-nums">{formatVND(total)}</div>
+      </div>
+    </div>
+    </>
+  );
+}
+
 /** Nhập cước, chi hộ, chi phí khác phải trả nhà xe 3PL của chuyến */
 export function CarrierCostsDialog(props: {
   shipmentId: string;
@@ -84,80 +336,19 @@ export function CarrierCostsDialog(props: {
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [supplier, setSupplier] = useState(props.supplierId ?? "");
-  const [invoice, setInvoice] = useState(props.invoiceNo ?? "");
-  const [due, setDue] = useState(props.dueDate ?? "");
-  const [lines, setLines] = useState<Line[]>([]);
+  const [form, setForm] = useState<CarrierForm>({ supplier: "", invoice: "", due: "", lines: [] });
   const [pending, start] = useTransition();
-  const total = lines.reduce((a, l) => a + lineAmount(l), 0);
-  const patch = (key: number, p: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
 
   const openDialog = () => {
-    setSupplier(props.supplierId ?? "");
-    setInvoice(props.invoiceNo ?? "");
-    setDue(props.dueDate ?? "");
-    setLines(
-      props.costs.length
-        ? props.costs.map((c) =>
-            newLine({
-              kind: c.cost_kind,
-              fee_type_id: c.fee_type_id ?? "",
-              fee_label: c.fee_type?.name ?? "",
-              description: c.description,
-              quantity: txt(c.quantity),
-              unit_price: txt(c.unit_price),
-              amount: txt(c.amount),
-              ref_no: c.ref_no ?? "",
-              note: c.note ?? "",
-            }),
-          )
-        : [newLine({ kind: "freight", description: "Cước 3PL" })],
-    );
+    setForm(carrierFormFrom(props));
     setOpen(true);
-  };
-
-  const copyPassThrough = () => {
-    if (!props.customerPassThrough.length) return void toast.info("Chuyến chưa có phí chi hộ thu khách để chép.");
-    const have = new Set(lines.filter((l) => l.kind === "pass_through").map((l) => l.fee_type_id));
-    const add = props.customerPassThrough
-      .filter((f) => !have.has(f.fee_type_id))
-      .map((f) =>
-        newLine({
-          kind: "pass_through",
-          fee_type_id: f.fee_type_id,
-          fee_label: f.name,
-          description: f.name,
-          amount: formatNumber(Number(f.amount)),
-          ref_no: f.ref_no ?? "",
-          note: f.note ?? "",
-        }),
-      );
-    if (!add.length) return void toast.info("Các phí chi hộ thu khách đã có trong danh sách.");
-    setLines((ls) => [...ls.filter((l) => lineAmount(l) > 0 || l.description.trim()), ...add]);
   };
 
   const save = () =>
     start(async () => {
-      const bad = lines.find((l) => [l.amount, l.quantity, l.unit_price].some((s) => s.trim() && n(s) === null));
-      if (bad) return void toast.error(`Số không hợp lệ ở khoản "${bad.description || CARRIER_KIND_LABEL[bad.kind]}"`);
-      const r = await saveCarrierCosts({
-        shipmentId: props.shipmentId,
-        supplierId: supplier || null,
-        invoiceNo: invoice,
-        dueDate: due || null,
-        lines: lines
-          .filter((l) => lineAmount(l) > 0)
-          .map((l) => ({
-            kind: l.kind,
-            feeTypeId: l.fee_type_id || null,
-            description: l.description,
-            quantity: n(l.quantity),
-            unitPrice: n(l.unit_price),
-            amount: n(l.amount) ?? lineAmount(l),
-            refNo: l.ref_no,
-            note: l.note,
-          })),
-      });
+      const p = carrierFormPayload(props.shipmentId, form);
+      if ("error" in p) return void toast.error(p.error);
+      const r = await saveCarrierCosts(p.input);
       if (!r.ok) return void toast.error(r.error);
       toast.success(r.data?.payable_code ? `${r.message} Công nợ phải trả ${r.data.payable_code}.` : r.message);
       setOpen(false);
@@ -178,157 +369,7 @@ export function CarrierCostsDialog(props: {
               thu lại của khách qua phí chi hộ. Lưu xong, phần mềm tự lập công nợ phải trả cho nhà xe để Kế toán trả một hoặc nhiều lần.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="cc-supplier">Nhà xe 3PL nhận tiền *</Label>
-              <ReferenceSelect id="cc-supplier" refKey="suppliers" value={supplier} initialLabel={props.supplierLabel ?? ""} onChange={(v) => setSupplier(v)} />
-              <p className="text-xs text-muted-foreground">
-                Tự điền theo xe (Phương tiện → Nhà xe 3PL). Chưa có thì gõ tên để thêm mới.{props.paidAmount > 0 ? " Đã trả tiền thì không đổi nhà xe được." : ""}
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cc-invoice">Số hóa đơn / bảng kê của nhà xe</Label>
-              <Input id="cc-invoice" value={invoice} onChange={(e) => setInvoice(e.target.value)} maxLength={100} placeholder="Ví dụ 0001234" />
-              <p className="text-xs text-muted-foreground">Không bắt buộc, để đối chiếu khi nhà xe gửi hóa đơn.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cc-due">Hạn trả</Label>
-              <Input id="cc-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Để trống: ngày chuyến + số ngày công nợ của nhà xe (danh mục Nhà cung cấp).</p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="hidden gap-1.5 px-1 text-xs font-medium text-muted-foreground lg:grid lg:grid-cols-[8.5rem_minmax(0,1fr)_5rem_7rem_8rem_7rem_minmax(0,9rem)_2rem]">
-              <span>Loại khoản</span>
-              <span>Nội dung</span>
-              <span>SL</span>
-              <span>Đơn giá</span>
-              <span>Số tiền (đ)</span>
-              <span>Số HĐ/chứng từ</span>
-              <span>Ghi chú</span>
-              <span />
-            </div>
-            {lines.map((l, i) => (
-              <div key={l.key} className="grid gap-1.5 rounded-lg border p-2 lg:grid-cols-[8.5rem_minmax(0,1fr)_5rem_7rem_8rem_7rem_minmax(0,9rem)_2rem] lg:items-start lg:border-0 lg:p-0">
-                <NativeSelect
-                  aria-label={`Loại khoản dòng ${i + 1}`}
-                  className="h-8"
-                  value={l.kind}
-                  onChange={(e) => patch(l.key, { kind: e.target.value as CarrierKind })}
-                >
-                  <option value="freight">Cước 3PL</option>
-                  <option value="pass_through">Chi hộ 3PL</option>
-                  <option value="other">Chi phí khác</option>
-                </NativeSelect>
-                {l.kind === "pass_through" ? (
-                  <div>
-                    <ReferenceSelect
-                      id={`cc-fee-${l.key}`}
-                      refKey="fee_types"
-                      value={l.fee_type_id}
-                      initialLabel={l.fee_label}
-                      onChange={(id, label) => patch(l.key, { fee_type_id: id, fee_label: label, description: label || l.description })}
-                    />
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">Chọn loại phí (Phí nâng, Phí hạ, Phí cược…) để đối chiếu với chi hộ thu khách</p>
-                  </div>
-                ) : (
-                  <Input
-                    aria-label={`Nội dung dòng ${i + 1}`}
-                    className="h-8"
-                    maxLength={200}
-                    placeholder={l.kind === "freight" ? "Cước 3PL" : "Ví dụ: Neo xe, bốc xếp"}
-                    value={l.description}
-                    onChange={(e) => patch(l.key, { description: e.target.value })}
-                  />
-                )}
-                <Input
-                  aria-label={`Số lượng dòng ${i + 1}`}
-                  className="h-8 text-right tabular-nums"
-                  inputMode="decimal"
-                  placeholder="SL"
-                  value={l.quantity}
-                  onChange={(e) => patch(l.key, { quantity: e.target.value, amount: "" })}
-                />
-                <Input
-                  aria-label={`Đơn giá dòng ${i + 1}`}
-                  className="h-8 text-right tabular-nums"
-                  inputMode="numeric"
-                  placeholder="Đơn giá"
-                  value={l.unit_price}
-                  onChange={(e) => patch(l.key, { unit_price: e.target.value, amount: "" })}
-                  onBlur={(e) => {
-                    const v = n(e.target.value);
-                    if (v !== null) patch(l.key, { unit_price: formatNumber(v) });
-                  }}
-                />
-                <Input
-                  aria-label={`Số tiền dòng ${i + 1}`}
-                  className="h-8 text-right tabular-nums"
-                  inputMode="numeric"
-                  placeholder={l.quantity && l.unit_price ? formatNumber(lineAmount(l)) : "Ví dụ 3,000,000"}
-                  value={l.amount}
-                  onChange={(e) => patch(l.key, { amount: e.target.value })}
-                  onBlur={(e) => {
-                    const v = n(e.target.value);
-                    if (v !== null) patch(l.key, { amount: formatNumber(v) });
-                  }}
-                />
-                <Input
-                  aria-label={`Số hóa đơn dòng ${i + 1}`}
-                  className="h-8"
-                  maxLength={100}
-                  placeholder="Số HĐ"
-                  value={l.ref_no}
-                  onChange={(e) => patch(l.key, { ref_no: e.target.value })}
-                />
-                <Input
-                  aria-label={`Ghi chú dòng ${i + 1}`}
-                  className="h-8"
-                  maxLength={500}
-                  placeholder="Ghi chú"
-                  value={l.note}
-                  onChange={(e) => patch(l.key, { note: e.target.value })}
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 text-destructive"
-                  aria-label={`Xóa dòng ${i + 1}`}
-                  onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            ))}
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => setLines((ls) => [...ls, newLine({ kind: ls.some((x) => x.kind === "freight") ? "pass_through" : "freight" })])}>
-                <Plus /> Thêm khoản
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={copyPassThrough} disabled={!props.customerPassThrough.length}>
-                <Copy /> Chép phí chi hộ thu khách
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Nhập Số tiền, hoặc nhập SL × Đơn giá để tự tính. Dòng số tiền bằng 0 bị bỏ qua. Xóa hết các khoản thì công nợ 3PL chưa trả bị hủy.
-            </p>
-          </div>
-
-          <div className="grid gap-1 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-4">
-            {(["freight", "pass_through", "other"] as CarrierKind[]).map((k) => (
-              <div key={k}>
-                <div className="text-xs text-muted-foreground">{CARRIER_KIND_LABEL[k]}</div>
-                <div className="tabular-nums">{formatVND(lines.filter((l) => l.kind === k).reduce((a, l) => a + lineAmount(l), 0))}</div>
-              </div>
-            ))}
-            <div>
-              <div className="text-xs text-muted-foreground">Tổng phải trả nhà xe</div>
-              <div className="font-semibold tabular-nums">{formatVND(total)}</div>
-            </div>
-          </div>
-
+          <CarrierCostsEditor value={form} onChange={setForm} supplierLabel={props.supplierLabel} paidAmount={props.paidAmount} customerPassThrough={props.customerPassThrough} />
           <DialogFooter>
             <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>
               Đóng
