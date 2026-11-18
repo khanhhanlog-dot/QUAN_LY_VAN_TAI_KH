@@ -44,6 +44,7 @@ import { DriverInfoButton } from "./driver-info-button";
 import { QuickFreightButton } from "./quick-freight-dialog";
 import { CrewCell } from "./crew-cell";
 import { CustomFieldCell, canInlineEdit } from "./custom-field-cell";
+import { FeeCell } from "./fee-cell";
 
 type SortVal = string | number | null | undefined;
 type Col = {
@@ -370,7 +371,19 @@ export function DispatchTable({
         return c.numeric && typeof v?.[1] === "number" ? v[1] : (v?.[0] ?? null);
       },
       render: (r) =>
-        canAssign && c.def && canInlineEdit(c.def) && r.status !== "cancelled" ? (
+        c.fee ? (
+          <FeeCell
+            shipmentId={r.id}
+            shipmentCode={r.shipment_code}
+            feeTypeId={c.fee.feeTypeId}
+            feeName={c.fee.name}
+            part={c.fee.part}
+            text={val(r, c.key)?.[0] ?? ""}
+            amount={typeof val(r, c.key)?.[1] === "number" ? (val(r, c.key)![1] as number) : null}
+            editable={(canAssign || freight) && r.status !== "cancelled"}
+            multi={Boolean(val(r, `feemulti_${c.fee.feeTypeId}`))}
+          />
+        ) : canAssign && c.def && canInlineEdit(c.def) && r.status !== "cancelled" ? (
           <CustomFieldCell
             def={c.def}
             source={c.source}
@@ -397,10 +410,16 @@ export function DispatchTable({
     for (const c of extraColumns) if (!c.serviceKind) list.push(extra(c));
     if (showActions) list.push({ key: "actions", label: "Thao tác", width: 230, align: "right", render: () => null });
     return list;
-  }, [extraColumns, extraValues, kindCol, dropCol, showOrder, showActions, canAssign]);
+  }, [extraColumns, extraValues, kindCol, dropCol, showOrder, showActions, canAssign, freight]);
 
   const [visibility, setVisibility] = useState<VisibilityState>(() =>
-    Object.fromEntries((view?.hidden ?? cols.filter((c) => c.defaultHidden).map((c) => c.key)).map((k) => [k, false])),
+    Object.fromEntries(
+      (view?.hidden
+        ? // Cấu hình đã lưu: cột mới có sau lần lưu (ví dụ loại phí mới) mà mặc định ẩn thì vẫn ẩn
+          [...view.hidden, ...cols.filter((c) => c.defaultHidden && view.order?.length && !view.order.includes(c.key)).map((c) => c.key)]
+        : cols.filter((c) => c.defaultHidden).map((c) => c.key)
+      ).map((k) => [k, false]),
+    ),
   );
   const [order, setOrder] = useState<ColumnOrderState>(() => view?.order ?? []);
   const [sizing, setSizing] = useState<ColumnSizingState>(() => view?.widths ?? {});

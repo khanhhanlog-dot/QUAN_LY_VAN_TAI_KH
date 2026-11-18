@@ -5,6 +5,7 @@ import { computeFormula } from "@/lib/formula";
 import { formulaVars } from "@/lib/entities/definitions";
 import type { FieldDef } from "@/lib/entities/types";
 import { DROP_OFF_RE, type ShipmentListRow } from "@/lib/shipments";
+import { tripFeeColumns } from "@/lib/fee-columns";
 
 /** Cột bổ sung (trường người dùng tự thêm) của bảng Điều phối */
 export type DispatchExtraColumn = {
@@ -20,6 +21,8 @@ export type DispatchExtraColumn = {
   visible?: boolean;
   /** Định nghĩa trường để nhập trực tiếp trên bảng (bỏ công thức, chỉ đọc) */
   def?: FieldDef;
+  /** Cột phí thu khách (số tiền / số hóa đơn) của một loại phí */
+  fee?: { feeTypeId: string; part: "amount" | "ref"; name: string };
 };
 /** Giá trị theo chuyến: [chữ hiển thị, giá trị để sắp xếp] */
 export type DispatchExtraValues = Record<string, Record<string, [string, string | number | null]>>;
@@ -61,5 +64,9 @@ export async function dispatchExtraColumns(supabase: SupabaseClient, perms: Set<
   };
   add(sDefs, "shipment", sRef);
   add(oDefs, "order", oRef);
+  // Phí thu khách theo loại (phí nâng, phí hạ, cược cont… kèm số hóa đơn)
+  const fees = await tripFeeColumns(supabase, rows.map((r) => r.id));
+  columns.push(...fees.columns);
+  for (const [id, v] of Object.entries(fees.values)) Object.assign((values[id] ??= {}), v);
   return { columns, values };
 }

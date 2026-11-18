@@ -22,6 +22,7 @@ import { ShipmentFilterBar } from "./filter-bar";
 import { ShipmentGrid } from "./shipment-grid";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 import { ExportShipmentsButton } from "./export-button";
+import { tripFeeColumns } from "@/lib/fee-columns";
 import { ReportLinks } from "@/components/reports/report-links";
 
 export const metadata: Metadata = { title: "Quản lý chuyến xe" };
@@ -91,6 +92,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   // Nút chép thông tin tài xế cho các chuyến đang xem (bỏ chuyến hủy, chưa có tài xế)
   const shareIds = rows.filter((r) => r.driver_id && r.status !== "cancelled").map((r) => r.id).slice(0, 500);
   const total = listRes.count ?? rows.length;
+  // Cột phí thu khách theo loại (phí nâng, phí hạ, cược cont… kèm số hóa đơn), nhập trực tiếp trên bảng
+  const fees = await tripFeeColumns(supabase, rows.map((r) => r.id));
   const summary = sumRes.data as Summary;
   const cancelledCount = summary.by_status.cancelled?.count ?? 0;
   const allCount = summary.total - cancelledCount;
@@ -173,7 +176,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
             <Ban className="size-4 text-destructive" /> Chuyến hủy ({cancelledCount})
           </Link>
         </div>
-        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} canFillDriver={canFillDriver} canAssign={me.permissions.has("dispatch.update")} />
+        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} canFillDriver={canFillDriver} canAssign={me.permissions.has("dispatch.update")} feeColumns={fees.columns} feeValues={fees.values} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
           <span>
             {total === 0 ? "Không có chuyến phù hợp" : `Dòng ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total} chuyến`}

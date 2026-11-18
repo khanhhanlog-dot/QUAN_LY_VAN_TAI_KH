@@ -37,6 +37,8 @@ import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 import { QuickFreightButton } from "@/components/dispatch/quick-freight-dialog";
 import { CrewCell } from "@/components/dispatch/crew-cell";
 import { CustomFieldCell, canInlineEdit } from "@/components/dispatch/custom-field-cell";
+import { FeeCell } from "@/components/dispatch/fee-cell";
+import type { DispatchExtraColumn, DispatchExtraValues } from "@/lib/dispatch-columns";
 
 type Col = {
   key: string;
@@ -208,6 +210,8 @@ export function ShipmentGrid({
   canSeeProfit = false,
   canFillDriver = false,
   canAssign = false,
+  feeColumns = [],
+  feeValues = {},
 }: {
   rows: ShipmentListRow[];
   canEdit: boolean;
@@ -223,6 +227,9 @@ export function ShipmentGrid({
   canFillDriver?: boolean;
   /** Quyền điều phối: nhập số xe, tài xế ngay trên bảng (theo quy tắc phân công, duyệt GĐ) */
   canAssign?: boolean;
+  /** Cột phí thu khách theo loại: số tiền và số hóa đơn */
+  feeColumns?: DispatchExtraColumn[];
+  feeValues?: DispatchExtraValues;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -237,7 +244,13 @@ export function ShipmentGrid({
     setRows(initial);
   }
   const [visibility, setVisibility] = useState<VisibilityState>(() =>
-    Object.fromEntries((view?.hidden ?? COLS.filter((c) => c.defaultHidden).map((c) => c.key)).map((k) => [k, false])),
+    Object.fromEntries(
+      (view?.hidden
+        ? // Cấu hình đã lưu: cột phí mới có sau lần lưu mà mặc định ẩn thì vẫn ẩn
+          [...view.hidden, ...feeColumns.filter((c) => !c.visible && view.order?.length && !view.order.includes(c.key)).map((c) => c.key)]
+        : [...COLS.filter((c) => c.defaultHidden).map((c) => c.key), ...feeColumns.filter((c) => !c.visible).map((c) => c.key)]
+      ).map((k) => [k, false]),
+    ),
   );
   const [order, setOrder] = useState<ColumnOrderState>(() => view?.order ?? []);
   const [sizing, setSizing] = useState<ColumnSizingState>(() => view?.widths ?? {});
@@ -260,8 +273,33 @@ export function ShipmentGrid({
         def: d,
         render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key]),
       })),
+      ...feeColumns.map((fc) => {
+        const fee = fc.fee!;
+        const v = (r: ShipmentListRow, k: string) => feeValues[r.id]?.[k];
+        return {
+          key: fc.key,
+          label: fc.label,
+          width: fee.part === "amount" ? 115 : 120,
+          align: fee.part === "amount" ? ("right" as const) : undefined,
+          custom: true,
+          defaultHidden: !fc.visible,
+          render: (r: ShipmentListRow) => (
+            <FeeCell
+              shipmentId={r.id}
+              shipmentCode={r.shipment_code}
+              feeTypeId={fee.feeTypeId}
+              feeName={fee.name}
+              part={fee.part}
+              text={v(r, fc.key)?.[0] ?? ""}
+              amount={typeof v(r, fc.key)?.[1] === "number" ? (v(r, fc.key)![1] as number) : null}
+              editable={canEdit && r.status !== "cancelled"}
+              multi={Boolean(v(r, `feemulti_${fee.feeTypeId}`))}
+            />
+          ),
+        };
+      }),
     ],
-    [customDefs, canSeeProfit, dropDef],
+    [customDefs, canSeeProfit, dropDef, feeColumns, feeValues, canEdit],
   );
 
   const columns = useMemo<ColumnDef<ShipmentListRow>[]>(
