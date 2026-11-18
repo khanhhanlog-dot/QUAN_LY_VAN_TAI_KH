@@ -21,6 +21,7 @@ export function VehicleSourcePicker({
   onSourceChange,
   disabled,
   invalid,
+  autoOpen,
 }: {
   id?: string;
   /** Chuyến đang phân công (để lấy nhà xe 3PL của chuyến / kế hoạch) */
@@ -32,6 +33,8 @@ export function VehicleSourcePicker({
   onSourceChange?: (source: VehicleSource) => void;
   disabled?: boolean;
   invalid?: boolean;
+  /** Mở sẵn ô tìm xe (nhập trực tiếp trên bảng) */
+  autoOpen?: boolean;
 }) {
   const [source, setSource] = useState<VehicleSource>("internal");
   const [carrier, setCarrier] = useState<CarrierHint | null>(null);
@@ -128,6 +131,7 @@ export function VehicleSourcePicker({
         onChange={onChange}
         disabled={disabled}
         invalid={invalid}
+        autoOpen={autoOpen}
         where={filterCarrier ? { supplier_id: carrier!.supplierId } : undefined}
         quickDefaults={source === "3pl" && carrier ? { supplier_id: carrier.supplierId } : undefined}
       />

@@ -33,6 +33,7 @@ export function ReferenceSelect({
   allowQuickCreate = true,
   where,
   quickDefaults,
+  autoOpen,
 }: {
   id?: string;
   refKey: string;
@@ -46,6 +47,8 @@ export function ReferenceSelect({
   where?: Record<string, string>;
   /** Giá trị điền sẵn khi bấm Thêm mới */
   quickDefaults?: Record<string, unknown>;
+  /** Mở sẵn ô tìm khi vừa hiện (nhập trực tiếp trên bảng: bấm ô là gõ được ngay) */
+  autoOpen?: boolean;
 }) {
   const entity = ENTITIES[refKey];
   const [open, setOpen] = useState(false);
@@ -76,6 +79,12 @@ export function ReferenceSelect({
       if (r.ok) setOptions(r.data ?? []);
     });
   }
+
+  useEffect(() => {
+    if (autoOpen && !disabled) onOpenChange(true);
+    // Chỉ mở một lần khi ô vừa hiện
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onOpenChange(next: boolean) {
     setOpen(next);

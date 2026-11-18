@@ -35,6 +35,8 @@ import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
 import { QuickFreightButton } from "@/components/dispatch/quick-freight-dialog";
+import { CrewCell } from "@/components/dispatch/crew-cell";
+import { CustomFieldCell, canInlineEdit } from "@/components/dispatch/custom-field-cell";
 
 type Col = {
   key: string;
@@ -47,6 +49,8 @@ type Col = {
   defaultHidden?: boolean;
   /** Cột lời/lỗ: chỉ hiện với người có quyền xem chi phí hoặc báo cáo */
   profit?: boolean;
+  /** Trường bổ sung: nhập trực tiếp trong ô */
+  def?: FieldDef;
   render: (r: ShipmentListRow) => ReactNode;
 };
 
@@ -203,6 +207,7 @@ export function ShipmentGrid({
   canAddField = false,
   canSeeProfit = false,
   canFillDriver = false,
+  canAssign = false,
 }: {
   rows: ShipmentListRow[];
   canEdit: boolean;
@@ -216,6 +221,8 @@ export function ShipmentGrid({
   canSeeProfit?: boolean;
   /** Điền nhanh CCCD / GPLX còn thiếu trong hộp Thông tin tài xế */
   canFillDriver?: boolean;
+  /** Quyền điều phối: nhập số xe, tài xế ngay trên bảng (theo quy tắc phân công, duyệt GĐ) */
+  canAssign?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -250,6 +257,7 @@ export function ShipmentGrid({
         width: d.type === "textarea" ? 220 : 140,
         align: ["number", "currency", "percent", "formula"].includes(d.type) ? ("right" as const) : undefined,
         custom: true,
+        def: d,
         render: (r: ShipmentListRow) => formatValue(d, d.type === "formula" ? computeFormula(d.formula, formulaVars("shipments", r as unknown as Record<string, unknown>, r.custom_fields)) : r.custom_fields?.[d.key]),
       })),
     ],
@@ -274,17 +282,40 @@ export function ShipmentGrid({
                 <QuickFreightButton compact shipmentId={r.id} code={r.shipment_code} />
               </div>
             );
-          if (c.key === "driver_name" && r.driver_id)
+          if (c.key === "driver_name")
             return (
               <div className="flex items-center gap-1">
-                <span className="min-w-0 flex-1 truncate">{r.driver_name}</span>
-                <DriverInfoButton compact shipmentIds={[r.id]} canFill={canFillDriver} />
+                <span className="min-w-0 flex-1 truncate">
+                  <CrewCell r={r} editable={canAssign} focus="driver">
+                    {r.driver_name}
+                  </CrewCell>
+                </span>
+                {r.driver_id ? <DriverInfoButton compact shipmentIds={[r.id]} canFill={canFillDriver} /> : null}
               </div>
+            );
+          if (c.key === "plate_number")
+            return (
+              <CrewCell r={r} editable={canAssign} focus="vehicle">
+                {r.plate_number}
+              </CrewCell>
+            );
+          if (c.def && canEdit && canInlineEdit(c.def) && r.status !== "cancelled")
+            return (
+              <CustomFieldCell
+                def={c.def}
+                source="shipment"
+                targetId={r.id}
+                raw={r.custom_fields?.[c.def.key]}
+                text={String(c.render(r) ?? "")}
+                editable
+                align={c.align}
+                label={`chuyến ${r.shipment_code}`}
+              />
             );
           return editable ? <EditCell row={r} col={c} onSaved={(nr) => setRows((rs) => rs.map((x) => (x.id === nr.id ? nr : x)))} /> : c.render(r);
         },
       })),
-    [canEdit, allCols, canFillDriver],
+    [canEdit, allCols, canFillDriver, canAssign],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library

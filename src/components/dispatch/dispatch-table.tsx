@@ -42,6 +42,8 @@ import { CancelDialog, DeleteCancelledButton, RestoreShipmentButton } from "./ca
 import { ResubmitTripButton, TripApprovalButtons } from "./trip-approval";
 import { DriverInfoButton } from "./driver-info-button";
 import { QuickFreightButton } from "./quick-freight-dialog";
+import { CrewCell } from "./crew-cell";
+import { CustomFieldCell, canInlineEdit } from "./custom-field-cell";
 
 type SortVal = string | number | null | undefined;
 type Col = {
@@ -367,7 +369,21 @@ export function DispatchTable({
         const v = val(r, c.key);
         return c.numeric && typeof v?.[1] === "number" ? v[1] : (v?.[0] ?? null);
       },
-      render: (r) => <div className="truncate">{val(r, c.key)?.[0]}</div>,
+      render: (r) =>
+        canAssign && c.def && canInlineEdit(c.def) && r.status !== "cancelled" ? (
+          <CustomFieldCell
+            def={c.def}
+            source={c.source}
+            targetId={c.source === "order" ? r.order_id : r.id}
+            raw={(c.source === "order" ? r.order_custom_fields : r.custom_fields)?.[c.def.key]}
+            text={val(r, c.key)?.[0] ?? ""}
+            editable
+            align={c.numeric ? "right" : undefined}
+            label={c.source === "order" ? `đơn ${r.order_code} (mọi chuyến của đơn)` : `chuyến ${r.shipment_code}`}
+          />
+        ) : (
+          <div className="truncate">{val(r, c.key)?.[0]}</div>
+        ),
     });
     const list: Col[] = [];
     for (const c of BASE_COLS) {
@@ -381,7 +397,7 @@ export function DispatchTable({
     for (const c of extraColumns) if (!c.serviceKind) list.push(extra(c));
     if (showActions) list.push({ key: "actions", label: "Thao tác", width: 230, align: "right", render: () => null });
     return list;
-  }, [extraColumns, extraValues, kindCol, dropCol, showOrder, showActions]);
+  }, [extraColumns, extraValues, kindCol, dropCol, showOrder, showActions, canAssign]);
 
   const [visibility, setVisibility] = useState<VisibilityState>(() =>
     Object.fromEntries((view?.hidden ?? cols.filter((c) => c.defaultHidden).map((c) => c.key)).map((k) => [k, false])),
@@ -424,6 +440,10 @@ export function DispatchTable({
             <DriverPayCell r={row.original} />
           ) : c.key === "delivery_days" ? (
             <DeliveryDaysCell r={row.original} editable={canAssign} />
+          ) : c.key === "vehicle_driver" || c.key === "plate_number" || c.key === "driver_name" ? (
+            <CrewCell r={row.original} editable={canAssign} focus={c.key === "driver_name" ? "driver" : "vehicle"}>
+              {c.render(row.original, now)}
+            </CrewCell>
           ) : (
             c.render(row.original, now)
           ),

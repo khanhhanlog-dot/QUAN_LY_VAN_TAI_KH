@@ -18,6 +18,8 @@ export type DispatchExtraColumn = {
   source: "shipment" | "order";
   /** Hiện sẵn (mặc định cột bổ sung bị ẩn) */
   visible?: boolean;
+  /** Định nghĩa trường để nhập trực tiếp trên bảng (bỏ công thức, chỉ đọc) */
+  def?: FieldDef;
 };
 /** Giá trị theo chuyến: [chữ hiển thị, giá trị để sắp xếp] */
 export type DispatchExtraValues = Record<string, Record<string, [string, string | number | null]>>;
@@ -46,7 +48,7 @@ export async function dispatchExtraColumns(supabase: SupabaseClient, perms: Set<
   const add = (defs: FieldDef[], source: "shipment" | "order", refs: Record<string, Record<string, string>>) => {
     for (const d of defs) {
       const key = `${source === "shipment" ? "cf" : "ocf"}_${d.key}`;
-      columns.push({ key, label: source === "order" && !d.label.toLowerCase().includes("đơn") ? `${d.label} (đơn)` : d.label, numeric: NUMERIC.includes(d.type), serviceKind: d === kind, dropOff: d === dropOff, source });
+      columns.push({ key, label: source === "order" && !d.label.toLowerCase().includes("đơn") ? `${d.label} (đơn)` : d.label, numeric: NUMERIC.includes(d.type), serviceKind: d === kind, dropOff: d === dropOff, source, def: d });
       for (const r of rows) {
         const custom = (source === "shipment" ? r.custom_fields : r.order_custom_fields) ?? {};
         const raw =
