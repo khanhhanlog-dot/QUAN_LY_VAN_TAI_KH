@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Pencil, Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/entities/record";
 import { formatDate, formatDateTime, formatVND } from "@/lib/format";
 import type { ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
+import { BackToList } from "@/components/layout/list-memory";
 import { CancelOrderDialog } from "./cancel-order-dialog";
 import { loadCustomFields, loadTableView, visibleCustomRows } from "@/lib/entities/server";
 import { formatValue, moduleCustomFields } from "@/lib/entities/record";
@@ -81,9 +82,7 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
-      <Link href="/dieu-phoi" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="size-4" /> Điều phối
-      </Link>
+      <BackToList fallback="/dieu-phoi" />
       <PageHeader
         title={`Đơn hàng ${order.order_code}`}
         description={<Badge variant={st.variant}>{st.label}</Badge>}

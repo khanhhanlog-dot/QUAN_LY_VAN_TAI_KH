@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   flexRender,
@@ -29,6 +29,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES, shipmentStatus, tripApprovalStatus } from "@/lib/status";
 import { ASSIGNED_ROW_CELL, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
+import { loadSessionSort, saveSessionSort } from "@/lib/list-memory";
 import { StatusBadge } from "./status-badge";
 import { ActForDriverQuick } from "./act-for-driver-quick";
 import { AssignDialog } from "./assign-dialog";
@@ -389,6 +390,12 @@ export function DispatchTable({
   const [sizing, setSizing] = useState<ColumnSizingState>(() => view?.widths ?? {});
   const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: view?.pinned ?? DEFAULT_PINNED }));
   const [sorting, setSorting] = useState<SortingState>(() => view?.sort ?? []);
+  // Giữ cách sắp xếp đang bấm khi mở chi tiết rồi quay lại danh sách (trong cùng tab)
+  useEffect(() => {
+    const saved = loadSessionSort<SortingState>(tableKey);
+    if (Array.isArray(saved)) setSorting(saved);
+  }, [tableKey]);
+  useEffect(() => saveSessionSort(tableKey, sorting), [tableKey, sorting]);
   const [rowHeight, setRowHeight] = useState<number | null>(view?.rowHeight ?? null);
   const [dragCol, setDragCol] = useState<string | null>(null);
   const resizeRow = useRef<{ y: number; h: number } | null>(null);
@@ -594,7 +601,7 @@ export function DispatchTable({
       {rows.length === 0 ? (
         <p className="px-6 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
-        <div className="max-h-[calc(100dvh-12rem)] overflow-auto">
+        <div data-list-scroll className="max-h-[calc(100dvh-12rem)] overflow-auto">
           <table className="border-separate border-spacing-0 text-sm" style={{ width: table.getTotalSize(), tableLayout: "fixed" }}>
             <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
               <tr>

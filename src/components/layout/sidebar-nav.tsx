@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import type { NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { useRememberedHref } from "@/components/layout/list-memory";
+import { isListPath, markRestore } from "@/lib/list-memory";
 
 const ICONS: Record<string, LucideIcon> = {
   Ban, BadgeCheck, BarChart3, Building2, Bus, Fuel, CalendarOff, CalendarRange, ClipboardList, Columns3, FileInput, Handshake, IdCard, LayoutDashboard, ListChecks, ListTree,
@@ -29,9 +31,9 @@ export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavig
               const active = item.href === best;
               return (
                 <li key={item.href}>
-                  <Link
+                  <NavLink
                     href={item.href}
-                    onClick={onNavigate}
+                    onNavigate={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
@@ -47,7 +49,7 @@ export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavig
                         GĐ{item.phase}
                       </span>
                     ) : null}
-                  </Link>
+                  </NavLink>
                 </li>
               );
             })}
@@ -55,5 +57,20 @@ export function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavig
         </div>
       ))}
     </nav>
+  );
+}
+
+/** Quản lý chuyến / Điều phối: mở lại với bộ lọc đã dùng gần nhất (không mất bộ lọc khi bấm menu). */
+function NavLink({ href, onNavigate, ...rest }: Omit<React.ComponentProps<typeof Link>, "href"> & { href: string; onNavigate?: () => void }) {
+  const target = useRememberedHref(href);
+  return (
+    <Link
+      {...rest}
+      href={target}
+      onClick={() => {
+        if (isListPath(href)) markRestore(target);
+        onNavigate?.();
+      }}
+    />
   );
 }

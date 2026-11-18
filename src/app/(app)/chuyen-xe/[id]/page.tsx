@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, ChevronLeft } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { missingColumn } from "@/lib/supabase/missing-column";
@@ -12,6 +12,7 @@ import { formatDate, formatDateTime, formatNumber, formatVND } from "@/lib/forma
 import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, PRICING_UNITS, documentStatus, settlementStatus, shipmentStatus } from "@/lib/status";
 import { isLate, type ShipmentListRow } from "@/lib/shipments";
 import { PageHeader } from "@/components/layout/page-header";
+import { BackToList } from "@/components/layout/list-memory";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dispatch/status-badge";
@@ -268,9 +269,7 @@ async function PageInner({ params }: { params: Promise<{ id: string }> }) {
   return (
     <>
       {editRev !== null && s.status !== "cancelled" ? <ShipmentEditLock shipmentId={s.id} rev={editRev} /> : null}
-      <Link href="/chuyen-xe" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="size-4" /> Quản lý chuyến xe
-      </Link>
+      <BackToList fallback="/chuyen-xe" />
       <PageHeader
         title={`Chuyến ${s.shipment_code}`}
         description={

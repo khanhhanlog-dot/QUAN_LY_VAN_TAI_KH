@@ -11,6 +11,7 @@ import { NavSearch } from "@/components/layout/nav-search";
 import { UserMenu } from "@/components/layout/user-menu";
 import { ChatBadge } from "@/components/chat/chat-badge";
 import { OptionAddProvider } from "@/components/entities/add-option";
+import { ListMemoryTracker } from "@/components/layout/list-memory";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireActiveUser();
@@ -34,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
+      <ListMemoryTracker />
       <aside className="sticky top-0 hidden print:!hidden h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <Brand />
         <SidebarNav groups={groups} />
