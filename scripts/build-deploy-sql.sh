@@ -189,3 +189,5 @@ upgrade nang-cap-dien-gia-tuyen.sql "Lấy tuyến từ các chuyến để đi�
   supabase/migrations/20261111000073_route_pay_fill.sql
 upgrade nang-cap-luong-chuyen-nhap-tay.sql "Lương chuyến do điều phối nhập theo từng chuyến (bỏ bảng giá cố định), lương cơ bản giữ như cũ" "to_regprocedure('public.save_shipment_driver_pays(jsonb)') is not null" \
   supabase/migrations/20261118000074_trip_pay_entered.sql
+upgrade nang-cap-sua-lua-chon.sql "Sửa tên lựa chọn ngay tại ô chọn (nút bút chì)" "to_regprocedure('public.rename_field_option(uuid,text,text)') is not null" \
+  supabase/migrations/20261120000075_rename_field_option.sql

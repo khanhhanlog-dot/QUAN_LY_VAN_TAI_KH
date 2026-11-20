@@ -5,7 +5,8 @@ import { formatNumber } from "@/lib/format";
 import { compactUpper, parseNumberVN } from "@/lib/entities/record";
 import type { FieldDef } from "@/lib/entities/types";
 import { ReferenceSelect } from "./reference-select";
-import { AddOptionButton, useFieldOptions } from "./add-option";
+import { Pencil } from "lucide-react";
+import { AddOptionButton, useFieldOptions, useOptionEditor } from "./add-option";
 
 type Values = Record<string, unknown>;
 
@@ -179,8 +180,18 @@ function OptionSelect({
   disabled?: boolean;
 }) {
   const { options, canAdd } = useFieldOptions(field);
+  const editor = useOptionEditor(field, canAdd && !disabled);
   const select = (
-    <NativeSelect id={id} aria-invalid={invalid || undefined} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur}>
+    <NativeSelect
+      id={id}
+      aria-invalid={invalid || undefined}
+      disabled={disabled}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      onEditOption={editor.onEditOption}
+      editOptionTitle="Sửa tên lựa chọn"
+    >
       <option value="">{field.required ? "— Chọn —" : "— Không chọn —"}</option>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -195,6 +206,7 @@ function OptionSelect({
     <div className="flex gap-1.5">
       {select}
       <AddOptionButton field={field} disabled={disabled} onAdded={(o) => onChange(o.value)} />
+      {editor.dialog}
     </div>
   );
 }
@@ -216,19 +228,34 @@ function OptionChecks({
   disabled?: boolean;
 }) {
   const { options, canAdd } = useFieldOptions(field);
+  const editor = useOptionEditor(field, canAdd && !disabled);
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border p-2" id={id} aria-invalid={invalid || undefined}>
       {options.map((o) => (
-        <label key={o.value} className="flex cursor-pointer items-center gap-1.5 text-sm">
-          <input
-            type="checkbox"
-            disabled={disabled}
-            checked={value.includes(o.value)}
-            onChange={(e) => onChange(e.target.checked ? [...value, o.value] : value.filter((x) => x !== o.value))}
-          />
-          {o.label}
-        </label>
+        <span key={o.value} className="group flex items-center gap-0.5">
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={value.includes(o.value)}
+              onChange={(e) => onChange(e.target.checked ? [...value, o.value] : value.filter((x) => x !== o.value))}
+            />
+            {o.label}
+          </label>
+          {editor.onEditOption ? (
+            <button
+              type="button"
+              title={`Sửa tên lựa chọn “${o.label}”`}
+              aria-label={`Sửa tên lựa chọn ${o.label}`}
+              onClick={() => editor.onEditOption?.(o)}
+              className="flex size-6 items-center justify-center rounded text-muted-foreground/60 hover:bg-accent hover:text-primary"
+            >
+              <Pencil className="size-3" />
+            </button>
+          ) : null}
+        </span>
       ))}
+      {editor.dialog}
       {canAdd ? (
         <AddOptionButton
           field={field}

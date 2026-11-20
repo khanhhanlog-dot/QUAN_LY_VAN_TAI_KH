@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ActionError, requirePermission, runAction, type ActionResult } from "@/lib/auth/action";
 import { ENTITIES } from "./definitions";
 import { entityAccess } from "./access";
-import { effectiveFields, isUuid, rowLabel, splitCustom, validateRecord } from "./record";
-import { loadCustomFields, sanitizeSearch, visibleCustomRows } from "./server";
+import { effectiveFields, flattenRow, isUuid, rowLabel, splitCustom, validateRecord } from "./record";
+import { loadCustomFields, loadRecord, sanitizeSearch, visibleCustomRows, type RefLabels } from "./server";
 import { assertActiveRefs } from "./active-check";
 import type { EntityDef, TableViewConfig } from "./types";
 
@@ -232,5 +232,26 @@ export async function getEntityMeta(entityKey: string) {
     const { entity, me, access, supabase } = await context(entityKey);
     const customRows = access.view || access.create ? visibleCustomRows(await loadCustomFields(supabase, entity.customModule), me.permissions) : [];
     return { customRows, access };
+  });
+}
+
+/**
+ * Bút chì cạnh từng mục trong ô chọn: lấy bản ghi để mở hộp Sửa ngay tại biểu mẫu đang nhập.
+ * Chỉ người có quyền Sửa danh mục đó (CSDL vẫn kiểm tra lần cuối qua RLS khi lưu).
+ */
+export async function getRecordForEdit(
+  entityKey: string,
+  id: string,
+): Promise<ActionResult<{ record: Record<string, unknown>; refLabels: RefLabels; parentId: string | null }>> {
+  return runAction(async () => {
+    const { entity, me, access, supabase } = await context(entityKey);
+    if (!access.update || entity.singleton) throw new ActionError("Bạn không có quyền sửa danh mục này.");
+    if (!isUuid(id)) throw new ActionError("Mã bản ghi không hợp lệ.");
+    const customRows = visibleCustomRows(await loadCustomFields(supabase, entity.customModule), me.permissions);
+    const { record, refLabels } = await loadRecord(supabase, entity, customRows, id);
+    if (!record) throw new ActionError("Không tìm thấy bản ghi hoặc bạn không có quyền xem.");
+    const flat = flattenRow(effectiveFields(entity, customRows, me.permissions), record);
+    const parentId = entity.parentKey ? ((record[entity.parentKey] as string | null) ?? null) : null;
+    return { record: flat, refLabels, parentId };
   });
 }
