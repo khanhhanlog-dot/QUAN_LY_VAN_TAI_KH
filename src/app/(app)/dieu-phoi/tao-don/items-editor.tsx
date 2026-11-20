@@ -9,7 +9,7 @@ import { applyLayout, formatValue, parseNumberVN, systemLabel, systemSettingsOf 
 import { computeFormula } from "@/lib/formula";
 import { formatNumber } from "@/lib/format";
 import type { CustomFieldRow, FieldDef } from "@/lib/entities/types";
-import { AddOptionButton, useFieldOptions } from "@/components/entities/add-option";
+import { AddOptionButton, useFieldOptions, useOptionEditor } from "@/components/entities/add-option";
 
 export type ItemLine = { key: number; item_code: string; item_name: string; quantity: string; unit: string; note: string; custom: Record<string, unknown> };
 
@@ -208,9 +208,17 @@ function CellInput({ field: f, line, index, onChange }: { field: FieldDef; line:
 /** Ô chọn trong bảng hàng hóa, kèm nút + thêm lựa chọn mới */
 function CellSelect({ field: f, label, value, onChange }: { field: FieldDef; label: string; value: string; onChange: (v: unknown) => void }) {
   const { options, canAdd } = useFieldOptions(f);
+  const editor = useOptionEditor(f, canAdd);
   return (
     <div className="flex gap-1">
-      <NativeSelect aria-label={label} className="h-8" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect
+        aria-label={label}
+        className="h-8"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onEditOption={editor.onEditOption}
+        editOptionTitle="Sửa tên lựa chọn"
+      >
         <option value="">—</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -220,6 +228,7 @@ function CellSelect({ field: f, label, value, onChange }: { field: FieldDef; lab
         {value && !options.some((o) => o.value === value) ? <option value={value}>{value}</option> : null}
       </NativeSelect>
       {canAdd ? <AddOptionButton field={f} className="size-8 shrink-0" onAdded={(o) => onChange(o.value)} /> : null}
+      {editor.dialog}
     </div>
   );
 }

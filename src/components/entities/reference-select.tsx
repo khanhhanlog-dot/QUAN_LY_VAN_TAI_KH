@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, ChevronsUpDown, Loader2, Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Check, ChevronsUpDown, Loader2, Pencil, Plus, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ENTITIES } from "@/lib/entities/definitions";
-import { getEntityMeta, searchReferences, type RefOption } from "@/lib/entities/actions";
+import { getEntityMeta, getRecordForEdit, searchReferences, type RefOption } from "@/lib/entities/actions";
+import type { RefLabels } from "@/lib/entities/server";
 import type { CustomFieldRow } from "@/lib/entities/types";
 import type { EntityAccess } from "@/lib/entities/access";
 import { EntityFormDialog } from "./entity-form-dialog";
@@ -59,6 +62,10 @@ export function ReferenceSelect({
   const [meta, setMeta] = useState<Meta | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const router = useRouter();
+  // Bút chì cạnh từng mục: bản ghi đang mở để sửa
+  const [edit, setEdit] = useState<{ record: Record<string, unknown>; refLabels: RefLabels; parentId: string | null } | null>(null);
+  const [editLoading, setEditLoading] = useState<string | null>(null);
 
   // Hiển thị nhãn khi chỉ có id (ví dụ bản ghi mới tải)
   useEffect(() => {
@@ -70,8 +77,8 @@ export function ReferenceSelect({
   }, [value, label, refKey]);
 
   useEffect(() => {
-    if (allowQuickCreate && entity?.quickFields && !disabled) loadMeta(refKey).then(setMeta);
-  }, [allowQuickCreate, entity, disabled, refKey]);
+    if (entity && !disabled) loadMeta(refKey).then(setMeta);
+  }, [entity, disabled, refKey]);
 
   function search(term: string) {
     startLoading(async () => {
@@ -106,6 +113,16 @@ export function ReferenceSelect({
   }
 
   const canQuick = allowQuickCreate && entity?.quickFields && meta?.access.create;
+  const canEdit = Boolean(meta?.access.update && !entity?.singleton && !disabled);
+
+  async function startEdit(o: RefOption) {
+    setEditLoading(o.value);
+    const r = await getRecordForEdit(refKey, o.value);
+    setEditLoading(null);
+    if (!r.ok || !r.data) return void toast.error(r.ok ? "Không mở được bản ghi để sửa" : r.error);
+    setOpen(false);
+    setEdit(r.data);
+  }
 
   return (
     <div className="flex gap-1">
@@ -150,7 +167,24 @@ export function ReferenceSelect({
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
                 >
                   <Check className={cn("size-4 shrink-0", o.value === value ? "opacity-100" : "opacity-0")} />
-                  <span className="truncate">{o.label}</span>
+                  <span className="min-w-0 flex-1 truncate" title={o.label}>
+                    {o.label}
+                  </span>
+                  {canEdit ? (
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      title={`Sửa ${entity?.singular ?? ""} “${o.label}”`}
+                      aria-label={`Sửa ${entity?.singular ?? ""} ${o.label}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!editLoading) void startEdit(o);
+                      }}
+                      className="-my-1 flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-primary"
+                    >
+                      {editLoading === o.value ? <Loader2 className="size-3.5 animate-spin" /> : <Pencil className="size-3.5" />}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             ))}
@@ -207,6 +241,26 @@ export function ReferenceSelect({
               : undefined
           }
           onSaved={(res) => pick({ value: res.id, label: res.label })}
+        />
+      ) : null}
+      {edit && meta ? (
+        <EntityFormDialog
+          key={String(edit.record.id ?? "")}
+          entityKey={refKey}
+          customRows={meta.customRows}
+          open
+          onOpenChange={(o) => !o && setEdit(null)}
+          record={edit.record}
+          refLabels={edit.refLabels}
+          parentId={edit.parentId ?? undefined}
+          canAddField={meta.access.configureFields}
+          onSaved={(res) => {
+            setOptions((list) => list.map((x) => (x.value === res.id ? { ...x, label: res.label } : x)));
+            if (res.id === value) setLabel(res.label);
+            setEdit(null);
+            // Bảng, thẻ chi tiết đang hiện tên cũ: tải lại dữ liệu trang
+            router.refresh();
+          }}
         />
       ) : null}
     </div>

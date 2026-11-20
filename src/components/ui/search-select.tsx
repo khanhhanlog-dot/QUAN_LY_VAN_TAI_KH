@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown, Pencil, Search } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +65,14 @@ function assignRef<T>(ref: React.Ref<T> | undefined, el: T | null) {
  * Vẫn giữ một <select> thật (ẩn) để biểu mẫu, onChange, name, required, id hoạt động y như cũ;
  * danh sách và ô tìm hiện trong khung bật lên.
  */
-export function SearchSelect({ className, style, disabled, ...props }: React.ComponentProps<"select">) {
+export type SearchSelectProps = React.ComponentProps<"select"> & {
+  /** Hiện bút chì bên phải từng mục (trừ mục trống) để sửa mục đó ngay tại ô chọn */
+  onEditOption?: (o: { value: string; label: string }) => void;
+  /** Chú thích của nút bút chì */
+  editOptionTitle?: string;
+};
+
+export function SearchSelect({ className, style, disabled, onEditOption, editOptionTitle, ...props }: SearchSelectProps) {
   const selRef = React.useRef<HTMLSelectElement | null>(null);
   const btnRef = React.useRef<HTMLButtonElement | null>(null);
   const listRef = React.useRef<HTMLUListElement | null>(null);
@@ -274,7 +281,24 @@ export function SearchSelect({ className, style, disabled, ...props }: React.Com
                   )}
                 >
                   <Check className={cn("size-4 shrink-0", selected ? "opacity-100" : "opacity-0")} />
-                  <span className="min-w-0 break-words">{o.label || " "}</span>
+                  <span className="min-w-0 flex-1 break-words">{o.label || " "}</span>
+                  {onEditOption && o.value !== "" ? (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title={`${editOptionTitle ?? "Sửa"} “${o.label}”`}
+                      aria-label={`${editOptionTitle ?? "Sửa"} ${o.label}`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpen(false);
+                        onEditOption({ value: o.value, label: o.label });
+                      }}
+                      className="-my-1 flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-primary"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  ) : null}
                 </li>
               </React.Fragment>
             );
