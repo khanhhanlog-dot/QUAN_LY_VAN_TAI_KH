@@ -5,7 +5,8 @@ import { Ban, FileSpreadsheet, ReceiptText } from "lucide-react";
 import { redirect } from "next/navigation";
 import { requirePagePermission } from "@/lib/auth/session";
 import { loadTableView } from "@/lib/entities/server";
-import { SHIPMENT_ADV_FIELDS } from "@/lib/shipments";
+import { encodeSortParam, parseSortParam } from "@/lib/table-sort";
+import { SHIPMENT_ADV_FIELDS, SHIPMENT_GRID_SORT_KEYS } from "@/lib/shipments";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysYMD, formatVND, startOfDayVN } from "@/lib/format";
@@ -48,16 +49,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const me = await requirePagePermission("shipments.view");
   const sp = await searchParams;
   const supabase = await createClient();
-  const custom = await shipmentCustomFields(supabase, me.permissions);
+  const [custom, view] = await Promise.all([shipmentCustomFields(supabase, me.permissions), loadTableView(supabase, "shipment_grid", me.id)]);
+  // Sắp xếp: theo URL (bấm tiêu đề cột), không có thì theo cấu hình đã lưu; sắp trên toàn bộ kết quả lọc
+  const sortRules = sp.sx !== undefined ? parseSortParam(sp.sx, SHIPMENT_GRID_SORT_KEYS) : (view?.sort ?? []).filter((r) => (SHIPMENT_GRID_SORT_KEYS as readonly string[]).includes(r.id)).slice(0, 3);
   const f = parseShipmentFilters(sp, custom.adv);
   const page = Math.max(1, Math.min(1000, Number(sp.trang) || 1));
   // Chuyến hủy không hiện ở Quản lý chuyến: xem và khôi phục ở danh sách Chuyến hủy
   if (f.tt === "cancelled") redirect(`/dieu-phoi/chuyen-huy?${new URLSearchParams({ tu: f.tu, den: f.den }).toString()}`);
   const canEdit = me.permissions.has("shipments.update") || me.permissions.has("dispatch.update");
 
-  const [listRes, sumRes, view, advLabels] = await Promise.all([
-    applyShipmentFilters(supabase.from("shipment_list").select("*", { count: "exact" }), f)
-      .neq("status", "cancelled")
+  let listQuery = applyShipmentFilters(supabase.from("shipment_list").select("*", { count: "exact" }), f).neq("status", "cancelled");
+  for (const r of sortRules) listQuery = listQuery.order(r.id, { ascending: !r.desc, nullsFirst: false });
+  const [listRes, sumRes, advLabels] = await Promise.all([
+    listQuery
       .order("pickup_at", { ascending: false })
       .order("shipment_code", { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
@@ -70,7 +74,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
           p_customer_id: f.kh || null,
           p_q: f.q || null,
         }),
-    loadTableView(supabase, "shipment_grid", me.id),
     advRefLabels(supabase, f.adv, [...SHIPMENT_ADV_FIELDS, ...custom.adv]),
   ]);
   if (listRes.error) throw listRes.error;
@@ -115,6 +118,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     const q = new URLSearchParams();
     for (const k of ["tu", "den", "tt", "kh", "q"] as const) if (merged[k]) q.set(k, merged[k]);
     for (const a of merged.adv) q.append("a", a);
+    if (sp.sx !== undefined) q.set("sx", encodeSortParam(sortRules));
     if (p.trang && p.trang > 1) q.set("trang", String(p.trang));
     return `/chuyen-xe?${q.toString()}`;
   };
@@ -176,7 +180,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
             <Ban className="size-4 text-destructive" /> Chuyến hủy ({cancelledCount})
           </Link>
         </div>
-        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} canFillDriver={canFillDriver} canAssign={me.permissions.has("dispatch.update")} feeColumns={fees.columns} feeValues={fees.values} />
+        <ShipmentGrid rows={rows} canEdit={canEdit} view={view} sort={sortRules} adv={f.adv} advLabels={advLabels} customDefs={custom.defs} customAdv={custom.adv} canAddField={me.permissions.has("fields.configure")} canSeeProfit={canSeeProfit} canFillDriver={canFillDriver} canAssign={me.permissions.has("dispatch.update")} feeColumns={fees.columns} feeValues={fees.values} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
           <span>
             {total === 0 ? "Không có chuyến phù hợp" : `Dòng ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total} chuyến`}

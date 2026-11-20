@@ -336,6 +336,7 @@ export function EntityTable(props: EntityTableProps) {
       density,
       rowHeight,
       pageSize: size,
+      sort: props.sort ? [{ id: props.sort, desc: props.dir === "desc" }] : [],
     };
   }
 

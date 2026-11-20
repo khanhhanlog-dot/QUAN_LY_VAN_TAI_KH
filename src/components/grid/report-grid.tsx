@@ -3,12 +3,15 @@ import { useMemo, useRef, useState, useTransition, type CSSProperties, type Poin
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
   type Column,
   type ColumnDef,
   type ColumnOrderState,
   type ColumnPinningState,
   type ColumnSizingState,
+  type Row,
+  type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -17,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdvancedFilter } from "@/components/advanced-filter";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
+import { SortButton, SortStatus } from "@/components/grid/sort-header";
+import { compareSortVals, emptyToUndef, type SortVal } from "@/lib/table-sort";
 import { matchCondition, type AdvCondition, type AdvField, type AdvFieldKind } from "@/lib/advanced-filter";
 import { resetTableView, saveTableView } from "@/lib/entities/actions";
 import type { TableViewConfig } from "@/lib/entities/types";
@@ -34,13 +39,18 @@ export type ReportColumn<T> = {
   value: (r: T) => string | number | null | undefined;
   /** Cách hiển thị (mặc định: giá trị thô) */
   render?: (r: T) => ReactNode;
+  /** Giá trị dùng để sắp xếp (mặc định: value). Số sắp theo số, chữ theo tiếng Việt, ô trống luôn cuối */
+  sortValue?: (r: T) => SortVal;
+  /** false = cột này không sắp xếp được */
+  sortable?: boolean;
 };
 
 const fold = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
 
 /**
  * Bảng báo cáo tính sẵn (dữ liệu đã có ở trình duyệt): ô tìm kiếm, tìm kiếm nâng cao, chọn/ẩn cột,
- * kéo đổi chỗ, kéo giãn cột và dòng, cố định cột, lưu cấu hình theo người dùng.
+ * kéo đổi chỗ, kéo giãn cột và dòng, cố định cột, bấm tiêu đề để sắp xếp tăng/giảm (Shift: nhiều cột),
+ * lưu cấu hình (kể cả sắp xếp) theo người dùng.
  */
 export function ReportGrid<T>({
   tableKey,
@@ -78,6 +88,7 @@ export function ReportGrid<T>({
   const [order, setOrder] = useState<ColumnOrderState>(() => view?.order ?? []);
   const [sizing, setSizing] = useState<ColumnSizingState>(() => view?.widths ?? {});
   const [pinning, setPinning] = useState<ColumnPinningState>(() => ({ left: view?.pinned ?? defaultPinned }));
+  const [sorting, setSorting] = useState<SortingState>(() => (view?.sort ?? []).filter((s) => cols.some((c) => c.key === s.id)));
   const [rowHeight, setRowHeight] = useState<number | null>(view?.rowHeight ?? null);
   const [dragCol, setDragCol] = useState<string | null>(null);
   const resizeRow = useRef<{ y: number; h: number } | null>(null);
@@ -103,6 +114,10 @@ export function ReportGrid<T>({
         size: c.width,
         minSize: 50,
         meta: { col: c },
+        enableSorting: c.sortable !== false,
+        accessorFn: (r: T) => emptyToUndef((c.sortValue ?? c.value)(r)),
+        sortingFn: (a: Row<T>, b: Row<T>, id: string) => compareSortVals(a.getValue<SortVal>(id), b.getValue<SortVal>(id)),
+        sortUndefined: "last" as const,
         cell: ({ row }) => (c.render ? c.render(row.original) : (c.value(row.original) ?? "")),
       })),
     [cols],
@@ -113,9 +128,15 @@ export function ReportGrid<T>({
     data: filtered,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getRowId,
     columnResizeMode: "onChange",
-    state: { columnVisibility: visibility, columnOrder: order, columnSizing: sizing, columnPinning: pinning },
+    enableMultiSort: true,
+    sortDescFirst: false,
+    isMultiSortEvent: (e) => (e as MouseEvent).shiftKey,
+    maxMultiSortColCount: 3,
+    state: { columnVisibility: visibility, columnOrder: order, columnSizing: sizing, columnPinning: pinning, sorting },
+    onSortingChange: setSorting,
     onColumnVisibilityChange: setVisibility,
     onColumnOrderChange: setOrder,
     onColumnSizingChange: setSizing,
@@ -123,6 +144,8 @@ export function ReportGrid<T>({
   });
   const ids = () => table.getAllLeafColumns().map((c) => c.id);
   const meta = (c: Column<T>) => (c.columnDef.meta as { col: ReportColumn<T> }).col;
+  /** Các dòng đang lọc, đúng thứ tự đang sắp xếp (dùng cho Xuất Excel / In) */
+  const sortedRows = () => table.getRowModel().rows.map((r) => r.original);
 
   function moveColumn(id: string, delta: number) {
     const list = ids();
@@ -177,7 +200,7 @@ export function ReportGrid<T>({
             onClick={async () => {
               setExporting(true);
               try {
-                await onExport(table.getVisibleLeafColumns().map((c) => meta(c)), filtered);
+                await onExport(table.getVisibleLeafColumns().map((c) => meta(c)), sortedRows());
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : "Không xuất được Excel");
               } finally {
@@ -194,7 +217,7 @@ export function ReportGrid<T>({
             size="sm"
             disabled={!filtered.length}
             title="In các cột đang hiện, hoặc chọn Lưu dưới dạng PDF"
-            onClick={() => onPrint(table.getVisibleLeafColumns().map((c) => meta(c)), filtered)}
+            onClick={() => onPrint(table.getVisibleLeafColumns().map((c) => meta(c)), sortedRows())}
           >
             <Printer /> In / PDF
           </Button>
@@ -214,6 +237,7 @@ export function ReportGrid<T>({
                   pinned: pinning.left ?? [],
                   rowHeight,
                   pageSize: 100,
+                  sort: sorting,
                 });
                 if (r.ok) toast.success(r.message);
                 else toast.error(r.error);
@@ -236,6 +260,7 @@ export function ReportGrid<T>({
                 setSizing({});
                 setPinning({ left: defaultPinned });
                 setRowHeight(null);
+                setSorting([]);
                 toast.success(r.message);
               })
             }
@@ -254,10 +279,12 @@ export function ReportGrid<T>({
                 {table.getFlatHeaders().map((h) => {
                   const col = h.column;
                   const c = meta(col);
+                  const dir = col.getIsSorted();
                   return (
                     <th
                       key={h.id}
                       style={pinStyle(col, true)}
+                      aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
                       draggable={!col.getIsResizing()}
                       onDragStart={(e) => {
                         setDragCol(col.id);
@@ -270,7 +297,7 @@ export function ReportGrid<T>({
                         dropColumn(col.id);
                       }}
                       onDragEnd={() => setDragCol(null)}
-                      title="Kéo để đổi vị trí cột"
+                      title={col.getCanSort() ? "Bấm để sắp xếp tăng/giảm, kéo để đổi vị trí cột" : "Kéo để đổi vị trí cột"}
                       className={cn(
                         "relative cursor-grab border-r border-b border-sky-200 bg-sky-100 px-2 py-2 font-bold whitespace-nowrap active:cursor-grabbing dark:border-sky-800 dark:bg-sky-950",
                         c.align === "right" && "text-right",
@@ -278,7 +305,18 @@ export function ReportGrid<T>({
                         dragCol === col.id && "opacity-50",
                       )}
                     >
-                      <span className="block truncate">{c.label}</span>
+                      {col.getCanSort() ? (
+                        <SortButton
+                          label={c.label}
+                          dir={dir}
+                          index={sorting.length > 1 ? col.getSortIndex() : -1}
+                          alignRight={c.align === "right"}
+                          onClick={(e) => col.toggleSorting(undefined, e.shiftKey)}
+                          className={cn(c.align === "right" && "ml-auto")}
+                        />
+                      ) : (
+                        <span className="block truncate">{c.label}</span>
+                      )}
                       <div
                         onMouseDown={h.getResizeHandler()}
                         onTouchStart={h.getResizeHandler()}
@@ -333,8 +371,9 @@ export function ReportGrid<T>({
           </table>
         </div>
       )}
-      <div className="border-t px-4 py-2 text-xs text-muted-foreground">
-        {filtered.length === rows.length ? `${rows.length} dòng` : `${filtered.length} / ${rows.length} dòng phù hợp`}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2 text-xs text-muted-foreground">
+        <span>{filtered.length === rows.length ? `${rows.length} dòng` : `${filtered.length} / ${rows.length} dòng phù hợp`}</span>
+        <SortStatus rules={sorting} label={(id) => cols.find((c) => c.key === id)?.label} onClear={() => setSorting([])} />
       </div>
     </>
   );

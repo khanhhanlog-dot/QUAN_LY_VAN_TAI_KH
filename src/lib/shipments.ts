@@ -148,3 +148,12 @@ export const ASSIGNED_ROW_CELL = "bg-violet-100 group-hover:bg-violet-200 dark:b
 
 /** Nhận ra trường bổ sung "Điểm hạ hàng" (hạ cont hàng) theo tên trường: hiện thêm dòng "Hạ hàng: ..." trong ô Tuyến đường */
 export const DROP_OFF_RE = /h[aạ]\s*(cont\s*)?h[aà]ng/i;
+
+/** Cột Quản lý chuyến sắp xếp được trên toàn bộ kết quả lọc (cột thật của view shipment_list, sắp ở máy chủ) */
+export const SHIPMENT_GRID_SORT_KEYS = [
+  "pickup_at", "shipment_code", "order_code", "customer_code", "customer_name", "pickup_name", "delivery_name", "route_label",
+  "empty_return_name", "offroute_return_name", "trip_order", "delivery_days", "plan_code", "vehicle_type_name", "plate_number",
+  "driver_name", "quantity", "pricing_unit", "unit_price", "freight_amount", "surcharge_amount", "fuel_support_rate",
+  "fuel_support_amount", "transport_fee", "pass_through_fee", "declaration_fee", "loading_fee", "extra_fee_amount",
+  "total_revenue", "pass_through_amount", "amount_due", "status", "dispatch_approval", "document_status", "settlement_status", "notes",
+] as const;

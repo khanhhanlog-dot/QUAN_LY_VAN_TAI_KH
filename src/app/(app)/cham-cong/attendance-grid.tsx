@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { lockAttendance, setAttendance } from "@/lib/attendance/actions";
 import { cn } from "@/lib/utils";
+import { SortButton, SortStatus, useTableSort } from "@/components/grid/sort-header";
 
 type Status = "work" | "leave_paid" | "sick" | "leave_unpaid" | "absent" | "off" | "pending" | "upcoming";
 type Cell = { s: Status; src: "manual" | "trip" | "trip_long" | "leave_request" | "auto"; t: number; n: string | null; r?: string | null };
@@ -37,6 +38,20 @@ const SUMMARY: Status[] = ["work", "leave_paid", "sick", "leave_unpaid", "absent
 const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
 const key = (driverId: string, date: string) => `${driverId}|${date}`;
+
+type DriverRow = AttendanceMonth["drivers"][number];
+/** Tổng chuyến và số ngày theo từng loại công của một tài xế trong tháng */
+function totalsOf(dr: DriverRow) {
+  const counts = Object.fromEntries(SUMMARY.map((s) => [s, 0])) as Record<Status, number>;
+  let trips = 0;
+  for (const c of Object.values(dr.cells)) {
+    if (c.s in counts) counts[c.s] += 1;
+    trips += c.t;
+  }
+  return { counts, trips };
+}
+const sortValue = (dr: DriverRow, id: string) => (id === "name" ? dr.name : id === "trips" ? totalsOf(dr).trips : totalsOf(dr).counts[id as Status] ?? null);
+const sortLabel = (id: string) => (id === "name" ? "Tài xế" : id === "trips" ? "Chuyến" : id === "work" ? "Công" : LOOK[id as Status]?.label);
 const shiftMonth = (m: string, delta: number) => {
   const [y, mo] = m.split("-").map(Number);
   const d = new Date(Date.UTC(y, mo - 1 + delta, 1));
@@ -58,11 +73,13 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
     return m;
   }, [reasons]);
 
-  const drivers = useMemo(() => {
+  const matchedDrivers = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return data.drivers;
     return data.drivers.filter((d) => `${d.name} ${d.code} ${d.plate ?? ""}`.toLowerCase().includes(t));
   }, [data.drivers, q]);
+  const sort = useTableSort(matchedDrivers, sortValue, { storageKey: "attendance" });
+  const drivers = sort.sorted;
   const pendingKeys = useMemo(
     () => drivers.flatMap((d) => Object.entries(d.cells).filter(([, c]) => c.s === "pending").map(([day]) => key(d.id, day))),
     [drivers],
@@ -194,7 +211,12 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
         <table className="w-max border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-card">
             <tr>
-              <th className="sticky left-0 z-10 min-w-48 border-b bg-card px-2 py-1 text-left">Tài xế</th>
+              <th className="sticky left-0 z-10 min-w-48 border-b bg-card px-2 py-1 text-left">
+                <SortButton {...sort.header("name", "Tài xế")} />
+                <div className="font-normal">
+                  <SortStatus rules={sort.rules} label={sortLabel} onClear={sort.clear} hint="Bấm tiêu đề để sắp xếp" />
+                </div>
+              </th>
               {data.days.map((d) => {
                 const dt = new Date(`${d.date}T00:00:00Z`);
                 return (
@@ -208,24 +230,19 @@ export function AttendanceGrid({ month, data, today }: { month: string; data: At
                   </th>
                 );
               })}
-              <th className="border-b border-l px-1.5 py-1 text-center" title="Tổng số chuyến trong tháng (xe nội bộ, kể cả chuyến đã lên lịch)">
-                Chuyến
+              <th className="border-b border-l px-1.5 py-1 text-center" title="Tổng số chuyến trong tháng (xe nội bộ, kể cả chuyến đã lên lịch). Bấm để sắp xếp">
+                <SortButton {...sort.header("trips", "Chuyến")} />
               </th>
               {SUMMARY.map((s) => (
-                <th key={s} className="border-b border-l px-1.5 py-1 text-center" title={LOOK[s].label}>
-                  {s === "work" ? "Công" : LOOK[s].sym}
+                <th key={s} className="border-b border-l px-1.5 py-1 text-center" title={`${LOOK[s].label}. Bấm để sắp xếp`}>
+                  <SortButton {...sort.header(s, s === "work" ? "Công" : LOOK[s].sym)} />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {drivers.map((dr) => {
-              const counts = Object.fromEntries(SUMMARY.map((s) => [s, 0])) as Record<Status, number>;
-              let tripTotal = 0;
-              Object.values(dr.cells).forEach((c) => {
-                if (c.s in counts) counts[c.s] += 1;
-                tripTotal += c.t;
-              });
+              const { counts, trips: tripTotal } = totalsOf(dr);
               return (
                 <tr key={dr.id} className="hover:bg-muted/40">
                   <td className="sticky left-0 z-[1] border-b bg-card px-2 py-1">

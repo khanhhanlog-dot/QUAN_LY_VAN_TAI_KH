@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveShipmentDriverPays } from "@/app/(app)/dieu-phoi/actions";
 import { formatDate, formatNumber } from "@/lib/format";
+import { SortButton, SortStatus, useTableSort } from "@/components/grid/sort-header";
+import type { SortVal } from "@/lib/table-sort";
 
 export type TripPayRow = {
   id: string;
@@ -26,19 +28,32 @@ export type TripPayRow = {
 
 const digits = (v: string) => v.replace(/[^0-9]/g, "");
 
+const SORT_LABELS: Record<string, string> = { code: "Mã chuyến", date: "Ngày nhận", driver: "Tài xế", plate: "Biển số", route: "Tuyến", suggested: "Gợi ý cùng tuyến", amount: "Lương chuyến" };
+const sortValue = (r: TripPayRow, id: string): SortVal =>
+  id === "code" ? r.shipment_code
+  : id === "date" ? r.pickup_date
+  : id === "driver" ? r.driver_name
+  : id === "plate" ? r.plate_number
+  : id === "route" ? `${r.pickup_name ?? ""} ${r.delivery_name ?? ""}`
+  : id === "suggested" ? r.suggested
+  : id === "amount" ? r.amount
+  : null;
+
 export function TripPayTable({ rows, from, to, onlyMissing, canFill }: { rows: TripPayRow[]; from: string; to: string; onlyMissing: boolean; canFill: boolean }) {
   const [q, setQ] = useState("");
   const [vals, setVals] = useState<Record<string, string>>({});
   const [pending, start] = useTransition();
   const router = useRouter();
 
-  const shown = useMemo(() => {
+  const matched = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return rows;
     return rows.filter((r) =>
       [r.shipment_code, r.driver_name, r.plate_number, r.pickup_name, r.delivery_name, r.note].some((v) => (v ?? "").toLowerCase().includes(t)),
     );
   }, [rows, q]);
+  const sort = useTableSort(matched, sortValue, { storageKey: "trip_pay" });
+  const shown = sort.sorted;
   const changed = Object.entries(vals).filter(([id, v]) => {
     const r = rows.find((x) => x.id === id);
     return r && v.trim() !== "" && Number(digits(v)) !== r.amount;
@@ -118,20 +133,24 @@ export function TripPayTable({ rows, from, to, onlyMissing, canFill }: { rows: T
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        {formatNumber(shown.length)} chuyến{rows.length >= 3000 ? " (hiện tối đa 3,000, thu hẹp khoảng ngày để xem thêm)" : ""}. Chuyến đã có bảng lương tháng thì bị khóa.
+        <SortStatus rules={sort.rules} label={(id) => SORT_LABELS[id]} onClear={sort.clear} hint={null} /> {formatNumber(shown.length)} chuyến{rows.length >= 3000 ? " (hiện tối đa 3,000, thu hẹp khoảng ngày để xem thêm)" : ""}. Chuyến đã có bảng lương tháng thì bị khóa.
       </p>
 
       <div className="overflow-auto rounded-lg border" style={{ maxHeight: "70vh" }}>
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b text-left">
-              <th className="px-3 py-2">Mã chuyến</th>
-              <th className="px-3 py-2">Ngày nhận</th>
-              <th className="px-3 py-2">Tài xế</th>
-              <th className="px-3 py-2">Biển số</th>
-              <th className="px-3 py-2">Tuyến</th>
-              <th className="px-3 py-2 text-right">Gợi ý cùng tuyến</th>
-              <th className="w-44 px-3 py-2 text-right">Lương chuyến</th>
+              {(["code", "date", "driver", "plate", "route"] as const).map((k) => (
+                <th key={k} className="px-3 py-2">
+                  <SortButton {...sort.header(k, SORT_LABELS[k])} />
+                </th>
+              ))}
+              <th className="px-3 py-2 text-right">
+                <SortButton {...sort.header("suggested", SORT_LABELS.suggested, true)} />
+              </th>
+              <th className="w-44 px-3 py-2 text-right">
+                <SortButton {...sort.header("amount", SORT_LABELS.amount, true)} />
+              </th>
             </tr>
           </thead>
           <tbody>
