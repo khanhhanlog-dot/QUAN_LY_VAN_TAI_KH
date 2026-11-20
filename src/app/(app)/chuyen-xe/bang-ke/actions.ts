@@ -7,6 +7,7 @@ import { isUuid } from "@/lib/entities/record";
 import { loadStatement } from "@/lib/freight-statement-data";
 import { STATEMENT_STATUS_OPTIONS, STATEMENT_TABLE_KEY, resolveColumns, statementConfigSchema, statementFileName } from "@/lib/freight-statement";
 import { buildStatementWorkbook } from "@/lib/freight-statement-excel";
+import { sortRows } from "@/lib/table-sort";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,6 +19,8 @@ const exportSchema = z.object({
   config: statementConfigSchema,
   /** Chuyến người dùng bỏ ra khỏi bảng kê (bỏ tích hoặc lọc bằng ô tìm kiếm) */
   excludeIds: z.array(z.string().uuid()).max(2000).default([]),
+  /** Sắp xếp người dùng chọn trên bảng xem trước (bấm tiêu đề cột) */
+  sort: z.array(z.object({ id: z.string().max(80), desc: z.boolean() })).max(3).default([]),
 });
 
 /** Xuất bảng kê cước ra Excel: thông tin khách (trái), tiêu đề (giữa), công ty Khánh Hà (phải), bảng chuyến, tổng, ký nhận */
@@ -29,7 +32,7 @@ export async function exportStatementExcel(input: z.input<typeof exportSchema>):
     const data = await loadStatement(supabase, me.permissions, { kh: d.kh, tu: d.tu, den: d.den, tt: d.tt as "giao" });
     if (!data.customer) throw new ActionError("Không tìm thấy khách hàng.");
     const skip = new Set(d.excludeIds);
-    const rows = data.rows.filter((r) => !skip.has(r.id)).map((r, i) => ({ ...r, cells: { ...r.cells, stt: i + 1 } }));
+    const rows = sortRows(data.rows.filter((r) => !skip.has(r.id)), d.sort, (r, id) => r.cells[id]).map((r, i) => ({ ...r, cells: { ...r.cells, stt: i + 1 } }));
     const cols = resolveColumns(data.catalog, d.config);
     if (!cols.length) throw new ActionError("Chọn ít nhất một cột cho bảng kê.");
     const buf = await buildStatementWorkbook(d.config, data.customer, d.tu, d.den, cols, rows, data.catalog);

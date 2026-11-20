@@ -26,6 +26,10 @@ import {
 } from "@/lib/freight-statement";
 import type { StatementData } from "@/lib/freight-statement-data";
 import { deleteStatementTemplate, exportStatementExcel, saveStatementTemplate } from "./actions";
+import { SortButton, SortStatus, useTableSort } from "@/components/grid/sort-header";
+import type { SortVal } from "@/lib/table-sort";
+
+const cellSortValue = (r: StatementData["rows"][number], id: string): SortVal => r.cells[id];
 
 export type StatementTemplate = { id: string; name: string; shared: boolean; config: StatementConfig };
 
@@ -103,10 +107,13 @@ export function StatementBuilder({
   };
   const cols = useMemo(() => resolveColumns(data.catalog, config), [data.catalog, config]);
   const term = norm(q.trim());
-  const shownRows = useMemo(() => {
+  const matchedRows = useMemo(() => {
     if (!term) return data.rows;
     return data.rows.filter((r) => norm(Object.values(r.cells).filter((v) => v !== null).join(" ")).includes(term));
   }, [data.rows, term]);
+  // Bấm tiêu đề cột để sắp xếp: bảng xem trước, In/PDF và Excel theo cùng thứ tự (STT đánh lại)
+  const sort = useTableSort(matchedRows, cellSortValue, { storageKey: "freight_statement" });
+  const shownRows = sort.sorted;
   // Dòng đưa vào bảng kê: đang hiện theo ô tìm kiếm và không bị bỏ tích; STT đánh lại liên tục
   const included = useMemo(
     () => shownRows.filter((r) => !excluded.has(r.id)).map((r, i) => ({ ...r, cells: { ...r.cells, stt: i + 1 } })),
@@ -140,7 +147,7 @@ export function StatementBuilder({
     if (!customer) return void toast.error("Chọn khách hàng trước.");
     const includedIds = new Set(included.map((r) => r.id));
     startBusy(async () => {
-      const r = await exportStatementExcel({ ...filters, config, excludeIds: data.rows.filter((x) => !includedIds.has(x.id)).map((x) => x.id) });
+      const r = await exportStatementExcel({ ...filters, config, excludeIds: data.rows.filter((x) => !includedIds.has(x.id)).map((x) => x.id), sort: sort.rules.filter((r) => r.id !== "stt") });
       if (!r.ok || !r.data) return void toast.error(r.ok ? "Không tạo được tệp" : r.error);
       const bytes = Uint8Array.from(atob(r.data.base64), (c) => c.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
@@ -327,6 +334,7 @@ export function StatementBuilder({
               {excluded.size ? ` · đã bỏ tích ${excluded.size} chuyến` : ""}
               {term ? " · đang lọc theo ô tìm kiếm (chỉ dòng đang hiện được in và xuất)" : ""}
             </span>
+            <SortStatus rules={sort.rules} label={(id) => cols.find((c) => c.key === id)?.title} onClear={sort.clear} hint="Bấm tiêu đề cột để sắp xếp (In và Excel theo cùng thứ tự)." />
             {excluded.size ? (
               <Button variant="ghost" size="sm" onClick={() => setExcluded(new Set())}>
                 Chọn lại tất cả
@@ -381,7 +389,7 @@ export function StatementBuilder({
                   </th>
                   {cols.map((c) => (
                     <th key={c.key} className="relative border border-x-white border-y-black bg-black px-1 py-1.5 text-center align-middle font-bold text-white first:border-l-black last:border-r-black" style={{ width: `${((c.w / totalW) * 100).toFixed(2)}%` }}>
-                      {c.title}
+                      {c.key === "stt" ? c.title : <SortButton {...sort.header(c.key, c.title)} wrap className="justify-center text-center" />}
                       <span
                         className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/40 print:hidden"
                         onPointerDown={(e) => startResize(e, c.key, c.w)}

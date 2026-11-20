@@ -16,7 +16,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Download, Loader2, Pencil, RotateCcw, Save } from "lucide-react";
+import { ArrowRight, Download, Loader2, Pencil, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
@@ -30,6 +30,8 @@ import { ASSIGNABLE_STATUSES, CANCELLABLE_STATUSES, LOCKED_STATUSES, shipmentSta
 import { ASSIGNED_ROW_CELL, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
 import { loadSessionSort, saveSessionSort } from "@/lib/list-memory";
+import { compareSortVals as compareVals, emptyToUndef, type SortVal } from "@/lib/table-sort";
+import { SortButton } from "@/components/grid/sort-header";
 import { StatusBadge } from "./status-badge";
 import { ActForDriverQuick } from "./act-for-driver-quick";
 import { AssignDialog } from "./assign-dialog";
@@ -46,7 +48,6 @@ import { CrewCell } from "./crew-cell";
 import { CustomFieldCell, canInlineEdit } from "./custom-field-cell";
 import { FeeCell } from "./fee-cell";
 
-type SortVal = string | number | null | undefined;
 type Col = {
   key: string;
   label: string;
@@ -295,16 +296,6 @@ const BASE_COLS: Col[] = [
 ];
 
 const DEFAULT_PINNED: string[] = [];
-const collator = new Intl.Collator("vi", { numeric: true, sensitivity: "base" });
-
-const emptyToUndef = (v: SortVal) => (v === null || v === undefined || v === "" ? undefined : v);
-
-/** So sánh để sắp xếp: số theo số, chữ theo tiếng Việt (ô trống do sortUndefined đẩy xuống cuối) */
-function compareVals(a: SortVal, b: SortVal) {
-  if (typeof a === "number" && typeof b === "number") return a - b;
-  return collator.compare(String(a ?? ""), String(b ?? ""));
-}
-
 /** Bảng chuyến cho màn hình điều phối và chi tiết đơn hàng: kéo đổi cột, sắp xếp, ẩn/hiện, kéo giãn, lưu cấu hình theo người dùng */
 export function DispatchTable({
   rows,
@@ -479,6 +470,7 @@ export function DispatchTable({
     getRowId: (r) => r.id,
     columnResizeMode: "onChange",
     enableMultiSort: true,
+    sortDescFirst: false,
     isMultiSortEvent: (e) => (e as MouseEvent).shiftKey,
     maxMultiSortColCount: 3,
     state: { columnVisibility: visibility, columnOrder: order, columnSizing: sizing, columnPinning: pinning, sorting },
@@ -675,15 +667,7 @@ export function DispatchTable({
                       )}
                     >
                       {col.getCanSort() ? (
-                        <button
-                          type="button"
-                          onClick={col.getToggleSortingHandler()}
-                          className={cn("inline-flex max-w-full items-center gap-1 hover:text-foreground", dir && "text-foreground", c.align === "right" && "flex-row-reverse")}
-                        >
-                          <span className="truncate">{c.label}</span>
-                          {dir === "asc" ? <ArrowUp className="size-3.5 shrink-0" /> : dir === "desc" ? <ArrowDown className="size-3.5 shrink-0" /> : <ArrowUpDown className="size-3 shrink-0 opacity-40" />}
-                          {idx >= 0 ? <sup>{idx + 1}</sup> : null}
-                        </button>
+                        <SortButton label={c.label} dir={dir} index={idx} alignRight={c.align === "right"} onClick={col.getToggleSortingHandler() ?? (() => {})} className={cn("hover:text-foreground", dir && "text-foreground")} />
                       ) : (
                         <span className={cn("block truncate", c.hint && "underline decoration-dotted underline-offset-2")}>{c.label}</span>
                       )}

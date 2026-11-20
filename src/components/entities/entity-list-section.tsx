@@ -22,6 +22,11 @@ export async function EntityListSection({ entityKey, searchParams, revalidate }:
   const customRows = visibleCustomRows(customAll, me.permissions);
   const params = parseListParams(searchParams);
   if (!params.size) params.size = view?.pageSize ?? 20;
+  // Chưa bấm sắp xếp trên URL → dùng sắp xếp đã lưu trong cấu hình bảng của người dùng
+  if (!params.sort && view?.sort?.[0]) {
+    params.sort = view.sort[0].id;
+    params.dir = view.sort[0].desc ? "desc" : "asc";
+  }
   const { rows, total, page, size, refLabels, fields } = await listRows(supabase, entity, customRows, params);
   const [filterOptions, statusCounts, advLabels] = await Promise.all([
     loadFilterOptions(supabase, fields),

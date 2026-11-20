@@ -30,7 +30,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDate, formatNumber, formatVND } from "@/lib/format";
 import { LOCKED_STATUSES, PRICING_UNITS } from "@/lib/status";
-import { ASSIGNED_ROW_CELL, DROP_OFF_RE, SHIPMENT_ADV_FIELDS, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
+import { SortButton, SortStatus } from "@/components/grid/sort-header";
+import { encodeSortParam, nextSortRules, type SortRule } from "@/lib/table-sort";
+import { ASSIGNED_ROW_CELL, DROP_OFF_RE, SHIPMENT_ADV_FIELDS, SHIPMENT_GRID_SORT_KEYS, isAssignedRow, isLate, type ShipmentListRow } from "@/lib/shipments";
 import { StatusBadge } from "@/components/dispatch/status-badge";
 import { updateShipmentField, type EditableField } from "./actions";
 import { DriverInfoButton } from "@/components/dispatch/driver-info-button";
@@ -55,6 +57,8 @@ type Col = {
   def?: FieldDef;
   render: (r: ShipmentListRow) => ReactNode;
 };
+
+const SORT_KEYS: readonly string[] = SHIPMENT_GRID_SORT_KEYS;
 
 const COLS: Col[] = [
   { key: "pickup_at", label: "Ngày nhận", width: 110, render: (r) => formatDate(r.pickup_at) },
@@ -202,6 +206,7 @@ export function ShipmentGrid({
   rows: initial,
   canEdit,
   view,
+  sort = [],
   adv,
   advLabels,
   customDefs,
@@ -216,6 +221,8 @@ export function ShipmentGrid({
   rows: ShipmentListRow[];
   canEdit: boolean;
   view: TableViewConfig | null;
+  /** Đang sắp xếp (máy chủ sắp trên toàn bộ kết quả lọc, không chỉ trang đang xem) */
+  sort?: SortRule[];
   adv: string[];
   advLabels: Record<string, string>;
   /** Trường bổ sung của chuyến (người dùng tự thêm): hiện thành cột */
@@ -403,6 +410,13 @@ export function ShipmentGrid({
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }
+  /** Bấm tiêu đề cột: sắp xếp lại toàn bộ kết quả lọc ở máy chủ, quay về trang 1 */
+  function setSort(next: SortRule[]) {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.set("sx", encodeSortParam(next));
+    sp.delete("trang");
+    startNav(() => router.push(`${pathname}?${sp.toString()}`, { scroll: false }));
+  }
   function setAdv(list: string[]) {
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete("a");
@@ -423,6 +437,7 @@ export function ShipmentGrid({
     <>
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
         <AdvancedFilter fields={advFields} value={advConds} valueLabels={advLabels} onApply={(conds) => setAdv(conds.map(encodeCondition))} />
+        <SortStatus rules={sort} label={(id) => allCols.find((c) => c.key === id)?.label} onClear={() => setSort([])} hint="Bấm tiêu đề cột để sắp xếp tăng/giảm trên toàn bộ kết quả lọc (giữ Shift để sắp theo nhiều cột)." />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {canAddField ? <AddFieldButton module="shipments" customRows={[]} label="Thêm cột (trường)" /> : null}
           <ColumnsMenu columns={table.getAllLeafColumns()} label={label} note={(c) => ((c.columnDef.meta as { col: Col }).col.custom ? "bổ sung" : null)} onMove={moveColumn} />
@@ -439,6 +454,7 @@ export function ShipmentGrid({
                   pinned: pinning.left ?? [],
                   rowHeight,
                   pageSize: 100,
+                  sort,
                 });
                 if (r.ok) toast.success(r.message);
                 else toast.error(r.error);
@@ -461,6 +477,7 @@ export function ShipmentGrid({
                 setSizing({});
                 setPinning({ left: DEFAULT_PINNED });
                 setRowHeight(null);
+                if (sort.length) setSort([]);
                 toast.success(r.message);
               })
             }
@@ -480,6 +497,9 @@ export function ShipmentGrid({
                   const col = h.column;
                   const c = (col.columnDef.meta as { col: Col }).col;
                   const lastPinned = col.getIsPinned() && col.getIsLastColumn("left");
+                  const canSort = SORT_KEYS.includes(col.id);
+                  const rule = sort.find((x) => x.id === col.id);
+                  const dir = rule ? (rule.desc ? "desc" : "asc") : false;
                   return (
                     <th
                       key={h.id}
@@ -496,7 +516,8 @@ export function ShipmentGrid({
                         dropColumn(col.id);
                       }}
                       onDragEnd={() => setDragCol(null)}
-                      title="Kéo để đổi vị trí cột"
+                      title={canSort ? "Bấm để sắp xếp tăng/giảm, kéo để đổi vị trí cột" : "Kéo để đổi vị trí cột"}
+                      aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
                       className={cn(
                         "relative cursor-grab border-b bg-muted px-2 py-2 font-medium whitespace-nowrap active:cursor-grabbing",
                         c.align === "right" && "text-right",
@@ -504,7 +525,18 @@ export function ShipmentGrid({
                         dragCol === col.id && "opacity-50",
                       )}
                     >
-                      <span className="block truncate">{c.label}</span>
+                      {canSort ? (
+                        <SortButton
+                          label={c.label}
+                          dir={dir}
+                          index={sort.length > 1 ? sort.findIndex((x) => x.id === col.id) : -1}
+                          alignRight={c.align === "right"}
+                          onClick={(e) => setSort(nextSortRules(sort, col.id, e.shiftKey))}
+                          className={cn("hover:text-foreground", dir && "text-foreground", c.align === "right" && "ml-auto")}
+                        />
+                      ) : (
+                        <span className="block truncate">{c.label}</span>
+                      )}
                       <div
                         onMouseDown={h.getResizeHandler()}
                         onTouchStart={h.getResizeHandler()}
