@@ -191,3 +191,5 @@ upgrade nang-cap-luong-chuyen-nhap-tay.sql "Lương chuyến do điều phối n
   supabase/migrations/20261118000074_trip_pay_entered.sql
 upgrade nang-cap-sua-lua-chon.sql "Sửa tên lựa chọn ngay tại ô chọn (nút bút chì)" "to_regprocedure('public.rename_field_option(uuid,text,text)') is not null" \
   supabase/migrations/20261120000075_rename_field_option.sql
+upgrade nang-cap-sao-luu-theo-gio.sql "Tự động sao lưu dữ liệu theo giờ, tải Excel, gửi email" "to_regclass('public.data_backups') is not null" \
+  supabase/migrations/20261121000076_scheduled_backups.sql

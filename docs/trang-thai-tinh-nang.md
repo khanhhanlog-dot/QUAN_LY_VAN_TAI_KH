@@ -360,3 +360,10 @@ Cần chạy `supabase/deploy/nang-cap-bao-cao-boc-xep.sql` (migration 0030) tr�
 - Chuyến 3PL (xe thuê ngoài / có nhà xe) có thêm tab "Chi phí trả 3PL" (CarrierCostsEditor, chép phí chi hộ đang nhập sang). Một nút Lưu lưu phần đã đổi: giá (saveQuickFreightPrice), phí thu khách (set_shipment_fees), chi phí 3PL (set_shipment_carrier_costs).
 - Mở khung thì nhận quyền sửa chuyến (khóa 0061); người khác đang sửa thì khung chỉ xem, có nút báo người kia thoát. Chuyến đã lập công nợ phải thu: không sửa giá và phí thu khách.
 - Mã: src/components/dispatch/quick-freight-dialog.tsx, src/lib/finance/quick-freight-actions.ts.
+
+## Sao lưu dữ liệu theo giờ, gửi email (21/11/2026, 0076)
+- Quản trị → Sao lưu dữ liệu (/sao-luu, quyền backups.view / create / configure; mặc định Admin toàn quyền, Giám đốc xem + sao lưu ngay).
+- pg_cron (job `khanh-ha-sao-luu`, 10 phút/lần) gọi public.backup_tick(): đến giờ đã chọn (system_settings backup.hours, giờ Việt Nam, mặc định 9, 14, 17) mà chưa có bản tự động thành công của giờ đó thì chụp toàn bộ bảng public (trừ nhật ký, thông báo, trò chuyện, khóa sửa, cấu hình cột) + shipment_list vào data_backups.data (jsonb). Lỗi tự thử lại tối đa 3 lần/giờ, báo người có backups.configure.
+- Giữ backup.keep_days ngày (mặc định 30), luôn chừa 3 bản thành công gần nhất. Tải về: trình duyệt đọc data rồi tạo Excel (mỗi bảng một trang tính + Mục lục), src/lib/backup-excel.ts.
+- Email: backup.emails; sau bản tự động, CSDL gọi (pg_net) POST {backup.app_url}/api/sao-luu/gui-email với mã dùng một lần (hết hạn 30 phút); ứng dụng đổi mã lấy dữ liệu kỳ (public.backup_email_payload: tháng này, ngày 1–15 kèm tháng trước), tạo Excel, gửi Gmail (biến GMAIL_USER, GMAIL_APP_PASSWORD trên Vercel), báo kết quả (backup_email_report). Nút "Sao lưu và gửi email ngay" gửi trực tiếp từ ứng dụng.
+- Không sao lưu ảnh/tệp ở Storage. Kiểm thử: supabase/tests/57_scheduled_backups_tests.sql, tests/backup-excel.test.ts. Tệp nâng cấp: supabase/deploy/nang-cap-sao-luu-theo-gio.sql (dòng kiểm tra 55).
