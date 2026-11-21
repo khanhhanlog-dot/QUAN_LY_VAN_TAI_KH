@@ -60,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/nguoi-dung", label: "Người dùng và phân quyền", icon: "Users", anyOf: ["users.view"] },
       { href: "/nhat-ky", label: "Nhật ký hệ thống", icon: "ScrollText", anyOf: ["audit_logs.view"] },
       { href: "/cau-hinh", label: "Cấu hình", icon: "Settings", anyOf: ["settings.view"] },
+      { href: "/sao-luu", label: "Sao lưu dữ liệu", icon: "DatabaseBackup", anyOf: ["backups.view"] },
     ],
   },
 ];
