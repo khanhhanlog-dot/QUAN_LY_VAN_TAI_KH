@@ -131,6 +131,10 @@ export type EntityDef = {
   leadAction?: string;
   /** Nút thao tác trên từng dòng (khóa trong bảng đăng ký components/finance/registry) */
   rowActions?: string;
+  /** Ô sửa ngay trên bảng (khóa trong CELL_EDITORS của components/finance/registry: chọn trường nào sửa được) */
+  cellEditors?: string;
+  /** Người dùng có một trong các quyền này thì được sửa ô ngay trên bảng và dùng nút sửa ở dòng (cellEditors, rowActions) */
+  rowEditAnyOf?: string[];
   /** Mọi thao tác ghi cần đúng một quyền này (ví dụ approvals.configure) */
   writePerm?: string;
   /** Thực thể có writePerm vẫn cho nhập Excel (người có writePerm) */

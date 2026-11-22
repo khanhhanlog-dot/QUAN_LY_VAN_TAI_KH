@@ -52,7 +52,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { ExportButton, ImportDialog } from "./excel-buttons";
 import { ColumnsMenu } from "@/components/grid/columns-menu";
 import { AddFieldButton } from "./add-field-button";
-import { CREATE_ACTIONS, LEAD_ACTIONS, ROW_ACTIONS, ROW_ACTION_WIDTH } from "@/components/finance/registry";
+import { CELL_EDITORS, CREATE_ACTIONS, LEAD_ACTIONS, ROW_ACTIONS, ROW_ACTION_WIDTH } from "@/components/finance/registry";
 
 type Row = Record<string, unknown>;
 
@@ -74,6 +74,8 @@ export type EntityTableProps = {
   filterOptions: Record<string, { value: string; label: string }[]>;
   view: TableViewConfig | null;
   access: EntityAccess;
+  /** Có quyền sửa dòng/ô ngay trên bảng (EntityDef.rowEditAnyOf) */
+  rowEditable?: boolean;
   /** Đường dẫn cần làm mới sau khi ghi */
   revalidate: string;
   /** Số bản ghi theo từng trạng thái cho dãy tab lọc (null nếu thực thể không có tab) */
@@ -131,6 +133,7 @@ export function EntityTable(props: EntityTableProps) {
   const [createOpen, setCreateOpenRaw] = useState(() => Boolean(CreateAction && access.create && searchParams.get("new") === "1"));
   const [prefill] = useState<Record<string, string>>(() => (searchParams.get("new") === "1" ? Object.fromEntries(searchParams.entries()) : {}));
   const RowAction = entity.rowActions ? ROW_ACTIONS[entity.rowActions] : undefined;
+  const CellEditor = entity.cellEditors && props.rowEditable ? CELL_EDITORS[entity.cellEditors] : undefined;
 
   function setCreateOpen(o: boolean) {
     setCreateOpenRaw(o);
@@ -221,6 +224,7 @@ export function EntityTable(props: EntityTableProps) {
             </button>
           );
         }
+        if (CellEditor?.fields.includes(f.key)) return <CellEditor.Cell row={r} field={f.key} text={text} onDone={() => router.refresh()} />;
         if (f.type === "select" && v != null && v !== "") {
           const opt = f.options?.find((o) => o.value === v);
           if (opt?.tone) return <Badge variant={TONE_BADGE[opt.tone]}>{opt.label}</Badge>;
@@ -265,7 +269,7 @@ export function EntityTable(props: EntityTableProps) {
       enableHiding: false,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
-          {RowAction ? <RowAction row={row.original} onDone={() => router.refresh()} /> : null}
+          {RowAction ? <RowAction row={row.original} canEdit={props.rowEditable} onDone={() => router.refresh()} /> : null}
           {entity.readOnlyRows ? (
             <Button
               size="icon"

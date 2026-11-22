@@ -52,6 +52,7 @@ export async function EntityListSection({ entityKey, searchParams, revalidate }:
       filterOptions={filterOptions}
       view={view}
       access={access}
+      rowEditable={Boolean(entity.rowEditAnyOf?.some((p) => me.permissions.has(p)))}
       statusCounts={statusCounts}
       revalidate={revalidate}
     />

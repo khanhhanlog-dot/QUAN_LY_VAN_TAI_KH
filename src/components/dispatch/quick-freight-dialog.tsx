@@ -36,7 +36,25 @@ const FUEL_CALC = ["freight_revenue", "unit_price", "total_revenue"];
  * Tờ khai, Bốc xếp…) và, với chuyến chạy 3PL, phần Chi phí trả 3PL. Dùng ở chi tiết chuyến, Điều phối, Quản lý chuyến.
  * Mở khung thì nhận quyền sửa chuyến (khóa 0061): người khác đang sửa thì chỉ xem.
  */
-export function QuickFreightButton({ shipmentId, code, compact, className }: { shipmentId: string; code: string; compact?: boolean; className?: string }) {
+export function QuickFreightButton({
+  shipmentId,
+  code,
+  compact,
+  className,
+  label,
+  carrierFirst,
+  onSaved,
+}: {
+  shipmentId: string;
+  code: string;
+  compact?: boolean;
+  className?: string;
+  /** Chữ trên nút (mặc định "Nhập cước" / "Cước") */
+  label?: string;
+  /** Mở sẵn tab Chi phí trả 3PL (màn hình Xe thuê ngoài 3PL) */
+  carrierFirst?: boolean;
+  onSaved?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -44,18 +62,30 @@ export function QuickFreightButton({ shipmentId, code, compact, className }: { s
         variant={compact ? "ghost" : "outline"}
         size="sm"
         className={cn(compact ? "h-7 px-2" : undefined, className)}
-        title={`Nhập cước, phí thu khách và chi phí 3PL chuyến ${code}`}
+        title={carrierFirst ? `Nhập cước, chi hộ, chi phí khác trả nhà xe 3PL chuyến ${code}` : `Nhập cước, phí thu khách và chi phí 3PL chuyến ${code}`}
         onClick={() => setOpen(true)}
       >
-        <CircleDollarSign /> {compact ? "Cước" : "Nhập cước"}
+        {carrierFirst ? <Truck /> : <CircleDollarSign />} {label ?? (compact ? "Cước" : "Nhập cước")}
       </Button>
-      {open ? <QuickFreightDialog shipmentId={shipmentId} code={code} onClose={() => setOpen(false)} /> : null}
+      {open ? <QuickFreightDialog shipmentId={shipmentId} code={code} carrierFirst={carrierFirst} onSaved={onSaved} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
 
 /** Khung Nhập cước: chỉ dựng khi mở (bảng nhiều dòng không tải gì trước) */
-function QuickFreightDialog({ shipmentId, code, onClose }: { shipmentId: string; code: string; onClose: () => void }) {
+function QuickFreightDialog({
+  shipmentId,
+  code,
+  carrierFirst,
+  onSaved,
+  onClose,
+}: {
+  shipmentId: string;
+  code: string;
+  carrierFirst?: boolean;
+  onSaved?: () => void;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const open = true;
   const setOpen = (o: boolean) => {
@@ -106,6 +136,7 @@ function QuickFreightDialog({ shipmentId, code, onClose }: { shipmentId: string;
     );
     setFiles({});
     setCarrier(d.carrier ? carrierFormFrom(d.carrier) : null);
+    if (carrierFirst && d.carrier) setTab("carrier");
     setDirty({ price: false, fees: false, carrier: false });
   }
 
@@ -215,6 +246,7 @@ function QuickFreightDialog({ shipmentId, code, onClose }: { shipmentId: string;
       }
       toast.success(done.length ? `Chuyến ${data.code}: đã lưu ${done.join(", ")}.` : "Không có gì thay đổi.");
       setOpen(false);
+      onSaved?.();
       router.refresh();
     });
   }
