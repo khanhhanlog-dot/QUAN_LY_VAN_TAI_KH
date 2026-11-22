@@ -2,7 +2,8 @@
 import type { ComponentType } from "react";
 import { CreateAdvanceDialog, CreateExpenseDialog, type CreateActionProps } from "./create-dialogs";
 import { CreatePayableDialog, CreatePayrollDialog, CreateReceivableDialog } from "./payroll-debt-dialogs";
-import { AdvanceRowActions, ApprovalRowActions, ExpenseRowActions, type RowActionProps } from "./row-actions";
+import { AdvanceRowActions, ApprovalRowActions, ExpenseRowActions, type CellEditorProps, type RowActionProps } from "./row-actions";
+import { CarrierAmountCell } from "./carrier-amount-cell";
 import { CreateLeaveDialog, HandoverRowActions, LeaveRowActions } from "@/components/leave/leave-dialogs";
 import { CreateTaskDialog, TaskRowActions } from "@/components/tasks/task-dialogs";
 import { CreatePurchaseRequestDialog, PurchaseRowActions } from "./purchase-dialogs";
@@ -36,6 +37,11 @@ export const ROW_ACTIONS: Record<string, ComponentType<RowActionProps>> = {
   leave_handover: HandoverRowActions,
   task: TaskRowActions,
   purchase_request: PurchaseRowActions,
+};
+
+/** Ô sửa ngay trên bảng (EntityDef.cellEditors): các trường sửa được và ô hiển thị */
+export const CELL_EDITORS: Record<string, { fields: string[]; Cell: ComponentType<CellEditorProps> }> = {
+  carrier: { fields: ["carrier_freight", "carrier_pass_through", "carrier_other"], Cell: CarrierAmountCell },
 };
 
 /** Ô thao tác ở cột đầu tiên của dòng (EntityDef.leadAction) */

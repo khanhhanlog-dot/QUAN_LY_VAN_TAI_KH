@@ -11,6 +11,7 @@ import { formatDateTime, formatVND, todayVN } from "@/lib/format";
 import { cancelDebt, cancelPayroll, listDebtPayments, payPayroll, recordDebtPayment, voidPayment, type DebtPayment } from "@/lib/finance/actions";
 import { MoneyField } from "./create-dialogs";
 import type { RowActionProps } from "./row-actions";
+import { QuickFreightButton } from "@/components/dispatch/quick-freight-dialog";
 
 const num = (v: unknown) => Number(v ?? 0);
 
@@ -413,18 +414,23 @@ export function PaymentRowActions({ row, onDone }: RowActionProps) {
   );
 }
 
-/** Báo cáo chuyến 3PL: mở chi phí 3PL của chuyến; trả tiền, xem lịch sử trả của công nợ 3PL */
-export function CarrierRowActions({ row, onDone }: RowActionProps) {
+/** Báo cáo chuyến 3PL: nhập chi phí 3PL ngay tại chỗ (khung Nhập cước, mở sẵn tab Chi phí trả 3PL); trả tiền, xem lịch sử trả của công nợ 3PL */
+export function CarrierRowActions({ row, onDone, canEdit }: RowActionProps) {
   const payable = row.payable_id
     ? { ...row, id: row.payable_id, code: row.payable_code, status: row.pay_status === "unpaid" ? "open" : row.pay_status }
     : null;
+  const label = row.pay_status === "no_cost" ? "Nhập chi phí" : "Sửa chi phí";
   return (
     <>
-      <Button asChild size="sm" variant="outline" className="h-7 px-2">
-        <Link href={`/chuyen-xe/${String(row.id)}#chi-phi-3pl`} aria-label={`Chi phí 3PL ${String(row.shipment_code)}`}>
-          <Truck className="size-3.5" /> {row.pay_status === "no_cost" ? "Nhập chi phí" : "Chi phí"}
-        </Link>
-      </Button>
+      {canEdit && row.status !== "cancelled" ? (
+        <QuickFreightButton shipmentId={String(row.id)} code={String(row.shipment_code ?? "")} label={label} carrierFirst className="h-7 px-2" onSaved={onDone} />
+      ) : (
+        <Button asChild size="sm" variant="outline" className="h-7 px-2">
+          <Link href={`/chuyen-xe/${String(row.id)}#chi-phi-3pl`} aria-label={`Chi phí 3PL ${String(row.shipment_code)}`}>
+            <Truck className="size-3.5" /> Xem chi phí
+          </Link>
+        </Button>
+      )}
       {payable ? <DebtRowActions kind="payable" row={payable} onDone={onDone} /> : null}
     </>
   );

@@ -13,7 +13,9 @@ import { DocumentsButton } from "./documents-button";
 import { PurchaseDetailButton } from "./purchase-dialogs";
 
 type Row = Record<string, unknown>;
-export type RowActionProps = { row: Row; onDone: () => void };
+export type RowActionProps = { row: Row; onDone: () => void; /** Có quyền sửa dòng (EntityDef.rowEditAnyOf) */ canEdit?: boolean };
+/** Ô sửa ngay trên bảng (EntityDef.cellEditors) */
+export type CellEditorProps = { row: Row; field: string; text: string; onDone: () => void };
 
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
 
