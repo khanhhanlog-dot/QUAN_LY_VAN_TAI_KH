@@ -49,6 +49,8 @@ Dành cho người không cần biết lập trình. Làm lần lượt 4 bướ
    |---|---|
    | `NEXT_PUBLIC_SUPABASE_URL` | Project URL ở Bước 1.5 |
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key ở Bước 1.5 (nếu là anon key thì đặt tên `NEXT_PUBLIC_SUPABASE_ANON_KEY`) |
+   | `GMAIL_USER` | *không bắt buộc*: Gmail gửi email sao lưu, ví dụ `khanhhanlog@gmail.com` |
+   | `GMAIL_APP_PASSWORD` | *không bắt buộc*: Mật khẩu ứng dụng 16 ký tự của Gmail trên (Tài khoản Google → Bảo mật → Mật khẩu ứng dụng) |
    | `NEXT_PUBLIC_SITE_URL` | *không bắt buộc*: chỉ cần khi gắn tên miền riêng; bỏ trống thì ứng dụng tự dùng link đang mở |
 
 4. Bấm **Deploy**, chờ khoảng 2–3 phút. Vercel cho một đường link, ví dụ `https://quan-ly-van-tai-kh.vercel.app`. Đây là **link ứng dụng**; link tài xế là link này thêm `/tx` ở cuối.

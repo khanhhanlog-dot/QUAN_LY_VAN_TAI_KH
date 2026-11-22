@@ -34,7 +34,8 @@ export default async function SettingsPage() {
     },
   };
   const driverRows = DRIVER_KEYS.map((k) => (data ?? []).find((s) => s.key === k)).filter((s): s is NonNullable<typeof s> => Boolean(s));
-  const otherRows = (data ?? []).filter((s) => !DRIVER_KEYS.includes(s.key));
+  // Sao lưu dữ liệu có trang riêng (Quản trị → Sao lưu dữ liệu)
+  const otherRows = (data ?? []).filter((s) => !DRIVER_KEYS.includes(s.key) && !s.key.startsWith("backup."));
   const purgeStatus = isAdmin ? ((await supabase.rpc("purge_password_status")).data as { is_set: boolean; updated_at: string | null } | null) : null;
   return (
     <>
